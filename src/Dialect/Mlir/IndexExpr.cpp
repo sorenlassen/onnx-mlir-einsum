@@ -915,6 +915,30 @@ IndexExpr IndexExpr::clamp(IndexExpr const min, IndexExpr const max) const {
   return max(list);
 }
 
+/*static*/ IndexExpr IndexExpr::broadcast(IndexExpr const first,
+    IndexExpr const second) {
+  if (first.isLiteral()) {
+    int64_t f = first.getLiteral();
+    if (f == 1)
+      return second;
+    if (second.isLiteral()) {
+      int64_t s = second.getLiteral();
+      if (s != 1 && s != f)
+        return UndefinedIndexExpr();
+    }
+    return first;
+  }
+  if (second.isLiteral()) {
+    if (second.getLiteral() == 1)
+      return first;
+    returm second;
+  }
+  // Neither first or second are literals: calculate at runtime.
+  // No runtime failure checks: returns first if it's not 1 without checking
+  // for the failure case where second is a different non-1 value.
+  return select(first == 1, second, first);
+}
+
 //===----------------------------------------------------------------------===//
 // IndexExpr Ops Derivatives
 //===----------------------------------------------------------------------===//

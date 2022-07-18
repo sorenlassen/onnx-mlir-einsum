@@ -82,7 +82,19 @@ LogicalResult ONNXMatMulOpShapeHelper::computeShape(
   assert(aDims.size() == bDims.size() && "padded A&B must have same size");
 
   // Fill in the output dimensions, start with the non-matmul dims.
+  // These must match up to broadcast.
   for (int i = 0; i < paddedRank - 2; ++i) {
+#if 1
+    if (aDims[i].isLiteralAndDifferentThan(1) &&
+        bDims[i].isLiteralAndDifferentThan(1) &&
+        aDims[i].getLiteral() != bDims[i].getLiteral())
+      // A and B 'literally' don't broadcast for this dim.
+      return op->emitError("Incompatible size detected");
+    IndexExpr bcast = IndexExpr::broadcast(aDims[i], bDims[i]);
+    assert(!bcast.isUndefined() && "broadcast must succeed since we "
+        "eliminated the case where they 'literally' don't broadcast");
+    outputDims.emplace_back(bcast);
+#else
     // Check for broadcast, then literals, then runtime for both.
     if (aDims[i].isLiteralAndIdenticalTo(1)) {
       // A is broadcast, use B dim.
@@ -96,20 +108,20 @@ LogicalResult ONNXMatMulOpShapeHelper::computeShape(
         return op->emitError("Incompatible size detected");
       outputDims.emplace_back(aDims[i]);
     } else if (aDims[i].isLiteral()) {
-      // A dim is a literal; use it here for output and b, since b
-      // is guaranteed not to be a broadcast (earlier tests).
+      // A dim is a non-1 literal. B must broadcast to it (be the same or 1).
       outputDims.emplace_back(aDims[i]);
-      bDims[i] = aDims[i]; // Add runtime check if desired.
     } else if (bDims[i].isLiteral()) {
-      // A dim is a literal; use it here for output and a, since a
-      // is guaranteed not to be a broadcast (earlier tests).
+      // B dim is a non-1 literal. A must broadcast to it (be the same or 1).
       outputDims.emplace_back(bDims[i]);
-      aDims[i] = bDims[i]; // Add runtime check if desired.
     } else {
       // Have no broadcast or literal, just pick a for output; add runtime
       // check if desired.
-      outputDims.emplace_back(aDims[i]);
+      IndexExpr bcast = IndexExpr::select(aDims[i] == 1, aDims[i], bDims[i]);
+      assert(!bcast.isUndefined() && "broadcast must succeed since we "
+          "eliminated the case where they 'literally' don't broadcast");
+      outputDims.emplace_back(bcast);
     }
+  #endif
   }
   // We now check get the last two dimensions: NxK times KxM.
   int aN = paddedRank - 2;

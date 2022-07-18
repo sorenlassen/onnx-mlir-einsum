@@ -526,6 +526,11 @@ public:
   static IndexExpr max(IndexExpr const first, IndexExpr const second);
   static IndexExpr max(IndexExpr const first, int64_t const second);
 
+  // Assuming first and second mutually broadcast, returns 1 only if both
+  // first and second are 1, otherwise the non-1 dim. Returns undefined if
+  // both are literals and are different and none of them is 1.
+  static IndexExpr broadcast(IndexExpr const first, IndexExpr const second);
+
   bool retrieveAffineMinMax(bool &isMin,
       llvm::SmallVectorImpl<mlir::Value> &vals, mlir::AffineMap &map) const;
 
