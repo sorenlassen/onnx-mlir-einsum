@@ -807,28 +807,76 @@ ONNXConstantOp ConstPropSlice(
 
   ArrayRef<int64_t> inputShape = getShape(constValue.getType());
   std::vector<int64_t> inputStrides = getStrides(inputShape);
-  ArrayRef<int64_t> outputShape = getShape(replacingValue.getType());
-  std::vector<int64_t> outputStrides = getStrides(outputShape);
 
   // Get the const value using the maximum precision e.g. double, int64_t.
   char *constArray =
       getArrayFromAttributeOrBuffer(rewriter, constValue.getDefiningOp());
 
-  // Create the result buffer using the maximum precision e.g. double, int64_t.
-  char *resArray =
-      allocateBufferFor(replacingValue.getType(), /*useMaxSize=*/true);
-
   // Get starts, ends, axes and steps via ShapeHelper.
   ONNXSliceOpShapeHelper shapeHelper(&sliceOp);
   ONNXSliceOpAdaptor operandAdaptor(sliceOp);
+
+  // If any of the other inputs is now a constant that was propagated during
+  // the current constant propagation pass then its contents is recorded in the
+  // buffer_id attribute (BUFFER_ID_ATTR) which shapeHelper.computeShape()
+  // doesn't understand and therefore needs to be converted to
+  // a value attribute.
+  for (Value arg : {operandAdaptor.starts(), operandAdaptor.ends(), operandAdaptor.axes(), operandAdaptor.steps()}) {
+    if (isFromNone(arg))
+      continue;
+    ONNXConstantOp constOp = getONNXConstantOp(arg);
+    if (constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR)) {
+      ShapedType type = constOp.getResult().getType().cast<ShapedType>();
+      char *arr = allocateBufferFor(type, /*useMaxSize=*/false);
+      getArrayForFinalOutput(constOp, arr);
+      DenseElementsAttr denseAttr =
+          createDenseElementsAttrFromRawBuffer(type, arr);
+      constOp->setAttr("value", denseAttr);
+      constOp->removeAttr(BUFFER_ID_ATTR);
+      free(arr);
+    }
+  }
+
   if (failed(shapeHelper.computeShape(operandAdaptor))) {
     sliceOp.emitError("Failed to scan " + ONNXSliceOp::getOperationName() +
                       " parameters successfully");
     return nullptr;
   }
 
+  SmallVector<int64_t, 4> outputDims;
+  IndexExpr::getShape(shapeHelper.dimsForOutput(), outputDims);
+  // The result type replacingValue.getType() may have a dynamic dim size
+  // in the case where one of the constant inputs (see issue #1610)
+  // wasn't known during the preceding shape inference pass but only
+  // became constant during cascading constant propagation in the current
+  // constant propagation pass.
+  Type elementType = getElementType(replacingValue.getType());
+  auto replacingType = RankedTensorType::get(outputDims, elementType);
+  assert(replacingType.hasStaticShape());
+  // catch 22: if we set the type of the result to get the static shape:
+  //
+  replacingValue.setType(replacingType);
+  //
+  // then we can encounter the error:
+  //
+  //   error: type of return operand 0 ('tensor<1x3x10xf32>') doesn't match
+  //   function result type ('tensor<1x?x10xf32>') in function @main_graph
+  //
+  // and if we don't then the final phase to "Create DenseElementsAttr and
+  // clean up helper attributes" in ConstPropONNXToONNXPass::runOnOperation()
+  // stumbles on the the result type with unknown dim size:
+  //
+  //   Assertion failed: (ty.cast<ShapedType>().hasStaticShape() &&
+  //   "Has unknown dimensions"), function getSizeInBytes
+
+  // Create the result buffer using the maximum precision e.g. double, int64_t.
+  char *resArray =
+      allocateBufferFor(replacingType, /*useMaxSize=*/true);
+
+  std::vector<int64_t> outputStrides = getStrides(outputDims);
+
   // Iterate over the output index space.
-  for (int64_t i = 0; i < ShapedType::getNumElements(outputShape); ++i) {
+  for (int64_t i = 0; i < ShapedType::getNumElements(outputDims); ++i) {
     // Input index: "ii * step + start" for all dim.
     // Output index: "ii" for all dims.
     // where `ii` is a tensor index.
