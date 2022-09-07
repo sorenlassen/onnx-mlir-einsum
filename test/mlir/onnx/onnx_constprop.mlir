@@ -218,7 +218,7 @@ func.func @test_mul_constant_5(%arg0 : tensor<3xi32>, %arg1: tensor<3xi32>, %arg
 
 // check of sub two constants
 
-// -----  
+// -----
 
 // CHECK-LABEL: @test_sub_1(%arg0: tensor<3x2xi32>) -> tensor<3x2xi32>
 func.func @test_sub_1(%arg0: tensor<3x2xi32>) -> tensor<3x2xi32> {
@@ -272,7 +272,7 @@ func.func @test_neg_3(%arg0: tensor<3x2xi32>) -> tensor<3x2xi32> {
 //===----------------------------------------------------------------------===//
 /// Transpose tests.
 
-// -----  
+// -----
 
 // CHECK-LABEL: test_default_transpose_const_1
   func.func @test_default_transpose_const_1() -> tensor<*xi32> {
@@ -283,7 +283,7 @@ func.func @test_neg_3(%arg0: tensor<3x2xi32>) -> tensor<3x2xi32> {
   // CHECK: return [[RES]] : tensor<4x3x2xi32>
 }
 
-// -----  
+// -----
 
 // CHECK-LABEL: test_default_transpose_const_2
 func.func @test_default_transpose_const_2() -> tensor<*xi32> {
@@ -294,7 +294,7 @@ func.func @test_default_transpose_const_2() -> tensor<*xi32> {
   // CHECK: return [[RES]] : tensor<2x4x3xi32>
 }
 
-// -----  
+// -----
 
 // CHECK-LABEL: test_default_transpose_const_3
 func.func @test_default_transpose_const_3() -> tensor<*xi32> {

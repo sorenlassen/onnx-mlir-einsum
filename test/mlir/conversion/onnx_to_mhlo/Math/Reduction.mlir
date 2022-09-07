@@ -40,7 +40,8 @@ func.func @test_reducesumV11(%arg0 : tensor<3x2x2xf32>) -> tensor<3x2xf32> {
 // CHECK: %1 = mhlo.reduce(%arg0 init: %0) applies mhlo.add across dimensions = [1] : (tensor<3x2x2xf32>, tensor<f32>) -> tensor<3x2xf32>
 }
 
-// --
+// -----
+
 func.func @test_reducesum1(%arg0: tensor<3x2x2xf32>, %arg1: tensor<?xi64>) -> tensor<3x1x2xf32> {
     %0 = "onnx.ReduceSum"(%arg0, %arg1) {keepdims = 1 : si64, noop_with_empty_axes = 1 : si64} : (tensor<3x2x2xf32>, tensor<?xi64>) -> tensor<3x1x2xf32>
     return %0 : tensor<3x1x2xf32>
