@@ -53,6 +53,9 @@ void addONNXToMLIRPasses(mlir::PassManager &pm, int transformThreshold,
   // this function.
 
   pm.addNestedPass<func::FuncOp>(onnx_mlir::createDecomposeONNXToONNXPass());
+  #if 1
+  pm.addPass(onnx_mlir::createShapeInferenceAndMorePass());
+  #else
   pm.addPass(onnx_mlir::createShapeInferencePass());
   pm.addPass(mlir::createCanonicalizerPass());
   pm.addPass(onnx_mlir::createShapeInferencePass());
@@ -78,6 +81,7 @@ void addONNXToMLIRPasses(mlir::PassManager &pm, int transformThreshold,
           onnx_mlir::createConstPropONNXToONNXPass());
     }
   }
+  #endif
 
   // Simplify shape-related ops.
   pm.addPass(onnx_mlir::createSimplifyShapeRelatedOpsPass());

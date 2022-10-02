@@ -88,7 +88,7 @@ struct ShapeInferencePass
 
   ShapeInferencePass(bool doMore = false) : doMore(doMore) {}
 
-  StringRef getArgument() const override { return "shape-inference"; }
+  StringRef getArgument() const override { return doMore ? "shape-inference-and-more" : "shape-inference"; }
 
   LogicalResult initialize(MLIRContext *context) override {
     RewritePatternSet cumulativePatterns(context);
@@ -137,7 +137,11 @@ struct ShapeInferencePass
 } // anonymous namespace
 
 std::unique_ptr<Pass> createShapeInferencePass(bool analyzeAllFunctions) {
-  return std::make_unique<ShapeInferencePass>();
+  return std::make_unique<ShapeInferencePass>(/*doMore=*/false);
+}
+
+std::unique_ptr<Pass> createShapeInferenceAndMorePass() {
+  return std::make_unique<ShapeInferencePass>(/*doMore=*/true);
 }
 #else
 static SmallVector<func::FuncOp, 4> lookUpFuncsMatching(
@@ -282,6 +286,10 @@ public:
  */
 std::unique_ptr<Pass> createShapeInferencePass(bool analyzeAllFunctions) {
   return std::make_unique<ShapeInferencePass>(analyzeAllFunctions);
+}
+
+std::unique_ptr<Pass> createShapeInferenceAndMorePass() {
+  return std::make_unique<ShapeInferencePass>(false); // dummy impl
 }
 #endif
 

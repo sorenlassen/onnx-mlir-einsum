@@ -34,6 +34,7 @@ std::unique_ptr<mlir::Pass> createConvOptONNXToONNXPass();
 
 std::unique_ptr<mlir::Pass> createShapeInferencePass(
     bool analyzeAllFunctions = false);
+std::unique_ptr<mlir::Pass> createShapeInferenceAndMorePass();
 
 std::unique_ptr<mlir::Pass> createConstPropONNXToONNXPass();
 
