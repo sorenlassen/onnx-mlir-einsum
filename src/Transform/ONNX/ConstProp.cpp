@@ -1065,6 +1065,15 @@ struct ConstPropONNXToONNXPass
 };
 } // end anonymous namespace.
 
+namespace onnx_mlir {
+void populateWithConstPropPatterns(RewritePatternSet &patterns, MLIRContext *context) {
+  populateWithGenerated(patterns);
+  patterns.insert<ConstPropSplitPattern>(context);
+  patterns.insert<ConstPropSplitV11Pattern>(context);
+  patterns.insert<ConstPropScatterNDPattern>(context);
+}
+}
+
 void ConstPropONNXToONNXPass::runOnOperation() {
   auto function = getOperation();
   MLIRContext *context = &getContext();
@@ -1073,10 +1082,7 @@ void ConstPropONNXToONNXPass::runOnOperation() {
   // target.addLegalDialect<ONNXDialect>();
 
   RewritePatternSet patterns(context);
-  populateWithGenerated(patterns);
-  patterns.insert<ConstPropSplitPattern>(&getContext());
-  patterns.insert<ConstPropSplitV11Pattern>(&getContext());
-  patterns.insert<ConstPropScatterNDPattern>(&getContext());
+  onnx_mlir::populateWithConstPropPatterns(patterns, &getContext());
   if (failed(applyPatternsAndFoldGreedily(function, std::move(patterns))))
     signalPassFailure();
 
