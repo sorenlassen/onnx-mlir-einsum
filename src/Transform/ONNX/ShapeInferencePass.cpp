@@ -31,6 +31,96 @@ using namespace mlir;
 namespace onnx_mlir {
 namespace {
 
+struct InferShapesPattern : public OpInterfaceRewritePattern<ShapeInference> {
+  using OpInterfaceRewritePattern<ShapeInference>::OpInterfaceRewritePattern;
+
+  LogicalResult matchAndRewrite(ShapeInference shapeOp,
+                                PatternRewriter &rewriter) const override {
+    // Verify the operation before attempting to infer the shape of the
+    // produced output(s).
+    Optional<RegisteredOperationName> registeredInfo =
+        shapeOp->getName().getRegisteredInfo();
+    if (registeredInfo && failed(registeredInfo->verifyInvariants(&*shapeOp)))
+      return shapeOp.emitOpError("verification failed");
+
+//llvm::errs() << "  shape op " << shapeOp << "\n";
+
+    // Infer the results shapes.
+    if (failed(shapeOp.inferShapes([](Region &region) {})))
+      return shapeOp.emitOpError("shape inference failed");
+
+    return success();
+  }
+};
+
+struct ReturnShapesPattern : public OpRewritePattern<ONNXReturnOp> {
+  using OpRewritePattern<ONNXReturnOp>::OpRewritePattern;
+
+  LogicalResult matchAndRewrite(
+      ONNXReturnOp returnOp, PatternRewriter &rewriter) const override {
+//llvm::errs() << "return op " << returnOp << ", parent " << *returnOp->getParentOp() << "\n";
+    Operation *parent = returnOp->getParentOp();
+    (void)parent;
+    assert(parent && "every onnx.Return op has a parent");
+    if (auto shapeOp = llvm::dyn_cast<ShapeInference>(parent)) {
+      if (failed(shapeOp.inferShapes([](Region &region) {})))
+        return shapeOp.emitOpError("shape inference failed");
+    } else {
+      llvm_unreachable("onnx.Return always has if/loop/scan parent");
+    }
+    return success();
+  }
+};
+
+#if 1
+struct ShapeInferencePass
+    : public PassWrapper<ShapeInferencePass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ShapeInferencePass)
+
+  // ShapeInferencePass() = default;
+  // ShapeInferencePass(const ShapeInferencePass &pass)
+  //     : mlir::PassWrapper<ShapeInferencePass, OperationPass<func::FuncOp>>() {}
+
+  StringRef getArgument() const override { return "shape-inference"; }
+
+  LogicalResult initialize(MLIRContext *context) override {
+    RewritePatternSet cumulativePatterns(context);
+    cumulativePatterns.insert<InferShapesPattern>(context);
+    cumulativePatterns.insert<ReturnShapesPattern>(context);
+
+    // for (auto *dialect : context->getLoadedDialects())
+    //   dialect->getCanonicalizationPatterns(cumulativePatterns);
+    // for (RegisteredOperationName op : context->getRegisteredOperations())
+    //   op.getCanonicalizationPatterns(cumulativePatterns, context);
+
+    patterns = FrozenRewritePatternSet(std::move(cumulativePatterns));
+    return success();
+  }
+
+  void runOnOperation() override {
+    auto f = getOperation();
+//llvm::errs() << "shape inference pass " << function.getSymName() << "\n";
+    auto &body = f.getBody();
+
+    GreedyRewriteConfig config;
+    config.useTopDownTraversal = true;
+    //config.enableRegionSimplification = false; // TODO: try to make this true
+    (void)applyPatternsAndFoldGreedily(body, patterns, config);
+
+    // Check if a terminator op exists for function.
+    if (!body.empty() && !body.back().empty() &&
+        body.back().back().hasTrait<OpTrait::IsTerminator>()) {
+      if (auto returnOp = f.getBody().back().getTerminator())
+        f.setType(
+            FunctionType::get(f.getContext(), f.getFunctionType().getInputs(),
+                returnOp->getOperandTypes()));
+    }
+  }
+
+  FrozenRewritePatternSet patterns;
+};
+
+#else
 static SmallVector<func::FuncOp, 4> lookUpFuncsMatching(
     ModuleOp module, std::regex pattern) {
   SmallVector<func::FuncOp, 4> matchedFuncs;
@@ -67,8 +157,8 @@ private:
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ShapeInferencePass)
 
-  ShapeInferencePass(bool analyzeAllFunctions)
-      : analyzeAllFunctions(analyzeAllFunctions) {}
+  ShapeInferencePass(/*bool analyzeAllFunctions*/)
+      : analyzeAllFunctions(false) {}
 
   StringRef getArgument() const override { return "shape-inference"; }
 
@@ -78,22 +168,16 @@ public:
 
   void runOnOperation() override {
     auto module = getOperation();
-    if (!analyzeAllFunctions) {
-      auto matchedFuncs =
+    SmallVector<func::FuncOp, 4> matchedFuncs;
+    if (!analyzeAllFunctions)
+      matchedFuncs =
           lookUpFuncsMatching(module, std::regex("[a-zA-Z0-9_]*main_graph"));
-      if (!matchedFuncs.empty()) {
-        for (auto func : matchedFuncs) {
-          if (failed(runShapeInferenceOn(func)))
-            signalPassFailure();
-        }
-        return;
-      }
+    if (matchedFuncs.empty())
+      matchedFuncs = lookUpFuncsMatching(module, std::regex(".*"));
+    for (auto func : matchedFuncs) {
+      if (failed(runShapeInferenceOn(func)))
+        signalPassFailure();
     }
-    auto result = module.walk([&](func::FuncOp funcOp) -> WalkResult {
-      return runShapeInferenceOn(funcOp);
-    });
-    if (result.wasInterrupted())
-      signalPassFailure();
   }
 
   static LogicalResult runShapeInferenceOnRegion(Region &r) {
@@ -171,13 +255,15 @@ public:
     });
   }
 };
+#endif
+
 } // end anonymous namespace
 
 /*!
  * Create a Shape Inference pass.
  */
 std::unique_ptr<Pass> createShapeInferencePass(bool analyzeAllFunctions) {
-  return std::make_unique<ShapeInferencePass>(analyzeAllFunctions);
+  return std::make_unique<ShapeInferencePass>(/*analyzeAllFunctions*/);
 }
 
 } // namespace onnx_mlir

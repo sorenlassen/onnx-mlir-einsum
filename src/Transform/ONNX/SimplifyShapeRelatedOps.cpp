@@ -578,7 +578,7 @@ void SimplifyShapeRelatedOpsPass::runOnOperation() {
     topDownShapeSimplification(context, moduleOp);
     OpPassManager pm("builtin.module");
     pm.addNestedPass<func::FuncOp>(onnx_mlir::createConstPropONNXToONNXPass());
-    pm.addPass(onnx_mlir::createShapeInferencePass());
+    pm.addNestedPass<func::FuncOp>(onnx_mlir::createShapeInferencePass());
     pm.addPass(mlir::createCanonicalizerPass());
     if (failed(runPipeline(pm, moduleOp)))
       return signalPassFailure();
