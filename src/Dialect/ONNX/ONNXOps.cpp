@@ -5098,19 +5098,24 @@ LogicalResult ONNXScanOp::inferShapes(
   // values of the loop body function corresponding to scan outputs, but
   // with an extra leading dimension.
   for (auto vScanOutputValToTy : llvm::zip(scan_outputs(), bodyResScanTys)) {
-    auto rankedScanTy =
-        std::get<1>(vScanOutputValToTy).cast<RankedTensorType>();
-    auto shape = rankedScanTy.getShape();
-    SmallVector<int64_t, 4> unsqueezedShape(shape.begin(), shape.end());
-    // Note that we may know the extent of the scan output leading
-    // dimension, which is very likely just the trip count specified as an
-    // input to Loop operation, but we need to eliminate the possibility of
-    // early termination to be sure.
-    auto scanExtent =
-        scan_inputs().front().getType().cast<ShapedType>().getDimSize(0);
-    unsqueezedShape.insert(unsqueezedShape.begin(), scanExtent);
-    updateType(std::get<0>(vScanOutputValToTy), unsqueezedShape,
-        rankedScanTy.getElementType());
+    if (auto rankedScanTy =
+        std::get<1>(vScanOutputValToTy).dyn_cast<RankedTensorType>()) {
+      auto shape = rankedScanTy.getShape();
+      SmallVector<int64_t, 4> unsqueezedShape(shape.begin(), shape.end());
+      // Note that we may know the extent of the scan output leading
+      // dimension, which is very likely just the trip count specified as an
+      // input to Loop operation, but we need to eliminate the possibility of
+      // early termination to be sure.
+      auto scanExtent =
+          scan_inputs().front().getType().cast<ShapedType>().getDimSize(0);
+      unsqueezedShape.insert(unsqueezedShape.begin(), scanExtent);
+      updateType(std::get<0>(vScanOutputValToTy), unsqueezedShape,
+          rankedScanTy.getElementType());
+    } else {
+      // TODO: omit this
+      assert(std::get<0>(vScanOutputValToTy).getType().cast<ShapedType>().getElementType()
+          == std::get<1>(vScanOutputValToTy).cast<ShapedType>().getElementType());
+    }
   }
 
   return success();
@@ -5698,17 +5703,22 @@ LogicalResult ONNXLoopOp::inferShapes(
   // values of the loop body function corresponding to scan outputs, but
   // with an extra leading dimension.
   for (auto vScanOutputValToTy : llvm::zip(scan_outputs(), bodyResScanTys)) {
-    auto rankedScanTy =
-        std::get<1>(vScanOutputValToTy).cast<RankedTensorType>();
-    auto shape = rankedScanTy.getShape();
-    SmallVector<int64_t, 4> unsqueezedShape(shape.begin(), shape.end());
-    // Note that we may know the extent of the scan output leading
-    // dimension, which is very likely just the trip count specified as an
-    // input to Loop operation, but we need to eliminate the possibility of
-    // early termination to be sure.
-    unsqueezedShape.insert(unsqueezedShape.begin(), -1);
-    updateType(std::get<0>(vScanOutputValToTy), unsqueezedShape,
-        rankedScanTy.getElementType());
+    if (auto rankedScanTy =
+        std::get<1>(vScanOutputValToTy).dyn_cast<RankedTensorType>()) {
+      auto shape = rankedScanTy.getShape();
+      SmallVector<int64_t, 4> unsqueezedShape(shape.begin(), shape.end());
+      // Note that we may know the extent of the scan output leading
+      // dimension, which is very likely just the trip count specified as an
+      // input to Loop operation, but we need to eliminate the possibility of
+      // early termination to be sure.
+      unsqueezedShape.insert(unsqueezedShape.begin(), -1);
+      updateType(std::get<0>(vScanOutputValToTy), unsqueezedShape,
+          rankedScanTy.getElementType());
+    } else {
+      // TODO: omit this
+      assert(std::get<0>(vScanOutputValToTy).getType().cast<ShapedType>().getElementType()
+          == std::get<1>(vScanOutputValToTy).cast<ShapedType>().getElementType());
+    }
   }
 
   return success();
