@@ -2,13 +2,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===----------- ONNXConstProp.hpp - ONNX High Level Rewriting ------------===//
-//
-// This file implements a set of rewriters to constprop an ONNX operation into
-// composition of other ONNX operations.
-//
-//===----------------------------------------------------------------------===//
-
 #pragma once
 
 namespace mlir {
