@@ -830,8 +830,8 @@ func.func @test_rnn_no_results(%arg0: tensor<4x3x2xf32>, %arg1: tensor<1x3x2xf32
   return
 
   // CHECK-LABEL: test_rnn_no_results
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.RNN"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x3x2xf32>, tensor<1x3x3xf32>, none, none, none) -> (none, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.RNN"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x3x2xf32>, tensor<1x3x3xf32>, none, none, none) -> (none, none)
   // CHECK: return
 }
 
@@ -856,8 +856,8 @@ func.func @test_rnn_missing_trailing_result(%arg0: tensor<4x3x2xf32>, %arg1: ten
   return
 
   // CHECK-LABEL: test_rnn_missing_trailing_result
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.RNN"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x3x2xf32>, tensor<1x3x3xf32>, none, none, none) -> (tensor<4x1x3x3xf32>, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.RNN"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x3x2xf32>, tensor<1x3x3xf32>, none, none, none) -> (tensor<4x1x3x3xf32>, none)
   // CHECK: return
 }
 
@@ -934,8 +934,8 @@ func.func @test_gru_no_results(%arg0: tensor<4x3x2xf32>, %arg1: tensor<1x9x2xf32
   return
 
   // CHECK-LABEL: test_gru_no_results
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.GRU"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x9x2xf32>, tensor<1x9x3xf32>, none, none, none) -> (none, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.GRU"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x9x2xf32>, tensor<1x9x3xf32>, none, none, none) -> (none, none)
   // CHECK: return
 }
 
@@ -960,8 +960,8 @@ func.func @test_gru_missing_trailing_result(%arg0: tensor<4x3x2xf32>, %arg1: ten
   return
 
   // CHECK-LABEL: test_gru_missing_trailing_result
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.GRU"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x9x2xf32>, tensor<1x9x3xf32>, none, none, none) -> (tensor<4x1x3x3xf32>, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]] = "onnx.GRU"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x9x2xf32>, tensor<1x9x3xf32>, none, none, none) -> (tensor<4x1x3x3xf32>, none)
   // CHECK: return
 }
 
@@ -1038,8 +1038,8 @@ func.func @test_lstm_no_results(%arg0: tensor<4x3x2xf32>, %arg1: tensor<1x12x2xf
   return
 
   // CHECK-LABEL: test_lstm_no_results
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]], %{{.*}} = "onnx.LSTM"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x12x2xf32>, tensor<1x12x3xf32>, none, none, none, none, none) -> (none, none, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]], %{{.*}} = "onnx.LSTM"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x12x2xf32>, tensor<1x12x3xf32>, none, none, none, none, none) -> (none, none, none)
   // CHECK: return
 }
 
@@ -1064,8 +1064,8 @@ func.func @test_lstm_missing_trailing_result(%arg0: tensor<4x3x2xf32>, %arg1: te
   return %Y_h : tensor<*xf32>
 
   // CHECK-LABEL: test_lstm_missing_trailing_result
-  // CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
-  // CHECK-NEXT: %{{.*}}, [[RES:%.+]], %{{.*}} = "onnx.LSTM"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x12x2xf32>, tensor<1x12x3xf32>, none, none, none, none, none) -> (tensor<4x1x3x3xf32>, tensor<1x3x3xf32>, none)
+  // COM: CHECK: [[CST:%.+]] = "onnx.NoValue"() {value} : () -> none  
+  // COM: CHECK-NEXT: %{{.*}}, [[RES:%.+]], %{{.*}} = "onnx.LSTM"(%arg0, %arg1, %arg2, [[CST]], [[CST]], [[CST]], [[CST]], [[CST]]) {hidden_size = 3 : si64} : (tensor<4x3x2xf32>, tensor<1x12x2xf32>, tensor<1x12x3xf32>, none, none, none, none, none) -> (tensor<4x1x3x3xf32>, tensor<1x3x3xf32>, none)
   // CHECK: return [[RES]] : tensor<1x3x3xf32>
 }
 
