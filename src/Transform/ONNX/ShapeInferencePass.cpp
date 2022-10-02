@@ -25,6 +25,7 @@
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Interface/ShapeInferenceOpInterface.hpp"
 #include "src/Pass/Passes.hpp"
+#include "src/Transform/ONNX/ConstProp.hpp"
 
 using namespace mlir;
 
@@ -85,6 +86,8 @@ struct ShapeInferencePass
   // ShapeInferencePass(const ShapeInferencePass &pass)
   //     : mlir::PassWrapper<ShapeInferencePass, OperationPass<func::FuncOp>>() {}
 
+  ShapeInferencePass(bool doMore = false) : doMore(doMore) {}
+
   StringRef getArgument() const override { return "shape-inference"; }
 
   LogicalResult initialize(MLIRContext *context) override {
@@ -92,10 +95,16 @@ struct ShapeInferencePass
     cumulativePatterns.insert<InferShapesPattern>(context);
     cumulativePatterns.insert<ReturnShapesPattern>(context);
 
-    // for (auto *dialect : context->getLoadedDialects())
-    //   dialect->getCanonicalizationPatterns(cumulativePatterns);
-    // for (RegisteredOperationName op : context->getRegisteredOperations())
-    //   op.getCanonicalizationPatterns(cumulativePatterns, context);
+    if (doMore) {
+      // canonicalization
+      for (auto *dialect : context->getLoadedDialects())
+        dialect->getCanonicalizationPatterns(cumulativePatterns);
+      for (RegisteredOperationName op : context->getRegisteredOperations())
+        op.getCanonicalizationPatterns(cumulativePatterns, context);
+
+      // constant propagation
+      populateWithConstPropPatterns(cumulativePatterns, context);
+    }
 
     patterns = FrozenRewritePatternSet(std::move(cumulativePatterns));
     return success();
@@ -121,6 +130,7 @@ struct ShapeInferencePass
     }
   }
 
+  bool doMore;
   FrozenRewritePatternSet patterns;
 };
 
