@@ -72,7 +72,11 @@ struct ReturnShapesPattern : public OpRewritePattern<ONNXReturnOp> {
   }
 };
 
+}
+
 #if 1
+namespace {
+
 struct ShapeInferencePass
     : public PassWrapper<ShapeInferencePass, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ShapeInferencePass)
@@ -120,6 +124,11 @@ struct ShapeInferencePass
   FrozenRewritePatternSet patterns;
 };
 
+} // anonymous namespace
+
+std::unique_ptr<Pass> createShapeInferencePass(bool analyzeAllFunctions) {
+  return std::make_unique<ShapeInferencePass>();
+}
 #else
 static SmallVector<func::FuncOp, 4> lookUpFuncsMatching(
     ModuleOp module, std::regex pattern) {
@@ -157,8 +166,8 @@ private:
 public:
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ShapeInferencePass)
 
-  ShapeInferencePass(/*bool analyzeAllFunctions*/)
-      : analyzeAllFunctions(false) {}
+  ShapeInferencePass(bool analyzeAllFunctions)
+      : analyzeAllFunctions(analyzeAllFunctions) {}
 
   StringRef getArgument() const override { return "shape-inference"; }
 
@@ -255,7 +264,6 @@ public:
     });
   }
 };
-#endif
 
 } // end anonymous namespace
 
@@ -263,7 +271,8 @@ public:
  * Create a Shape Inference pass.
  */
 std::unique_ptr<Pass> createShapeInferencePass(bool analyzeAllFunctions) {
-  return std::make_unique<ShapeInferencePass>(/*analyzeAllFunctions*/);
+  return std::make_unique<ShapeInferencePass>(analyzeAllFunctions);
 }
+#endif
 
 } // namespace onnx_mlir
