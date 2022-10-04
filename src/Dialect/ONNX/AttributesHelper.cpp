@@ -1,0 +1,363 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+//===------------------------ AttributesHelper.cpp ------------------------===//
+//
+// Attributes helper functions.
+//
+//===----------------------------------------------------------------------===//
+
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
+
+#include "mlir/IR/AsmState.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "llvm/Support/raw_os_ostream.h"
+
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
+#include "src/Dialect/ONNX/ONNXOps.hpp"
+#include "src/Support/Arrays.hpp"
+#include "src/Support/DType.hpp"
+#include "src/Support/WideNum.hpp"
+
+using namespace mlir;
+
+namespace onnx_mlir {
+
+namespace {
+Optional<DisposableElementsAttr::Strides> splatOrDefaultStrides(bool isSplat) {
+  if (isSplat)
+    return DisposableElementsAttr::Strides{};
+  else
+    return None;
+}
+} // namespace
+
+DenseElementsAttr toDenseElementsAttr(ElementsAttr elements) {
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>())
+    return dense;
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    ArrayBuffer<char> bytes = disposable.getRawBytes();
+    return makeDenseElementsAttrFromRawBytes(disposable.getType(), bytes.get());
+  }
+  // TODO: consider reading data from elements.getValues() instead of giving up
+  llvm_unreachable("unexpected ElementsAttr instance");
+}
+
+DisposableElementsAttr toDisposableElementsAttr(
+    DisposablePool &disposablePool, ElementsAttr elements) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
+    return disposable;
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    bool isSplat = dense.isSplat();
+    std::unique_ptr<llvm::MemoryBuffer> buffer;
+    if (dense.getElementType().isInteger(1)) {
+      size_t size = isSplat ? 1 : dense.getNumElements();
+      std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
+          llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
+      std::copy_n(
+          dense.value_begin<bool>(), size, writeBuffer->getBuffer().begin());
+      buffer = std::move(writeBuffer);
+    } else {
+      StringRef s = asStringRef(dense.getRawData());
+      buffer = llvm::MemoryBuffer::getMemBuffer(
+          s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
+    }
+    return disposablePool.createElementsAttr(
+        dense.getType(), splatOrDefaultStrides(isSplat), std::move(buffer));
+  }
+  // TODO: consider supporting more ElementsAttr types
+  llvm_unreachable("unexpected ElementsAttr instance");
+}
+
+namespace {
+
+bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
+  bool isSplat;
+  if (!DenseElementsAttr::isValidRawBuffer(type, buffer, isSplat))
+    llvm_unreachable("invalid dense int or fps raw buffer");
+  return isSplat;
+}
+
+} // namespace
+
+DenseElementsAttr makeDenseElementsAttrFromRawBytes(
+    ShapedType type, ArrayRef<char> bytes) {
+  size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
+  assert(bytes.size() == type.getNumElements() * bytewidth &&
+         "data size must match type");
+  if (type.getElementType().isInteger(1)) {
+    // don't use getFromRawBuffer which requires bit packing
+    return DenseElementsAttr::get(type, castArrayRef<bool>(bytes));
+  }
+  return DenseElementsAttr::getFromRawBuffer(type, bytes);
+}
+
+DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
+    ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
+  size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
+  assert(bytes.size() == type.getNumElements() * bytewidth &&
+         "data size must match type");
+  if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
+      disposablePool && disposablePool->isActive()) {
+    std::unique_ptr<llvm::MemoryBuffer> buffer;
+    bool isSplat = splatterBuffer(type, bytes);
+    StringRef s = asStringRef(isSplat ? bytes.take_front(bytewidth) : bytes);
+    if (mustCopy) {
+      buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
+    } else {
+      buffer = llvm::MemoryBuffer::getMemBuffer(
+          s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
+    }
+    return disposablePool->createElementsAttr(
+        type, splatOrDefaultStrides(isSplat), std::move(buffer));
+  } else {
+    return nullptr;
+  }
+}
+
+ElementsAttr makeElementsAttrFromRawBytes(
+    ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
+  if (auto disposable =
+          tryMakeDisposableElementsAttrFromRawBytes(type, bytes, mustCopy))
+    return disposable;
+  return makeDenseElementsAttrFromRawBytes(type, bytes);
+}
+
+ElementsAttr makeElementsAttrWithRawBytesFiller(
+    ShapedType type, RawBytesFiller filler) {
+  size_t size =
+      type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
+  if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
+      disposablePool && disposablePool->isActive()) {
+    std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
+        llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
+    filler(buffer->getBuffer());
+    bool isSplat = splatterBuffer(type, buffer->getBuffer());
+    (void)isSplat; // TODO: decide whether to truncate buffer if isSplat
+    return disposablePool->createElementsAttr(type, None, std::move(buffer));
+  }
+  SmallVector<char> bytes;
+  bytes.resize_for_overwrite(size);
+  filler(bytes);
+  return makeDenseElementsAttrFromRawBytes(type, bytes);
+}
+
+ArrayBuffer<char> getElementsRawBytes(ElementsAttr elements) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
+    return disposable.getRawBytes();
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    if (dense.getElementType().isInteger(1)) {
+      // bool is bit packed in dense, so we copy it out
+      size_t size = dense.isSplat() ? 1 : dense.getNumElements();
+      ArrayBuffer<char>::Vector vec;
+      vec.resize_for_overwrite(size);
+      std::copy_n(dense.value_begin<bool>(), size, vec.begin());
+      return std::move(vec);
+    }
+    return dense.getRawData(); // Single splat value or a full array.
+  }
+  llvm_unreachable("unexpected ElementsAttr instance");
+}
+
+ArrayBuffer<WideNum> getElementsWideNums(ElementsAttr elements) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
+    return disposable.getWideNums();
+  ArrayRef<char> rawData;
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    // TODO: copy out contents if bool, because raw data is bit packed
+    assert(!dense.getElementType().isInteger(1) && "bool unsupported");
+    rawData = dense.getRawData(); // Single splat value or a full array.
+  } else {
+    llvm_unreachable("unexpected ElementsAttr instance");
+  }
+  return widenOrReturnArray(elements.getElementType(), rawData);
+}
+
+namespace {
+
+void readElements(ElementsAttr elements, MutableArrayRef<WideNum> dst) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    disposable.readElements(dst);
+    return;
+  }
+  ArrayBuffer<char> src = getElementsRawBytes(elements);
+  dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
+    using S = CppType<dtype>;
+    fillOrTransform(castArrayRef<S>(src.get()), dst,
+        [](S v) { return WideNum::from<S>(toDType<S>, v); });
+  });
+}
+
+} // namespace
+
+void readIntElements(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
+  assert(elements.getType().getElementType().isa<IntegerType>());
+  readElements(elements, castMutableArrayRef<WideNum>(ints));
+}
+
+void readFPElements(ElementsAttr elements, MutableArrayRef<double> fps) {
+  assert(elements.getType().getElementType().isa<FloatType>());
+  readElements(elements, castMutableArrayRef<WideNum>(fps));
+}
+
+namespace {
+void printDenseFloatElement(const APFloat &value, raw_ostream &os, Type type) {
+  FloatAttr::get(type, value).print(os, /*elideType=*/true);
+}
+
+// Copied from mlir/lib/IR/AsmPrinter.cpp:
+void printDenseIntElement(const APInt &value, raw_ostream &os, Type type) {
+  if (type.isInteger(1))
+    os << (value.getBoolValue() ? "true" : "false");
+  else
+    value.print(os, !type.isUnsignedInteger());
+}
+
+// Copied from mlir/lib/IR/AsmPrinter.cpp:
+void printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
+    function_ref<void(unsigned)> printEltFn) {
+  // Special case for 0-d and splat tensors.
+  if (isSplat)
+    return printEltFn(0);
+
+  // Special case for degenerate tensors.
+  auto numElements = type.getNumElements();
+  if (numElements == 0)
+    return;
+
+  // We use a mixed-radix counter to iterate through the shape. When we bump a
+  // non-least-significant digit, we emit a close bracket. When we next emit an
+  // element we re-open all closed brackets.
+
+  // The mixed-radix counter, with radices in 'shape'.
+  int64_t rank = type.getRank();
+  SmallVector<unsigned, 4> counter(rank, 0);
+  // The number of brackets that have been opened and not closed.
+  unsigned openBrackets = 0;
+
+  auto shape = type.getShape();
+  auto bumpCounter = [&] {
+    // Bump the least significant digit.
+    ++counter[rank - 1];
+    // Iterate backwards bubbling back the increment.
+    for (unsigned i = rank - 1; i > 0; --i)
+      if (counter[i] >= shape[i]) {
+        // Index 'i' is rolled over. Bump (i-1) and close a bracket.
+        counter[i] = 0;
+        ++counter[i - 1];
+        --openBrackets;
+        os << ']';
+      }
+  };
+
+  for (unsigned idx = 0, e = numElements; idx != e; ++idx) {
+    if (idx != 0)
+      os << ", ";
+    while (openBrackets++ < rank)
+      os << '[';
+    openBrackets = rank;
+    printEltFn(idx);
+    bumpCounter();
+  }
+  while (openBrackets-- > 0)
+    os << ']';
+}
+
+template <typename Iterator>
+bool checkIfSplat(ElementsAttr attr, Iterator valueIt) {
+  if (attr.isSplat())
+    return true;
+  if (attr.isa<DenseElementsAttr>()) {
+    // DenseElementsAttr always reports accurate isSplat() so no need to check
+    // contents when isSplat() returned false.
+    return false;
+  }
+  int64_t numElements = attr.getNumElements();
+  if (numElements == 0)
+    return false;
+  auto first = *valueIt;
+  for (int64_t i = 1; i < numElements; ++i) {
+    if (first != *++valueIt)
+      return false;
+  }
+  return true;
+}
+} // namespace
+
+// adapted from AsmPrinter::Impl::printDenseIntOrFPElementsAttr:
+void printIntOrFPElementsAttrAsDenseWithoutType(
+    ElementsAttr attr, raw_ostream &os) {
+  auto type = attr.getType();
+  auto elementType = type.getElementType();
+  os << "dense<";
+  if (elementType.isIntOrIndex()) {
+    auto valueIt = attr.value_begin<APInt>();
+    bool isSplat = checkIfSplat(attr, valueIt);
+    printDenseElementsAttrImpl(isSplat, type, os, [&](unsigned index) {
+      printDenseIntElement(*(valueIt + index), os, elementType);
+    });
+  } else {
+    assert(elementType.isa<FloatType>() && "unexpected element type");
+    auto valueIt = attr.value_begin<APFloat>();
+    bool isSplat = checkIfSplat(attr, valueIt);
+    printDenseElementsAttrImpl(isSplat, type, os, [&](unsigned index) {
+      printDenseFloatElement(*(valueIt + index), os, elementType);
+    });
+  }
+  os << '>';
+}
+
+void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
+  printIntOrFPElementsAttrAsDenseWithoutType(attr, os);
+  os << " : " << attr.getType();
+}
+
+} // namespace onnx_mlir
+
+// Move to ONNXOps.cpp after PR #1806 lands
+
+ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
+  Attribute attr;
+  Type type;
+  if (!parser.parseOptionalAttrDict(result.attributes)) {
+    if (parser.parseColon())
+      return failure();
+    Type type;
+    if (parser.parseType(type))
+      return failure();
+    result.addTypes({type});
+  } else {
+    if (parser.parseAttribute(attr, type))
+      return failure();
+    result.addAttribute("value", attr);
+    result.addTypes({attr.cast<DenseElementsAttr>().getType()});
+  }
+  return success();
+}
+
+void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
+  Type type = getResult().getType();
+  if (auto attr = value()) {
+    auto elements = attr->cast<ElementsAttr>();
+    assert(!elements.isa<SparseElementsAttr>());
+    if (elements.getType() == type) {
+      // NOTE: we print every elements attribute as a DenseElementsAttr.
+      odsPrinter << ' ';
+      onnx_mlir::printIntOrFPElementsAttrAsDense(elements, odsPrinter.getStream());
+      return;
+    }
+  }
+  if (auto attr = sparse_value()) {
+    auto elements = attr->cast<SparseElementsAttr>();
+    if (elements.getType() == type) {
+      odsPrinter << ' ';
+      odsPrinter.printAttribute(elements);
+      return;
+    }
+  }
+  odsPrinter.printOptionalAttrDict((*this)->getAttrs(), /*elidedAttrs=*/{});
+  odsPrinter << " : " << type;
+}

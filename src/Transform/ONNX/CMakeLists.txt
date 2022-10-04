@@ -20,10 +20,12 @@ add_onnx_mlir_rewriter(ConstProp)
 add_onnx_mlir_rewriter(ConvOpt)
 
 add_onnx_mlir_library(OMONNXRewrite
+  ElementsComputer.cpp
   ConstProp.cpp
   ConvOpt.cpp
   Decompose.cpp
   DecomposeEinsum.cpp
+  ScrubDisposablePass.cpp
 
   DEPENDS
   OMONNXOps
