@@ -33,7 +33,33 @@ namespace mlir {
 
 // OpSet level supported by onnx-mlir
 static constexpr int CURRENT_ONNX_OPSET = 13;
+
+class DisposableElementsAttr;
+
 } // end namespace mlir
+
+namespace onnx_mlir {
+
+struct DisposableElementsImpl {};
+using DisposableElements = std::shared_ptr<DisposableElementsImpl>;
+class DisposableExpression {
+public:
+  DisposableElements getResult(size_t i);
+};
+using DisposableResultsHandle = DisposableExpression *;
+class DisposableElementsAttrBase : public mlir::Attribute {
+public:
+  using mlir::Attribute::Attribute;
+
+  /// Allow implicit conversion to ElementsAttr.
+  operator mlir::ElementsAttr() const {
+    return *this ? cast<mlir::ElementsAttr>() : nullptr;
+  }
+private:
+  mlir::DisposableElementsAttr *getAttr();
+};
+
+}
 
 /// Include the auto-generated header file containing the declarations of the
 /// ONNX operations.
