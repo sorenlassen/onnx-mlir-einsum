@@ -21,7 +21,7 @@ using namespace onnx_mlir;
 
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::get(DisposableElements result) {
-  return DisposableElementsAttr::get(result->type, nullptr, 0);
+  return DisposableElementsAttr::get(result->getType(), nullptr, 0);
 }
 
 }
@@ -30,7 +30,10 @@ using namespace mlir;
 
 namespace onnx_mlir {
 
-DisposableElements DisposableExpression::getResult(size_t i) { return nullptr; }
+DisposableElements DisposableExpression::getResult(size_t i) {
+  force();
+  return results[i];
+}
 
 // TODO: remove mytest
 Attribute mytest(MLIRContext *ctx) {
