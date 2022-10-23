@@ -34,11 +34,6 @@ using DisposableResultsHandle = DisposableExpression *;
 
 namespace mlir {
 
-template <typename T>
-inline auto DisposableElementsAttr::value_begin_impl(OverloadToken<Attribute>) const {
-  return nullptr;
-}
-
 inline ::onnx_mlir::DisposableElements DisposableElementsAttr::getElements() const {
   return getResultsHandle()->getResult(getResultIndex());
 }
