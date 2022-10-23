@@ -87,21 +87,6 @@ private:
 
 using DisposableElements = std::shared_ptr<DisposableElementsImpl>;
 
-// Similar to the Adaptor class for an op, but with attribute operands like
-// fold().
-class OpFoldAdaptor {
-public:
-  OpFoldAdaptor() = default;
-  // OpFoldAdaptor(OperationName opName, ArrayRef<Attribute> operands,
-  //     mlir::DictionaryAttr attrs = nullptr, mlir::RegionRange regions = {});
-  OpFoldAdaptor(mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> operands);
-private:
-  llvm::Optional<mlir::OperationName> opName;
-  llvm::SmallVector<mlir::Attribute, 2> operands;
-  mlir::DictionaryAttr attributes;
-  // No regions. Don't use OpFoldAdaptor for If, Loop, Scan.
-};
-
 // Represents the results of an operation with constant inputs,
 // lazily evaluated.
 class DisposableExpression {
@@ -119,7 +104,6 @@ private:
   bool disposed = false;
   llvm::once_flag forceOnceFlag;
   llvm::SmallVector<DisposableElements, 1> results; // only populated if forced
-  llvm::Optional<OpFoldAdaptor> opFoldAdaptor; // ignored if forced
   size_t reachableMarking = 0;
 };
 using DisposableResultsHandle = DisposableExpression *;
