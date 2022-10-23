@@ -19,8 +19,7 @@ class ONNX_Attr<string name, list<Trait> traits = [],
 
 def DisposableElementsAttr : ONNX_Attr<
     "DisposableElements",
-    [ElementsAttrInterface, TypedAttrInterface],
-    "::onnx_mlir::DisposableElementsAttrBase"
+    [ElementsAttrInterface, TypedAttrInterface]
   > {
   let summary = "An Attribute containing a dense tensor "
                 "backed by a garbage collectible memory buffer";
@@ -44,30 +43,17 @@ def DisposableElementsAttr : ONNX_Attr<
     /// TODO: Consider moving all to NonContiguousIterableTypesT
     ///       because contiguous or not depends on strides and transformation.
     using ContiguousIterableTypesT = std::tuple<
-      bool, uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
-      float, double
+      uint8_t, uint16_t, uint32_t, uint64_t, int8_t, int16_t, int32_t, int64_t,
+      bool, float, double
     >;
-    using NonContiguousIterableTypesT = std::tuple<
-      Attribute, APInt, APFloat
-    >;
+    using NonContiguousIterableTypesT = std::tuple<Attribute, APInt, APFloat>;
 
     /// Provide a `value_begin_impl` to enable iteration within ElementsAttr.
-    template <typename T>
-    auto value_begin_impl(OverloadToken<Attribute>) const {
-      return value_begin<T>();
-    }
-    template <typename T>
-    auto value_begin_impl(OverloadToken<APInt>) const {
-      return value_begin<T>();
-    }
-    template <typename T>
-    auto value_begin_impl(OverloadToken<APFloat>) const {
-      return value_begin<T>();
-    }
+    template <typename T> auto value_begin_impl(OverloadToken<Attribute>) const;
+    template <typename T> auto value_begin_impl(OverloadToken<APInt>) const;
+    template <typename T> auto value_begin_impl(OverloadToken<APFloat>) const;
 
-    ::onnx_mlir::DisposableElements getElements() const {
-      return getResultsHandle()->getResult(getResultIndex());
-    }
+    ::onnx_mlir::DisposableElements getElements() const;
   }];
   let skipDefaultBuilders = 1;
 }
