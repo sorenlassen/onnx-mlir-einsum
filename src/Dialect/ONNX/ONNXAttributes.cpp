@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/ONNX/ONNXOps.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
 #include <tuple>
 
@@ -18,8 +18,8 @@ namespace onnx_mlir {
 
 DisposableElements DisposableExpression::getResult(size_t i) { return nullptr; }
 
-mlir::DisposableElementsAttr* DisposableElementsAttrBase::getAttr() {
-  return static_cast<mlir::DisposableElementsAttr *>(this);
+DisposableElementsAttr* DisposableElementsAttrBase::getAttr() {
+  return static_cast<DisposableElementsAttr *>(this);
 }
 
 }
