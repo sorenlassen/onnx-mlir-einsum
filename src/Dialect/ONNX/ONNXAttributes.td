@@ -48,11 +48,6 @@ def DisposableElementsAttr : ONNX_Attr<
     >;
     using NonContiguousIterableTypesT = std::tuple<Attribute, APInt, APFloat>;
 
-    /// Provide a `value_begin_impl` to enable iteration within ElementsAttr.
-    template <typename T> auto value_begin_impl(OverloadToken<Attribute>) const;
-    template <typename T> auto value_begin_impl(OverloadToken<APInt>) const;
-    template <typename T> auto value_begin_impl(OverloadToken<APFloat>) const;
-
     ::onnx_mlir::DisposableElements getElements() const;
   }];
   let skipDefaultBuilders = 1;
