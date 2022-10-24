@@ -66,6 +66,12 @@ void ONNXDialect::initialize() {
       >();
 
   addOperations<
+    ImpermanentBoolElementsAttr,
+    ImpermanentI16ElementsAttr,
+    ImpermanentF32ElementsAttr,
+    ImpermanentU64ElementsAttr
+  >();
+  addOperations<
 #define GET_OP_LIST
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
       >();
