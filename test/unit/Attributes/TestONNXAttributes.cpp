@@ -82,8 +82,8 @@ public:
     assert(i.isa<ElementsAttr>());
     assert(i.isSplat());
     assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
-    //assert(!i.try_value_begin<uint64_t>());
-    ElementsAttr e = i.cast<ElementsAttr>();
+    assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
+    ElementsAttr e = i; //i.cast<ElementsAttr>();
     t = e.getType();
     assert(e.isSplat());
     assert(t);
