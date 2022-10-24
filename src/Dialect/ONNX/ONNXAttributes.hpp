@@ -120,3 +120,52 @@ inline ::onnx_mlir::DisposableElements DisposableElementsAttr::getElements() con
 }
 
 }
+
+namespace mlir {
+
+template <typename T>
+struct ImpermanentElementsAttributeStorage : public AttributeStorage {
+  using KeyTy = ShapedType;
+  ImpermanentElementsAttributeStorage(ShapedType type) : type(type) {}
+
+  bool operator==(const KeyTy &key) const {
+    return type == key;
+  }
+
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return llvm::hash_combine(key);
+  }
+
+  static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, ShapedType type) {
+      return new (allocator.allocate<ImpermanentElementsAttributeStorage>())
+      ImpermanentElementsAttributeStorage(type);
+  }
+  ShapedType type;
+};
+
+template <typename T>
+class ImpermanentElementsAttr : public Attribute::AttrBase<ImpermanentElementsAttr<T>,
+  Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait> {
+public:
+  using Super = Attribute::AttrBase<ImpermanentElementsAttr<T>,
+  Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
+  using Super::Base::Base;
+  ImpermanentElementsAttr(std::nullptr_t) {}
+  static ImpermanentElementsAttr get(ShapedType type) {
+    return Super::Base::get(type.getContext(), type);
+    // ImpermanentElementsAttributeStorage<T> *p = nullptr;
+    // return typename Super::Base::Base(p);
+  }
+  Type getType() const { return this->getImpl()->key; }
+};
+using ImpermanentBoolElementsAttr = ImpermanentElementsAttr<bool>;
+using ImpermanentI16ElementsAttr = ImpermanentElementsAttr<int16_t>;
+using ImpermanentF32ElementsAttr = ImpermanentElementsAttr<float>;
+using ImpermanentU64ElementsAttr = ImpermanentElementsAttr<uint64_t>;
+
+}
+
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentBoolElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF32ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
