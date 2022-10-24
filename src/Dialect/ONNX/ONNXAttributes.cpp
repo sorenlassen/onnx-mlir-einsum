@@ -46,7 +46,7 @@ Attribute mytest(MLIRContext *ctx) {
   ShapedType type = RankedTensorType::get({}, b.getF16Type());
   Attribute a;
   a = DisposableElementsAttr::get(type, nullptr, 0);
-  a = ImpermanentI16ElementsAttr::get(type);
+  a = ImpermanentI16ElementsAttr::get(type, nullptr);
   return a;
 }
 
