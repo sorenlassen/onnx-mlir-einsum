@@ -61,16 +61,16 @@ void ONNXDialect::initialize() {
       >();
 
   addAttributes<
-#define GET_ATTRDEF_LIST
-#include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
-      >();
-
-  addOperations<
     ImpermanentBoolElementsAttr,
     ImpermanentI16ElementsAttr,
     ImpermanentF32ElementsAttr,
     ImpermanentU64ElementsAttr
   >();
+  addAttributes<
+#define GET_ATTRDEF_LIST
+#include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
+      >();
+
   addOperations<
 #define GET_OP_LIST
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
