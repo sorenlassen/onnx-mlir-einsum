@@ -244,6 +244,5 @@ class ONNX_Op<string mnemonic, list<Trait> traits = []> :
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "src/Dialect/ONNX/ONNXOps.td.inc"
 include "src/Dialect/ONNX/AdditionalONNXOps.td"
-//include "src/Dialect/ONNX/ONNXAttributes.td"
 
 #endif // ONNX_OPS
