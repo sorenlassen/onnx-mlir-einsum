@@ -65,6 +65,10 @@ public:
     return a;
   }
   ImpermanentElementsAttr(std::nullptr_t) {}
+  // Allow implicit conversion to ElementsAttr.
+  operator ElementsAttr() const {
+    return *this ? this->template cast<ElementsAttr>() : nullptr;
+  }
   bool isSplat() const { return true; } // TODO: return true iff strides is all-zeros
   uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const { return 0; } // TODO: return strides calculation
   Type getType() const { return this->getImpl()->type; }
