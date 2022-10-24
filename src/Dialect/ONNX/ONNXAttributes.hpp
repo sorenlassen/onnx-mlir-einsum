@@ -125,22 +125,26 @@ namespace mlir {
 
 template <typename T>
 struct ImpermanentElementsAttributeStorage : public AttributeStorage {
-  using KeyTy = ShapedType;
-  ImpermanentElementsAttributeStorage(ShapedType type) : type(type) {}
+  using KeyTy = std::tuple<ShapedType, llvm::MemoryBuffer *>;
+  ImpermanentElementsAttributeStorage(ShapedType type, std::unique_ptr<llvm::MemoryBuffer> buffer) : type(type), buffer(std::move(buffer)) {}
 
   bool operator==(const KeyTy &key) const {
-    return type == key;
+    return type == std::get<0>(key) && buffer.get() == std::get<1>(key);
   }
 
   static llvm::hash_code hashKey(const KeyTy &key) {
     return llvm::hash_combine(key);
   }
 
-  static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, ShapedType type) {
-      return new (allocator.allocate<ImpermanentElementsAttributeStorage>())
-      ImpermanentElementsAttributeStorage(type);
+  static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
+    ShapedType type = std::get<0>(key);
+    llvm::MemoryBuffer *buffer = std::get<1>(key);
+    return new (allocator.allocate<ImpermanentElementsAttributeStorage>())
+      ImpermanentElementsAttributeStorage(type, std::unique_ptr<llvm::MemoryBuffer>(buffer));
   }
+
   ShapedType type;
+  std::unique_ptr<llvm::MemoryBuffer> buffer;
 };
 
 template <typename T>
@@ -151,12 +155,10 @@ public:
   Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
   using Super::Base::Base;
   ImpermanentElementsAttr(std::nullptr_t) {}
-  static ImpermanentElementsAttr get(ShapedType type) {
-    return Super::Base::get(type.getContext(), type);
-    // ImpermanentElementsAttributeStorage<T> *p = nullptr;
-    // return typename Super::Base::Base(p);
+  static ImpermanentElementsAttr get(ShapedType type, std::unique_ptr<llvm::MemoryBuffer> buffer) {
+    return Super::Base::get(type.getContext(), type, buffer.release());
   }
-  Type getType() const { return this->getImpl()->key; }
+  Type getType() const { return this->getImpl()->type; }
 };
 using ImpermanentBoolElementsAttr = ImpermanentElementsAttr<bool>;
 using ImpermanentI16ElementsAttr = ImpermanentElementsAttr<int16_t>;
