@@ -64,12 +64,11 @@ public:
     a.set(std::move(buffer), std::move(transform));
     return a;
   }
-  //using ContiguousIterableTypesT = std::tuple<>;
-  //using NonContiguousIterableTypesT = std::tuple<Attribute, APInt, APFloat, T>;
   ImpermanentElementsAttr(std::nullptr_t) {}
   bool isSplat() const { return true; } // TODO: return true iff strides is all-zeros
   uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const { return 0; } // TODO: return strides calculation
   Type getType() const { return this->getImpl()->type; }
+  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const { return failure(); } // TODO: implement
 private:
   void set(Buffer buffer, Transform transform) {
     this->getImpl()->buffer = std::move(buffer);
