@@ -88,8 +88,7 @@ public:
     assert(e.isSplat());
     assert(t);
     llvm::errs() << "type:" << t << "\n";
-    assert(!t);
-    (void)t;
+    assert(failed(e.getValuesImpl(TypeID::get<uint64_t>())));
     return 0;
   }
 };
