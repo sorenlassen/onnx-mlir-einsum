@@ -26,6 +26,11 @@ DisposableElementsAttr DisposableElementsAttr::get(DisposableElements result) {
 
 }
 
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentBoolElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI16ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF32ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
+
 using namespace mlir;
 
 namespace onnx_mlir {
@@ -38,7 +43,11 @@ DisposableElements DisposableExpression::getResult(size_t i) {
 // TODO: remove mytest
 Attribute mytest(MLIRContext *ctx) {
   Builder b(ctx);
-  return DisposableElementsAttr::get(RankedTensorType::get({}, b.getF16Type()), nullptr, 0);
+  ShapedType type = RankedTensorType::get({}, b.getF16Type());
+  Attribute a;
+  a = DisposableElementsAttr::get(type, nullptr, 0);
+  a = ImpermanentI16ElementsAttr::get(type);
+  return a;
 }
 
 }
