@@ -61,10 +61,10 @@ void ONNXDialect::initialize() {
       >();
 
   addAttributes<
-    ImpermanentBoolElementsAttr,
-    ImpermanentI16ElementsAttr,
-    ImpermanentF32ElementsAttr,
-    ImpermanentU64ElementsAttr
+    DisposableBoolElementsAttr,
+    DisposableI16ElementsAttr,
+    DisposableF32ElementsAttr,
+    DisposableU64ElementsAttr
   >();
   addAttributes<
 #define GET_ATTRDEF_LIST

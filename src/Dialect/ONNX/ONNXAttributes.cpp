@@ -10,23 +10,23 @@
 
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
-template class ::mlir::ImpermanentElementsAttr<bool>;
-template class ::mlir::ImpermanentElementsAttr<int8_t>;
-template class ::mlir::ImpermanentElementsAttr<uint8_t>;
-template class ::mlir::ImpermanentElementsAttr<int16_t>;
-template class ::mlir::ImpermanentElementsAttr<uint16_t>;
-template class ::mlir::ImpermanentElementsAttr<::onnx_mlir::float_16>;
-template class ::mlir::ImpermanentElementsAttr<float>;
-template class ::mlir::ImpermanentElementsAttr<uint64_t>;
+template class ::mlir::DisposableElementsAttr<bool>;
+template class ::mlir::DisposableElementsAttr<int8_t>;
+template class ::mlir::DisposableElementsAttr<uint8_t>;
+template class ::mlir::DisposableElementsAttr<int16_t>;
+template class ::mlir::DisposableElementsAttr<uint16_t>;
+template class ::mlir::DisposableElementsAttr<::onnx_mlir::float_16>;
+template class ::mlir::DisposableElementsAttr<float>;
+template class ::mlir::DisposableElementsAttr<uint64_t>;
 
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentBoolElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI8ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU8ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI16ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU16ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF16ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF32ElementsAttr)
-MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableBoolElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableI8ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableU8ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableI16ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableU16ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableF16ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableF32ElementsAttr)
+MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableU64ElementsAttr)
 
 namespace mlir {
 
