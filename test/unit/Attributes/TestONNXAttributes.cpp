@@ -12,8 +12,8 @@
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXOpsHelper.hpp"
 
-#include "llvm/Support/raw_ostream.h"
 #include "mlir/IR/Builders.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <iostream>
@@ -83,7 +83,7 @@ public:
     assert(i.isSplat());
     assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
     assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
-    ElementsAttr e = i; //i.cast<ElementsAttr>();
+    ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
     assert(e.isSplat());
     assert(t);

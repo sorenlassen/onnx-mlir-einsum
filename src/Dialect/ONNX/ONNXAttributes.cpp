@@ -35,4 +35,4 @@ size_t detail::uniqueNumber() {
   return ++counter;
 }
 
-}
+} // namespace mlir
