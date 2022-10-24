@@ -26,6 +26,7 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXEinsumOpHelper.hpp"
 #include "src/Dialect/ONNX/ONNXLayoutHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
@@ -66,6 +67,12 @@ void ONNXDialect::initialize() {
 #include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
       >();
 
+  addOperations<
+    ImpermanentBoolElementsAttr,
+    ImpermanentI16ElementsAttr,
+    ImpermanentF32ElementsAttr,
+    ImpermanentU64ElementsAttr
+  >();
   addOperations<
 #define GET_OP_LIST
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
