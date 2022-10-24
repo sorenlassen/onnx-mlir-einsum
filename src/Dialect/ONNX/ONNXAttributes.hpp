@@ -20,7 +20,9 @@
 
 namespace mlir {
 
+namespace detail {
 size_t uniqueNumber(); // implemented with static atomic counter
+}
 
 template <typename T>
 struct ImpermanentElementsAttributeStorage : public AttributeStorage {
@@ -33,7 +35,7 @@ struct ImpermanentElementsAttributeStorage : public AttributeStorage {
     : type(type), strides(strides) {}
 
   bool operator==(const KeyTy &key) const { return false; }
-  static llvm::hash_code hashKey(const KeyTy &key) { return uniqueNumber(); }
+  static llvm::hash_code hashKey(const KeyTy &key) { return detail::uniqueNumber(); }
 
   static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
     const ShapedType& type = std::get<0>(key);
