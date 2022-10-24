@@ -19,6 +19,7 @@
 
 #include <memory>
 
+#if 0
 namespace onnx_mlir {
 
 // The buffer can be mmap'ed to a file or be heap allocated or point into
@@ -93,18 +94,18 @@ class DisposableExpression {
 public:
   DisposableExpression(DisposableElements result);
   DisposableElements getResult(size_t i);
-  void force() { // should this be private?
-    llvm::call_once(forceOnceFlag, [this]{ this->doForce(); });
-  }
-  void markReachable(size_t gcCycle); // marks all decendants reachable
-  void dispose();
-  bool isDisposed() const { return disposed; }
+//   void force() { // should this be private?
+//     llvm::call_once(forceOnceFlag, [this]{ this->doForce(); });
+//   }
+//   void markReachable(size_t gcCycle); // marks all decendants reachable
+//   void dispose();
+//   bool isDisposed() const { return disposed; }
 private:
-  void doForce(); // populates results if not already forced
-  bool disposed = false;
-  llvm::once_flag forceOnceFlag;
+//   void doForce(); // populates results if not already forced
+//   bool disposed = false;
+//   llvm::once_flag forceOnceFlag;
   llvm::SmallVector<DisposableElements, 1> results; // only populated if forced
-  size_t reachableMarking = 0;
+//   size_t reachableMarking = 0;
 };
 using DisposableResultsHandle = DisposableExpression *;
 
@@ -120,45 +121,67 @@ inline ::onnx_mlir::DisposableElements DisposableElementsAttr::getElements() con
 }
 
 }
+#endif
 
 namespace mlir {
 
+void addONNXAttributes();
+
+size_t uniqueNumber(); // implemented with static atomic counter
+
 template <typename T>
 struct ImpermanentElementsAttributeStorage : public AttributeStorage {
-  using KeyTy = std::tuple<ShapedType, llvm::MemoryBuffer *>;
-  ImpermanentElementsAttributeStorage(ShapedType type, std::unique_ptr<llvm::MemoryBuffer> buffer) : type(type), buffer(std::move(buffer)) {}
+  using Strides = ArrayRef<int64_t>;
+  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
+  using Transform = std::function<T(ArrayRef<char>, size_t)>;
+  using KeyTy = std::tuple<ShapedType, Strides>;
 
-  bool operator==(const KeyTy &key) const {
-    return type == std::get<0>(key) && buffer.get() == std::get<1>(key);
-  }
+  ImpermanentElementsAttributeStorage(ShapedType type, Strides strides)
+    : type(type), strides(strides) {}
 
-  static llvm::hash_code hashKey(const KeyTy &key) {
-    return llvm::hash_combine(key);
-  }
+  bool operator==(const KeyTy &key) const { return false; }
+  static llvm::hash_code hashKey(const KeyTy &key) { return uniqueNumber(); }
 
   static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
-    ShapedType type = std::get<0>(key);
-    llvm::MemoryBuffer *buffer = std::get<1>(key);
+    const ShapedType& type = std::get<0>(key);
+    const Strides& strides = std::get<1>(key);
     return new (allocator.allocate<ImpermanentElementsAttributeStorage>())
-      ImpermanentElementsAttributeStorage(type, std::unique_ptr<llvm::MemoryBuffer>(buffer));
+      ImpermanentElementsAttributeStorage(type, allocator.copyInto(strides));
   }
 
   ShapedType type;
-  std::unique_ptr<llvm::MemoryBuffer> buffer;
+  Strides strides;
+  Buffer buffer;
+  Transform transform;
 };
 
 template <typename T>
 class ImpermanentElementsAttr : public Attribute::AttrBase<ImpermanentElementsAttr<T>,
   Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait> {
 public:
-  using Super = Attribute::AttrBase<ImpermanentElementsAttr<T>,
-  Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
+  using Storage = ImpermanentElementsAttributeStorage<T>;
+  using Strides = typename Storage::Strides;
+  using Buffer = typename Storage::Buffer;
+  using Transform = typename Storage::Transform;
+  using Super = Attribute::AttrBase<ImpermanentElementsAttr<T>, Attribute,
+      ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
   using Super::Base::Base;
-  ImpermanentElementsAttr(std::nullptr_t) {}
-  static ImpermanentElementsAttr get(ShapedType type, std::unique_ptr<llvm::MemoryBuffer> buffer) {
-    return Super::Base::get(type.getContext(), type, buffer.release());
+  static ImpermanentElementsAttr get(ShapedType type, Strides strides, Buffer buffer, Transform transform) {
+    ImpermanentElementsAttr a = Super::Base::get(type.getContext(), type, strides);
+    a.set(std::move(buffer), std::move(transform));
+    return a;
   }
+  //using ContiguousIterableTypesT = std::tuple<>;
+  //using NonContiguousIterableTypesT = std::tuple<Attribute, APInt, APFloat, T>;
+  ImpermanentElementsAttr(std::nullptr_t) {}
+  bool isSplat() const { return true; } // TODO: return true iff strides is all-zeros
+  uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const { return 0; } // TODO: return strides calculation
   Type getType() const { return this->getImpl()->type; }
+private:
+  void set(Buffer buffer, Transform transform) {
+    this->getImpl()->buffer = std::move(buffer);
+    this->getImpl()->transform = std::move(transform);
+  }
 };
 using ImpermanentBoolElementsAttr = ImpermanentElementsAttr<bool>;
 using ImpermanentI16ElementsAttr = ImpermanentElementsAttr<int16_t>;
