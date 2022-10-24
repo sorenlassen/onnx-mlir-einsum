@@ -17,7 +17,7 @@ MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
 
 namespace mlir {
 
-size_t uniqueNumber() {
+size_t detail::uniqueNumber() {
   static std::atomic<size_t> counter{0};
   return ++counter;
 }
