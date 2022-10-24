@@ -4,7 +4,7 @@
 
 //============-- TestONNXAttributes.cpp - ONNXAttributes tests --=============//
 //
-// Tests Impermanent*ElementsAttr.
+// Tests Disposable*ElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 
@@ -72,10 +72,10 @@ public:
   int test_attributes() {
     ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
     Attribute a;
-    a = ImpermanentU64ElementsAttr::get(type, {}, nullptr, nullptr);
+    a = DisposableU64ElementsAttr::get(type, {}, nullptr, nullptr);
     assert(a);
-    assert(a.isa<ImpermanentU64ElementsAttr>());
-    ImpermanentU64ElementsAttr i = a.cast<ImpermanentU64ElementsAttr>();
+    assert(a.isa<DisposableU64ElementsAttr>());
+    DisposableU64ElementsAttr i = a.cast<DisposableU64ElementsAttr>();
     ShapedType t = i.getType();
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";

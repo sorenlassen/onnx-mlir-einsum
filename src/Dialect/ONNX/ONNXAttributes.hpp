@@ -36,7 +36,7 @@ size_t uniqueNumber();
 }
 
 template <typename T>
-struct ImpermanentElementsAttributeStorage : public AttributeStorage {
+struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Transform = std::function<T(ArrayRef<char>, size_t)>;
@@ -44,7 +44,7 @@ struct ImpermanentElementsAttributeStorage : public AttributeStorage {
 
   // Constructs only type and strides while the caller sets buffer and transform
   // after construction to minimize copying.
-  ImpermanentElementsAttributeStorage(ShapedType type, Strides strides)
+  DisposableElementsAttributeStorage(ShapedType type, Strides strides)
     : type(type), strides(strides) {}
 
   // Equality and hashKey are engineered to defeat the storage uniquer.
@@ -55,11 +55,11 @@ struct ImpermanentElementsAttributeStorage : public AttributeStorage {
   bool operator==(const KeyTy &key) const { return false; }
   static llvm::hash_code hashKey(const KeyTy &key) { return detail::uniqueNumber(); }
 
-  static ImpermanentElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
+  static DisposableElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
     ShapedType type = std::get<0>(key);
     Strides strides = std::get<1>(key);
-    return new (allocator.allocate<ImpermanentElementsAttributeStorage>())
-      ImpermanentElementsAttributeStorage(type, allocator.copyInto(strides));
+    return new (allocator.allocate<DisposableElementsAttributeStorage>())
+      DisposableElementsAttributeStorage(type, allocator.copyInto(strides));
   }
 
   // The tensor shape and element type that this object represents.
@@ -84,40 +84,40 @@ struct ImpermanentElementsAttributeStorage : public AttributeStorage {
   // number of elements from strides and type's shape and then deduce the
   // data type bytewidth from the buffer's size in bytes.
   //
-  // Garbage collection clears the buffer when the ImpermanentElementsAttr is
+  // Garbage collection clears the buffer when the DisposableElementsAttr is
   // disposed.
   //
-  // Multiple ImpermanentElementsAttr can point to the same MemoryBuffer.
+  // Multiple DisposableElementsAttr can point to the same MemoryBuffer.
   // The MemoryBuffer is destroyed (and heap allocated data freed or mmap'ed file
   // closed) when no one points to it anymore.
   Buffer buffer;
 
   // Element wise transform of the buffer elements to values of Cpp type T.
   //
-  // Garbage collection clears the transform when the ImpermanentElementsAttr is
+  // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
   Transform transform;
 };
 
 template <typename T>
-class ImpermanentElementsAttr : public Attribute::AttrBase<ImpermanentElementsAttr<T>,
-  Attribute, ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait> {
+class DisposableElementsAttr : public Attribute::AttrBase<DisposableElementsAttr<T>,
+  Attribute, DisposableElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait> {
 public:
-  using Storage = ImpermanentElementsAttributeStorage<T>;
+  using Storage = DisposableElementsAttributeStorage<T>;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
   using Transform = typename Storage::Transform;
-  using Super = Attribute::AttrBase<ImpermanentElementsAttr<T>, Attribute,
-      ImpermanentElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
+  using Super = Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
+      DisposableElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
   using Super::Base::Base;
-  static ImpermanentElementsAttr get(ShapedType type, Strides strides, Buffer buffer, Transform transform) {
-    ImpermanentElementsAttr a = Super::Base::get(type.getContext(), type, strides);
+  static DisposableElementsAttr get(ShapedType type, Strides strides, Buffer buffer, Transform transform) {
+    DisposableElementsAttr a = Super::Base::get(type.getContext(), type, strides);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
     s.transform = std::move(transform);
     return a;
   }
-  ImpermanentElementsAttr(std::nullptr_t) {}
+  DisposableElementsAttr(std::nullptr_t) {}
   // Allow implicit conversion to ElementsAttr.
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
@@ -128,31 +128,31 @@ public:
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const { return failure(); } // TODO: implement
 };
 
-extern template class ImpermanentElementsAttr<bool>;
-extern template class ImpermanentElementsAttr<int8_t>;
-extern template class ImpermanentElementsAttr<uint8_t>;
-extern template class ImpermanentElementsAttr<int16_t>;
-extern template class ImpermanentElementsAttr<uint16_t>;
-extern template class ImpermanentElementsAttr<::onnx_mlir::float_16>;
-extern template class ImpermanentElementsAttr<float>;
-extern template class ImpermanentElementsAttr<uint64_t>;
+extern template class DisposableElementsAttr<bool>;
+extern template class DisposableElementsAttr<int8_t>;
+extern template class DisposableElementsAttr<uint8_t>;
+extern template class DisposableElementsAttr<int16_t>;
+extern template class DisposableElementsAttr<uint16_t>;
+extern template class DisposableElementsAttr<::onnx_mlir::float_16>;
+extern template class DisposableElementsAttr<float>;
+extern template class DisposableElementsAttr<uint64_t>;
 
-using ImpermanentBoolElementsAttr = ImpermanentElementsAttr<bool>;
-using ImpermanentI8ElementsAttr = ImpermanentElementsAttr<int8_t>;
-using ImpermanentU8ElementsAttr = ImpermanentElementsAttr<uint8_t>;
-using ImpermanentI16ElementsAttr = ImpermanentElementsAttr<int16_t>;
-using ImpermanentU16ElementsAttr = ImpermanentElementsAttr<uint16_t>;
-using ImpermanentF16ElementsAttr = ImpermanentElementsAttr<::onnx_mlir::float_16>;
-using ImpermanentF32ElementsAttr = ImpermanentElementsAttr<float>;
-using ImpermanentU64ElementsAttr = ImpermanentElementsAttr<uint64_t>;
+using DisposableBoolElementsAttr = DisposableElementsAttr<bool>;
+using DisposableI8ElementsAttr = DisposableElementsAttr<int8_t>;
+using DisposableU8ElementsAttr = DisposableElementsAttr<uint8_t>;
+using DisposableI16ElementsAttr = DisposableElementsAttr<int16_t>;
+using DisposableU16ElementsAttr = DisposableElementsAttr<uint16_t>;
+using DisposableF16ElementsAttr = DisposableElementsAttr<::onnx_mlir::float_16>;
+using DisposableF32ElementsAttr = DisposableElementsAttr<float>;
+using DisposableU64ElementsAttr = DisposableElementsAttr<uint64_t>;
 
 }
 
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentBoolElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI8ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU8ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF32ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableBoolElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableI8ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU8ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableI16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableF16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableF32ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU64ElementsAttr)
