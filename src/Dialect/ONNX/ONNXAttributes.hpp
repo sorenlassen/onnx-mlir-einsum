@@ -18,6 +18,15 @@
 
 #include <memory>
 
+namespace onnx_mlir {
+// Represents a FLOAT16 value with the correct bitwidth and in a form that
+// is unambiguous when used as a template parameter alongside the other basic
+// Cpp data types uint16_t, float, etc.
+//
+// TODO: Move to DType.h
+struct float_16 { uint16_t u; };
+}
+
 namespace mlir {
 
 namespace detail {
@@ -103,7 +112,9 @@ public:
   using Super::Base::Base;
   static ImpermanentElementsAttr get(ShapedType type, Strides strides, Buffer buffer, Transform transform) {
     ImpermanentElementsAttr a = Super::Base::get(type.getContext(), type, strides);
-    a.set(std::move(buffer), std::move(transform));
+    Storage &s = *a.getImpl();
+    s.buffer = std::move(buffer);
+    s.transform = std::move(transform);
     return a;
   }
   ImpermanentElementsAttr(std::nullptr_t) {}
@@ -115,20 +126,33 @@ public:
   uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const { return 0; } // TODO: return strides calculation
   Type getType() const { return this->getImpl()->type; }
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const { return failure(); } // TODO: implement
-private:
-  void set(Buffer buffer, Transform transform) {
-    this->getImpl()->buffer = std::move(buffer);
-    this->getImpl()->transform = std::move(transform);
-  }
 };
+
+extern template class ImpermanentElementsAttr<bool>;
+extern template class ImpermanentElementsAttr<int8_t>;
+extern template class ImpermanentElementsAttr<uint8_t>;
+extern template class ImpermanentElementsAttr<int16_t>;
+extern template class ImpermanentElementsAttr<uint16_t>;
+extern template class ImpermanentElementsAttr<::onnx_mlir::float_16>;
+extern template class ImpermanentElementsAttr<float>;
+extern template class ImpermanentElementsAttr<uint64_t>;
+
 using ImpermanentBoolElementsAttr = ImpermanentElementsAttr<bool>;
+using ImpermanentI8ElementsAttr = ImpermanentElementsAttr<int8_t>;
+using ImpermanentU8ElementsAttr = ImpermanentElementsAttr<uint8_t>;
 using ImpermanentI16ElementsAttr = ImpermanentElementsAttr<int16_t>;
+using ImpermanentU16ElementsAttr = ImpermanentElementsAttr<uint16_t>;
+using ImpermanentF16ElementsAttr = ImpermanentElementsAttr<::onnx_mlir::float_16>;
 using ImpermanentF32ElementsAttr = ImpermanentElementsAttr<float>;
 using ImpermanentU64ElementsAttr = ImpermanentElementsAttr<uint64_t>;
 
 }
 
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentBoolElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI8ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU8ElementsAttr)
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentI16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU16ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF16ElementsAttr)
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentF32ElementsAttr)
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::ImpermanentU64ElementsAttr)
