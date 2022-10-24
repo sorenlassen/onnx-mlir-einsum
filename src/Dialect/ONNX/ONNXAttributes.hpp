@@ -10,8 +10,8 @@
 
 #pragma once
 
-#include "mlir/IR/Attributes.h"
 #include "mlir/IR/AttributeSupport.h"
+#include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/Support/MemoryBuffer.h"
@@ -24,8 +24,10 @@ namespace onnx_mlir {
 // Cpp data types uint16_t, float, etc.
 //
 // TODO: Move to DType.h
-struct float_16 { uint16_t u; };
-}
+struct float_16 {
+  uint16_t u;
+};
+} // namespace onnx_mlir
 
 namespace mlir {
 
@@ -33,7 +35,7 @@ namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
 // to defeat the storage uniquer.
 size_t uniqueNumber();
-}
+} // namespace detail
 
 template <typename T>
 struct DisposableElementsAttributeStorage : public AttributeStorage {
@@ -45,7 +47,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // Constructs only type and strides while the caller sets buffer and transform
   // after construction to minimize copying.
   DisposableElementsAttributeStorage(ShapedType type, Strides strides)
-    : type(type), strides(strides) {}
+      : type(type), strides(strides) {}
 
   // Equality and hashKey are engineered to defeat the storage uniquer.
   // We don't want uniqueing because we can't compare transforms for equality
@@ -53,13 +55,16 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // same buffer address but there is an undetectable mismatch because the
   // buffer and transform were disposed by garbage collection.
   bool operator==(const KeyTy &key) const { return false; }
-  static llvm::hash_code hashKey(const KeyTy &key) { return detail::uniqueNumber(); }
+  static llvm::hash_code hashKey(const KeyTy &key) {
+    return detail::uniqueNumber();
+  }
 
-  static DisposableElementsAttributeStorage *construct(AttributeStorageAllocator &allocator, const KeyTy &key) {
+  static DisposableElementsAttributeStorage *construct(
+      AttributeStorageAllocator &allocator, const KeyTy &key) {
     ShapedType type = std::get<0>(key);
     Strides strides = std::get<1>(key);
     return new (allocator.allocate<DisposableElementsAttributeStorage>())
-      DisposableElementsAttributeStorage(type, allocator.copyInto(strides));
+        DisposableElementsAttributeStorage(type, allocator.copyInto(strides));
   }
 
   // The tensor shape and element type that this object represents.
@@ -88,8 +93,8 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // disposed.
   //
   // Multiple DisposableElementsAttr can point to the same MemoryBuffer.
-  // The MemoryBuffer is destroyed (and heap allocated data freed or mmap'ed file
-  // closed) when no one points to it anymore.
+  // The MemoryBuffer is destroyed (and heap allocated data freed or mmap'ed
+  // file closed) when no one points to it anymore.
   Buffer buffer;
 
   // Element wise transform of the buffer elements to values of Cpp type T.
@@ -100,18 +105,23 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 };
 
 template <typename T>
-class DisposableElementsAttr : public Attribute::AttrBase<DisposableElementsAttr<T>,
-  Attribute, DisposableElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait> {
+class DisposableElementsAttr
+    : public Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
+          DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
+          TypedAttr::Trait> {
 public:
   using Storage = DisposableElementsAttributeStorage<T>;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
   using Transform = typename Storage::Transform;
   using Super = Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-      DisposableElementsAttributeStorage<T>, ElementsAttr::Trait, TypedAttr::Trait>;
+      DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
+      TypedAttr::Trait>;
   using Super::Base::Base;
-  static DisposableElementsAttr get(ShapedType type, Strides strides, Buffer buffer, Transform transform) {
-    DisposableElementsAttr a = Super::Base::get(type.getContext(), type, strides);
+  static DisposableElementsAttr get(
+      ShapedType type, Strides strides, Buffer buffer, Transform transform) {
+    DisposableElementsAttr a =
+        Super::Base::get(type.getContext(), type, strides);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
     s.transform = std::move(transform);
@@ -122,10 +132,16 @@ public:
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
   }
-  bool isSplat() const { return true; } // TODO: return true iff strides is all-zeros
-  uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const { return 0; } // TODO: return strides calculation
+  bool isSplat() const {
+    return true;
+  } // TODO: return true iff strides is all-zeros
+  uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const {
+    return 0; // TODO: return strides calculation
+  }
   Type getType() const { return this->getImpl()->type; }
-  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const { return failure(); } // TODO: implement
+  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
+    return failure(); // TODO: implement
+  }
 };
 
 extern template class DisposableElementsAttr<bool>;
@@ -146,7 +162,7 @@ using DisposableF16ElementsAttr = DisposableElementsAttr<::onnx_mlir::float_16>;
 using DisposableF32ElementsAttr = DisposableElementsAttr<float>;
 using DisposableU64ElementsAttr = DisposableElementsAttr<uint64_t>;
 
-}
+} // namespace mlir
 
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableBoolElementsAttr)
 MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableI8ElementsAttr)
