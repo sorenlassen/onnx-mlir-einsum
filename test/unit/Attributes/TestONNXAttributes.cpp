@@ -98,7 +98,7 @@ public:
       return asArrayRef<uint64_t>(s)[p];
     };
     Attribute a;
-    a = DisposableU64ElementsAttr::get(type, {}, buffer<uint64_t>({7,9}), fun);
+    a = DisposableU64ElementsAttr::get(type, {1}, buffer<uint64_t>({7,9}), fun);
     assert(a);
     assert(a.isa<DisposableU64ElementsAttr>());
     DisposableU64ElementsAttr i = a.cast<DisposableU64ElementsAttr>();
@@ -106,7 +106,7 @@ public:
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";
     assert(i.isa<ElementsAttr>());
-    assert(i.isSplat());
+    assert(!i.isSplat());
     assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
     assert(i.try_value_begin<uint64_t>());
     auto begin = *i.try_value_begin<uint64_t>();
@@ -116,7 +116,7 @@ public:
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
-    assert(e.isSplat());
+    assert(!e.isSplat());
     assert(t);
     llvm::errs() << "type:" << t << "\n";
     assert(failed(e.getValuesImpl(TypeID::get<uint64_t>())));
