@@ -102,7 +102,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
   Transform transform;
-};
+}; // struct DisposableElementsAttributeStorage
 
 template <typename T>
 class DisposableElementsAttr
@@ -135,6 +135,7 @@ public:
   ShapedType getType() const { return this->getImpl()->type; }
   Type getElementType() const { return getType().getElementType(); }
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
+  int64_t getRank() const { return getType().getRank(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
   ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
   const Buffer &getBuffer() const {
@@ -197,7 +198,48 @@ private:
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
   }
-};
+public:
+  // TODO: finish the iterator implementation below
+  class iterator {
+    static SmallVector<int64_t, 4> unflatten(int64_t flatIndex, ArrayRef<int64_t> shape) { llvm_unreachable("unimplemented"); }
+    static int64_t position(ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) { llvm_unreachable("unimplemented"); }
+    DisposableElementsAttr attr;
+    int64_t flatIndex; // runs from 0 through numElements-1
+    SmallVector<int64_t, 4> indices;
+    int64_t pos; // takes values in range [0, bufferNumElements-1]
+  public:
+    iterator(DisposableElementsAttr attr, int64_t flatIndex = 0) :
+      attr(attr),
+      flatIndex(flatIndex),
+      indices(unflatten(flatIndex, attr.getShape())),
+      pos(position(indices, attr.getStrides())) {}
+    int64_t getPos() const { return pos; }
+    bool isAtEnd() const { return flatIndex == attr.getNumElements(); }
+    void incr() {
+      assert(flatIndex < attr.getNumElements());
+      ++flatIndex;
+      if (flatIndex == attr.getNumElements())
+        return;
+      ArrayRef<int64_t> shape = attr.getShape();
+      ArrayRef<int64_t> strides = attr.getStrides();
+      int64_t r = shape.size();
+      assert(r > 0);
+      while (true) {
+        --r;
+        int64_t s = strides[r];
+        pos += s;
+        int64_t i = ++indices[r];
+        if (i < shape[r]) {
+          break;
+        } else {
+          assert(r > 0);
+          pos -= i * s;
+          indices[r] = 0;
+        }
+      }
+    }
+  }; // class iterator
+}; // class DisposableElementsAttr
 
 extern template class DisposableElementsAttr<bool>;
 extern template class DisposableElementsAttr<int8_t>;
