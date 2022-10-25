@@ -38,6 +38,40 @@ size_t uniqueNumber();
 
 class PosIterator {
 public:
+  static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+    SmallVector<int64_t, 4> zeros(shape.size(), 0);
+    return PosIterator(shape, strides, std::move(zeros), numElements(shape));
+  }
+
+  using iterator_category = std::forward_iterator_tag;
+  using difference_type   = std::ptrdiff_t;
+  using value_type        = int64_t;
+  using pointer           = const value_type*;
+  using reference         = const value_type&;
+
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
+  : shape(shape), strides(strides), flatIndex(0),
+    pos(0), indices(shape.size(), 0) {}
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+      SmallVector<int64_t, 4> indices)
+  : shape(shape), strides(strides), flatIndex(flattenedIndex(indices, shape)),
+    pos(position(indices, strides)), indices(std::move(indices)) {}
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+      SmallVector<int64_t, 4> indices, int64_t flatIndex)
+  : shape(shape), strides(strides), flatIndex(flatIndex),
+    pos(position(indices, strides)), indices(std::move(indices)) {}
+  PosIterator() = delete;
+  PosIterator(const PosIterator &other) = default;
+  PosIterator(PosIterator &&other) = default;
+
+  reference operator*() const { return pos; }
+  pointer operator->() { return &pos; }
+  PosIterator& operator++() { incr(); return *this; }
+  PosIterator operator++(int) { PosIterator tmp(*this); incr(); return tmp; }
+  friend bool operator== (const PosIterator& a, const PosIterator& b) { return a.flatIndex == b.flatIndex; };
+  friend bool operator!= (const PosIterator& a, const PosIterator& b) { return a.flatIndex != b.flatIndex; };
+   
+private:
   static int64_t position(ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
     assert(indices.size() >= strides.size());
     uint64_t pos = 0;
@@ -55,46 +89,12 @@ public:
     }
     return idx;
   }
-  static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
-    SmallVector<int64_t, 4> zeros(shape.size(), 0);
-    return PosIterator(shape, strides, std::move(zeros), ShapedType::getNumElements(shape));
+  static int64_t numElements(ArrayRef<int64_t> shape) {
+    return ShapedType::getNumElements(shape);
   }
-  using iterator_category = std::forward_iterator_tag;
-  using difference_type   = std::ptrdiff_t;
-  using value_type        = SmallVectorImpl<int64_t>;
-  using pointer           = const value_type*;
-  using reference         = const value_type&;
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
-  : shape(shape), strides(strides), flatIndex(0),
-    pos(0), indices(shape.size(), 0) {}
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-      SmallVector<int64_t, 4> indices)
-  : shape(shape), strides(strides), flatIndex(flattenedIndex(indices, shape)),
-    pos(position(indices, strides)), indices(std::move(indices)) {}
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-      SmallVector<int64_t, 4> indices, int64_t flatIndex)
-  : shape(shape), strides(strides), flatIndex(flatIndex),
-    pos(position(indices, strides)), indices(std::move(indices)) {}
-  PosIterator() = delete;
-  PosIterator(const PosIterator &other) = default;
-  PosIterator(PosIterator &&other) = default;
 
-  reference operator*() const { return indices; }
-  pointer operator->() { return &indices; }
-  // Prefix increment
-  PosIterator& operator++() { incr(); return *this; }
-  // Postfix increment
-  PosIterator operator++(int) { PosIterator tmp(*this); ++(*this); return tmp; }
-  friend bool operator== (const PosIterator& a, const PosIterator& b) { return a.flatIndex == b.flatIndex; };
-  friend bool operator!= (const PosIterator& a, const PosIterator& b) { return a.flatIndex != b.flatIndex; };     
-private:
-  ArrayRef<int64_t> shape;
-  ArrayRef<int64_t> strides;
-  int64_t flatIndex; // runs from 0 through numElements-1
-  int64_t pos; // takes values in range [0, bufferNumElements-1]
-  SmallVector<int64_t, 4> indices;
   void incr() {
-    assert(flatIndex < ShapedType::getNumElements(shape));
+    assert(flatIndex < numElements(shape));
     ++flatIndex;
     int64_t r = shape.size();
     while (r > 0) {
@@ -110,6 +110,12 @@ private:
       }
     }
   }
+
+  ArrayRef<int64_t> shape;
+  ArrayRef<int64_t> strides;
+  int64_t flatIndex; // runs from 0 through numElements-1
+  int64_t pos; // takes values in range [0, bufferNumElements-1]
+  SmallVector<int64_t, 4> indices;
 }; // class PosIterator
 
 } // namespace detail
