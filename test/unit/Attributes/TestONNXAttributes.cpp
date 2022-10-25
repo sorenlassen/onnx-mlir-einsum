@@ -107,24 +107,30 @@ public:
     std::cerr << "shape:" << t.getShape() << "\n";
     assert(i.isa<ElementsAttr>());
     assert(!i.isSplat());
-    assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(i.try_value_begin<uint64_t>());
+    assert(succeeded(i.getValuesImpl(TypeID::get<uint64_t>())));
+    //assert(i.try_value_begin<uint64_t>());
     auto begin = i.value_begin<uint64_t>();
     assert(begin != i.value_end<uint64_t>());
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
-    assert(succeeded(i.tryGetValues<uint64_t>()));
+    //assert(succeeded(i.tryGetValues<uint64_t>()));
     for (auto v : i.getValues<uint64_t>())
-      std::cerr << "value:" << v << "\n";
-    assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
+      std::cerr << "ivalue:" << v << "\n";
+    assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
     assert(!e.isSplat());
     assert(t);
     llvm::errs() << "type:" << t << "\n";
-    assert(failed(e.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(!e.try_value_begin<uint64_t>());
+    assert(succeeded(e.getValuesImpl(TypeID::get<uint64_t>())));
+    assert(e.try_value_begin<uint64_t>());
+    std::cerr << "*e.try_value_begin():" << (**e.try_value_begin<uint64_t>()) << "\n";
+    auto it = *e.try_value_begin<uint64_t>();
+    std::cerr << "++*e.try_value_begin():" << *++it << "\n";
+    for (auto v : *e.tryGetValues<uint64_t>()) // we crash here, why?
+      std::cerr << "evalue:" << v << "\n";
+
     return 0;
   }
 };
