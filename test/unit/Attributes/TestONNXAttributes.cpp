@@ -70,14 +70,11 @@ public:
 
   int test_PosIterator() {
     int64_t shape[] = {1, 2, 3};
-    int64_t strides[] = {6, 3, 1};
-    // ArrayRef<int64_t> shape{1, 2, 3};
-    // ArrayRef<int64_t> strides{6, 3, 1};
+    int64_t strides[] = {0, 1, 2};
     detail::PosIterator begin(shape, strides);
     std::cerr << *begin << "\n";
     std::cerr << *++begin << "\n";
     begin++;
-    std::cerr << *begin << "\n";
     auto end = detail::PosIterator::end(shape, strides);
     assert(begin != end);
     while (begin != end) { std::cerr << *begin << "\n"; ++begin; }
