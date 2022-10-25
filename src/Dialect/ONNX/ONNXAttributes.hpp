@@ -137,7 +137,14 @@ public:
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
   ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
-  const Buffer &getBuffer() const { return this->getImpl()->buffer; }
+  const Buffer &getBuffer() const {
+    assert(!isDisposed());
+    return this->getImpl()->buffer;
+  }
+  const Transform &getTransform() const {
+    assert(!isDisposed());
+    return this->getImpl()->transform;
+  }
   bool isSplat() const {
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
@@ -146,6 +153,7 @@ public:
   }
 private:
   // TODO: figure out if any of the following would be useful public methods
+  bool isDisposed() const { return !this->getImpl()->buffer || !this->getImpl()->transform; }
   uint64_t getFlattenedIndex(ArrayRef<uint64_t> indices) const {
     ArrayRef<int64_t> strides = getStrides();
     assert(indices.size() >= strides.size());
@@ -164,6 +172,20 @@ private:
     for (int a = shape.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
       last += (shape[a] - 1) * strides[s];
     return last + 1;
+  }
+  bool isContiguous() const {
+    ArrayRef<int64_t> shape = getShape();
+    ArrayRef<int64_t> strides = getStrides();
+    assert(shape.size() >= strides.size());
+    if (shape.size() != strides.size())
+      return false;
+    int64_t x = 1;
+    for (int s = strides.size() - 1; s >= 0; --s) {
+      if (strides[s] != x)
+        return false;
+      x *= shape[s];
+    }
+    return true;
   }
   size_t getBufferElementBytewidth() const {
     size_t n = getBufferNumElements();
