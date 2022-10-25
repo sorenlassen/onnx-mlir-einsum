@@ -10,10 +10,9 @@
 
 #pragma once
 
-#include "mlir/IR/BuiltinAttributeInterfaces.h"
-#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
 
 #include "llvm/Support/MemoryBuffer.h"
@@ -87,8 +86,10 @@ inline int64_t getFlattenedIndex(
   return idx;
 }
 
-// TODO: re-structure DisposableElementsAttr implementation so we don't need this expensive function
-inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex, SmallVectorImpl<int64_t> &indices) {
+// TODO: re-structure DisposableElementsAttr implementation so we don't need
+// this expensive function
+inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
+    SmallVectorImpl<int64_t> &indices) {
   int64_t rank = shape.size();
   if (rank == 0)
     return;
@@ -151,11 +152,13 @@ public:
       SmallVector<int64_t, 4> indices)
       : shape(shape), strides(strides),
         flatIndex(getFlattenedIndex(indices, shape)),
-        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {}
+        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {
+  }
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
       SmallVector<int64_t, 4> indices, int64_t flatIndex)
       : shape(shape), strides(strides), flatIndex(flatIndex),
-        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {}
+        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {
+  }
   PosIterator() = delete;
   PosIterator(const PosIterator &other) = default;
   PosIterator(PosIterator &&other) = default;
@@ -209,15 +212,22 @@ private:
 }; // class PosIterator
 
 template <typename T>
-class DisposableElementsAttrIterator : public llvm::iterator_facade_base<DisposableElementsAttrIterator<T>,
-                          std::random_access_iterator_tag, T, T, T> {
+class DisposableElementsAttrIterator
+    : public llvm::iterator_facade_base<DisposableElementsAttrIterator<T>,
+          std::random_access_iterator_tag, T, T, T> {
 public:
-  DisposableElementsAttrIterator(DisposableElementsAttr<T> attr, size_t index = 0) : attr(attr), index(index) {}
+  DisposableElementsAttrIterator(
+      DisposableElementsAttr<T> attr, size_t index = 0)
+      : attr(attr), index(index) {}
   std::ptrdiff_t operator-(const DisposableElementsAttrIterator &rhs) const {
     return index - rhs.index;
   }
-  bool operator==(const DisposableElementsAttrIterator &rhs) const { return index == rhs.index; }
-  bool operator<(const DisposableElementsAttrIterator &rhs) const { return index < rhs.index; }
+  bool operator==(const DisposableElementsAttrIterator &rhs) const {
+    return index == rhs.index;
+  }
+  bool operator<(const DisposableElementsAttrIterator &rhs) const {
+    return index < rhs.index;
+  }
   DisposableElementsAttrIterator &operator+=(std::ptrdiff_t offset) {
     index += offset;
     return *this;
@@ -236,7 +246,9 @@ private:
 };
 
 // template <typename T>
-// auto ElementsAttrRange<DisposableElementsAttrIterator<T>>::operator[](ArrayRef<uint64_t> index) const
+// auto
+// ElementsAttrRange<DisposableElementsAttrIterator<T>>::operator[](ArrayRef<uint64_t>
+// index) const
 //     -> reference {
 //   return begin().lookup(index);
 // }
@@ -407,7 +419,7 @@ public:
     return llvm::None;
   }
 
-  // TODO: get rid of this and instead implement try_value_begin() 
+  // TODO: get rid of this and instead implement try_value_begin()
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     // TODO: do something with elementId
 
