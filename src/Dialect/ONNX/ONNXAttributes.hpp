@@ -35,6 +35,82 @@ namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
 // to defeat the storage uniquer.
 size_t uniqueNumber();
+
+class PosIterator {
+public:
+  static int64_t position(ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
+    assert(indices.size() >= strides.size());
+    uint64_t pos = 0;
+    for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+      pos += indices[a] * strides[s];
+    return pos;
+  }
+  static int64_t flattenedIndex(ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
+    assert(indices.size() == shape.size());
+    int64_t multiplier = 1;
+    uint64_t idx = 0;
+    for (int a = indices.size() - 1; a >= 0; --a) {
+      idx += indices[a] * multiplier;
+      multiplier *= shape[a];
+    }
+    return idx;
+  }
+  using iterator_category = std::forward_iterator_tag;
+  using difference_type   = std::ptrdiff_t;
+  using value_type        = int64_t;
+  using pointer           = const value_type*;
+  using reference         = const value_type&;
+public:
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
+  : shape(shape), strides(strides), flatIndex(0),
+    pos(0), indices(shape.size(), 0) {}
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+      SmallVector<int64_t, 4> indices)
+  : shape(shape), strides(strides), flatIndex(flattenedIndex(indices, shape)),
+    pos(position(indices, strides)), indices(std::move(indices)) {}
+  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+      SmallVector<int64_t, 4> indices, int64_t flatIndex)
+  : shape(shape), strides(strides), flatIndex(flatIndex),
+    pos(position(indices, strides)), indices(std::move(indices)) {}
+  PosIterator() = delete;
+  PosIterator(const PosIterator &other) = default;
+  PosIterator(PosIterator &&other) = default;
+
+  reference operator*() const { return pos; }
+  pointer operator->() { return &pos; }
+  // Prefix increment
+  PosIterator& operator++() { incr(); return *this; }
+  // Postfix increment
+  PosIterator operator++(int) { PosIterator tmp(*this); ++(*this); return tmp; }
+  friend bool operator== (const PosIterator& a, const PosIterator& b) { return a.flatIndex == b.flatIndex; };
+  friend bool operator!= (const PosIterator& a, const PosIterator& b) { return a.flatIndex != b.flatIndex; };     
+private:
+  ArrayRef<int64_t> shape;
+  ArrayRef<int64_t> strides;
+  int64_t flatIndex; // runs from 0 through numElements-1
+  int64_t pos; // takes values in range [0, bufferNumElements-1]
+  SmallVector<int64_t, 4> indices;
+  void incr() {
+    assert(flatIndex < ShapedType::getNumElements(shape));
+    ++flatIndex;
+    int64_t r = shape.size();
+    assert(r > 0);
+    while (true) {
+      --r;
+      int64_t s = strides[r];
+      pos += s;
+      int64_t i = ++indices[r];
+      if (i < shape[r]) {
+        break;
+      } else {
+        assert(r > 0);
+        pos -= i * s;
+        indices[r] = 0;
+      }
+    }
+  }
+}; // class PosIterator
+
 } // namespace detail
 
 template <typename T>
@@ -110,6 +186,7 @@ class DisposableElementsAttr
           DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
+  // TODO: add iterator, built on PosIterator
   using Storage = DisposableElementsAttributeStorage<T>;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
@@ -158,14 +235,6 @@ public:
 private:
   // TODO: figure out if any of the following would be useful public methods
   bool isDisposed() const { return !this->getImpl()->buffer || !this->getImpl()->transform; }
-  uint64_t getFlattenedIndex(ArrayRef<uint64_t> indices) const {
-    ArrayRef<int64_t> strides = getStrides();
-    assert(indices.size() >= strides.size());
-    uint64_t idx = 0;
-    for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-      idx += indices[a] * strides[s];
-    return idx;
-  }
   int64_t getBufferNumElements() const {
     ArrayRef<int64_t> shape = getShape();
     if (ShapedType::getNumElements(shape) == 0)
@@ -198,47 +267,6 @@ private:
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
   }
-public:
-  // TODO: finish the iterator implementation below
-  class iterator {
-    static SmallVector<int64_t, 4> unflatten(int64_t flatIndex, ArrayRef<int64_t> shape) { llvm_unreachable("unimplemented"); }
-    static int64_t position(ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) { llvm_unreachable("unimplemented"); }
-    DisposableElementsAttr attr;
-    int64_t flatIndex; // runs from 0 through numElements-1
-    SmallVector<int64_t, 4> indices;
-    int64_t pos; // takes values in range [0, bufferNumElements-1]
-  public:
-    iterator(DisposableElementsAttr attr, int64_t flatIndex = 0) :
-      attr(attr),
-      flatIndex(flatIndex),
-      indices(unflatten(flatIndex, attr.getShape())),
-      pos(position(indices, attr.getStrides())) {}
-    int64_t getPos() const { return pos; }
-    bool isAtEnd() const { return flatIndex == attr.getNumElements(); }
-    void incr() {
-      assert(flatIndex < attr.getNumElements());
-      ++flatIndex;
-      if (flatIndex == attr.getNumElements())
-        return;
-      ArrayRef<int64_t> shape = attr.getShape();
-      ArrayRef<int64_t> strides = attr.getStrides();
-      int64_t r = shape.size();
-      assert(r > 0);
-      while (true) {
-        --r;
-        int64_t s = strides[r];
-        pos += s;
-        int64_t i = ++indices[r];
-        if (i < shape[r]) {
-          break;
-        } else {
-          assert(r > 0);
-          pos -= i * s;
-          indices[r] = 0;
-        }
-      }
-    }
-  }; // class iterator
 }; // class DisposableElementsAttr
 
 extern template class DisposableElementsAttr<bool>;
