@@ -36,6 +36,31 @@ namespace detail {
 // to defeat the storage uniquer.
 size_t uniqueNumber();
 
+inline int64_t getStridesNumElements(
+    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+  if (ShapedType::getNumElements(shape) == 0)
+    return 0;
+  assert(shape.size() >= strides.size());
+  int64_t last = 0;
+  for (int a = shape.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+    last += (shape[a] - 1) * strides[s];
+  return last + 1;
+}
+
+inline bool areStridesContiguous(
+    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+  assert(shape.size() >= strides.size());
+  if (shape.size() != strides.size())
+    return false;
+  int64_t x = 1;
+  for (int s = strides.size() - 1; s >= 0; --s) {
+    if (strides[s] != x)
+      return false;
+    x *= shape[s];
+  }
+  return true;
+}
+
 class PosIterator {
 public:
   static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
@@ -44,42 +69,56 @@ public:
   }
 
   using iterator_category = std::forward_iterator_tag;
-  using difference_type   = std::ptrdiff_t;
-  using value_type        = int64_t;
-  using pointer           = const value_type*;
-  using reference         = const value_type&;
+  using difference_type = std::ptrdiff_t;
+  using value_type = int64_t;
+  using pointer = const value_type *;
+  using reference = const value_type &;
 
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
-  : shape(shape), strides(strides), flatIndex(0),
-    pos(0), indices(shape.size(), 0) {}
+      : shape(shape), strides(strides), flatIndex(0), pos(0),
+        indices(shape.size(), 0) {}
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
       SmallVector<int64_t, 4> indices)
-  : shape(shape), strides(strides), flatIndex(flattenedIndex(indices, shape)),
-    pos(position(indices, strides)), indices(std::move(indices)) {}
+      : shape(shape), strides(strides),
+        flatIndex(flattenedIndex(indices, shape)),
+        pos(position(indices, strides)), indices(std::move(indices)) {}
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
       SmallVector<int64_t, 4> indices, int64_t flatIndex)
-  : shape(shape), strides(strides), flatIndex(flatIndex),
-    pos(position(indices, strides)), indices(std::move(indices)) {}
+      : shape(shape), strides(strides), flatIndex(flatIndex),
+        pos(position(indices, strides)), indices(std::move(indices)) {}
   PosIterator() = delete;
   PosIterator(const PosIterator &other) = default;
   PosIterator(PosIterator &&other) = default;
 
   reference operator*() const { return pos; }
   pointer operator->() { return &pos; }
-  PosIterator& operator++() { incr(); return *this; }
-  PosIterator operator++(int) { PosIterator tmp(*this); incr(); return tmp; }
-  friend bool operator== (const PosIterator& a, const PosIterator& b) { return a.flatIndex == b.flatIndex; };
-  friend bool operator!= (const PosIterator& a, const PosIterator& b) { return a.flatIndex != b.flatIndex; };
-   
+  PosIterator &operator++() {
+    incr();
+    return *this;
+  }
+  PosIterator operator++(int) {
+    PosIterator tmp(*this);
+    incr();
+    return tmp;
+  }
+  friend bool operator==(const PosIterator &a, const PosIterator &b) {
+    return a.flatIndex == b.flatIndex;
+  };
+  friend bool operator!=(const PosIterator &a, const PosIterator &b) {
+    return a.flatIndex != b.flatIndex;
+  };
+
 private:
-  static int64_t position(ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
+  static int64_t position(
+      ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
     assert(indices.size() >= strides.size());
     uint64_t pos = 0;
     for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
       pos += indices[a] * strides[s];
     return pos;
   }
-  static int64_t flattenedIndex(ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
+  static int64_t flattenedIndex(
+      ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
     assert(indices.size() == shape.size());
     int64_t multiplier = 1;
     uint64_t idx = 0;
@@ -114,7 +153,7 @@ private:
   ArrayRef<int64_t> shape;
   ArrayRef<int64_t> strides;
   int64_t flatIndex; // runs from 0 through numElements-1
-  int64_t pos; // takes values in range [0, bufferNumElements-1]
+  int64_t pos;       // takes values in range [0, bufferNumElements-1]
   SmallVector<int64_t, 4> indices;
 }; // class PosIterator
 
@@ -263,37 +302,18 @@ public:
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     return failure(); // TODO: implement
   }
+
 private:
   // TODO: figure out if any of the following would be useful public methods
-  bool isDisposed() const { return !this->getImpl()->buffer || !this->getImpl()->transform; }
-  int64_t getBufferNumElements() const {
-    ArrayRef<int64_t> shape = getShape();
-    if (ShapedType::getNumElements(shape) == 0)
-      return 0;
-    ArrayRef<int64_t> strides = getStrides();
-    assert(shape.size() >= strides.size());
-    int64_t last = 0;
-    for (int a = shape.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-      last += (shape[a] - 1) * strides[s];
-    return last + 1;
+  bool isDisposed() const {
+    return !this->getImpl()->buffer || !this->getImpl()->transform;
   }
   bool isContiguous() const {
-    ArrayRef<int64_t> shape = getShape();
-    ArrayRef<int64_t> strides = getStrides();
-    assert(shape.size() >= strides.size());
-    if (shape.size() != strides.size())
-      return false;
-    int64_t x = 1;
-    for (int s = strides.size() - 1; s >= 0; --s) {
-      if (strides[s] != x)
-        return false;
-      x *= shape[s];
-    }
-    return true;
+    return detail::areStridesContiguous(getShape(), getStrides());
   }
   size_t getBufferElementBytewidth() const {
-    size_t n = getBufferNumElements();
-    const Buffer& buffer = getBuffer();
+    size_t n = detail::getStridesNumElements(getShape(), getStrides());
+    const Buffer &buffer = getBuffer();
     assert(buffer->getBufferSize() <= n);
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
