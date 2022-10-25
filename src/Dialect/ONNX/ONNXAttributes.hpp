@@ -421,8 +421,6 @@ public:
 #define IRANGE(B, E) iterator_range<X>(getType(), getStrides(), B, E)
 #endif
 
-  //using ElementsAttr::Trait<DisposableElementsAttr>::getValues;
-  //using ElementsAttr::Trait<DisposableElementsAttr>::try_value_begin;
 #if 1
   using NonContiguousIterableTypesT = std::tuple<T, APInt, APFloat, Attribute>;
   template <typename X>
@@ -439,6 +437,7 @@ public:
     return failure();
   }
 
+  // equivalent to getValues<X>().end(), which is probably slower?
   template <typename X>
   iterator<X> value_end() const {
     return iterator<X>(getShape(), getStrides());
