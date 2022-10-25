@@ -13,11 +13,13 @@
 #include "src/Dialect/ONNX/ONNXOpsHelper.hpp"
 
 #include "mlir/IR/Builders.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -42,6 +44,17 @@ MLIRContext *createCtx() {
   return ctx;
 }
 
+template <typename Src, typename Dst = char>
+ArrayRef<Dst> castArrayRef(ArrayRef<Src> a) {
+  return llvm::makeArrayRef(reinterpret_cast<const Dst*>(a.data()), a.size() / sizeof(Src));
+}
+
+template <typename T>
+std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
+  StringRef s(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T));
+  return std::shared_ptr<llvm::MemoryBuffer>(llvm::MemoryBuffer::getMemBufferCopy(s));
+}
+
 class Test {
   std::unique_ptr<MLIRContext> ctx;
   Location loc;
@@ -49,24 +62,26 @@ class Test {
   Type F32;
   Type I32;
 
-  Attribute zero(Type t) {
-    if (t.isa<FloatType>())
-      return FloatAttr::get(t, 0);
-    assert(t.isa<IntegerType>() && "must be IntegerType if not FloatType");
-    return IntegerAttr::get(t, 0);
-  }
-
-  Value zeros(ArrayRef<int64_t> shape, Type t) {
-    RankedTensorType tensorType = RankedTensorType::get(shape, t);
-    SmallVector<Attribute> values(tensorType.getNumElements(), zero(t));
-    return createONNXConstantOpWithDenseAttr(
-        builder, loc, DenseElementsAttr::get(tensorType, makeArrayRef(values)));
-  }
-
 public:
   Test() : ctx(createCtx()), loc(UnknownLoc::get(&*ctx)), builder(&*ctx) {
     F32 = builder.getF32Type();
     I32 = builder.getI32Type();
+  }
+
+  int test_PosIterator() {
+    int64_t shape[] = {1, 2, 3};
+    int64_t strides[] = {6, 3, 1};
+    // ArrayRef<int64_t> shape{1, 2, 3};
+    // ArrayRef<int64_t> strides{6, 3, 1};
+    detail::PosIterator begin(shape, strides);
+    std::cerr << *begin << "\n";
+    std::cerr << *++begin << "\n";
+    begin++;
+    std::cerr << *begin << "\n";
+    auto end = detail::PosIterator::end(shape, strides);
+    assert(begin != end);
+    while (begin != end) { std::cerr << *begin << "\n"; ++begin; }
+    return 0;
   }
 
   int test_attributes() {
@@ -99,6 +114,7 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_PosIterator();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";

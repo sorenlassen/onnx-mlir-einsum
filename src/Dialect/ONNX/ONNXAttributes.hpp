@@ -55,12 +55,15 @@ public:
     }
     return idx;
   }
+  static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+    SmallVector<int64_t, 4> zeros(shape.size(), 0);
+    return PosIterator(shape, strides, std::move(zeros), ShapedType::getNumElements(shape));
+  }
   using iterator_category = std::forward_iterator_tag;
   using difference_type   = std::ptrdiff_t;
-  using value_type        = int64_t;
+  using value_type        = SmallVectorImpl<int64_t>;
   using pointer           = const value_type*;
   using reference         = const value_type&;
-public:
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
   : shape(shape), strides(strides), flatIndex(0),
     pos(0), indices(shape.size(), 0) {}
@@ -76,8 +79,8 @@ public:
   PosIterator(const PosIterator &other) = default;
   PosIterator(PosIterator &&other) = default;
 
-  reference operator*() const { return pos; }
-  pointer operator->() { return &pos; }
+  reference operator*() const { return indices; }
+  pointer operator->() { return &indices; }
   // Prefix increment
   PosIterator& operator++() { incr(); return *this; }
   // Postfix increment
@@ -94,8 +97,7 @@ private:
     assert(flatIndex < ShapedType::getNumElements(shape));
     ++flatIndex;
     int64_t r = shape.size();
-    assert(r > 0);
-    while (true) {
+    while (r > 0) {
       --r;
       int64_t s = strides[r];
       pos += s;
@@ -103,7 +105,6 @@ private:
       if (i < shape[r]) {
         break;
       } else {
-        assert(r > 0);
         pos -= i * s;
         indices[r] = 0;
       }
