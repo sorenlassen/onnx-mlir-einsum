@@ -10,11 +10,11 @@
 
 #pragma once
 
-#include "llvm/Support/MemoryBuffer.h"
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "llvm/Support/MemoryBuffer.h"
 
 #include <memory>
 
@@ -223,15 +223,15 @@ class DisposableElementsAttrIterator
     : public llvm::mapped_iterator<PosIterator, std::function<T(size_t)>> {
 public:
   using Super = llvm::mapped_iterator<PosIterator, std::function<T(size_t)>>;
+  // begin iterator:
+  DisposableElementsAttrIterator(DisposableElementsAttributeStorage<T> *s)
+      : Super(PosIterator(s->type.getShape(), s->strides), [s](size_t pos) {
+          return s->transform(s->buffer->getBuffer(), pos);
+        }) {}
+  // end iterator:
   DisposableElementsAttrIterator(
-      DisposableElementsAttributeStorage<T> *s /*,int64_t flatIndex = 0*/)
-      : Super(PosIterator(s->type.getShape(), s->strides /*, flatIndex*/),
-            [s](size_t pos) {
-              return s->transform(s->buffer->getBuffer(), pos);
-            }) {
-    // assert(flatIndex == 0 ||
-    //        flatIndex == ShapedType::getNumElements(s->type.getShape()));
-  }
+      ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
+      : Super(PosIterator::end(shape, strides), nullptr) {}
 };
 
 } // namespace detail
@@ -401,8 +401,13 @@ public:
     return llvm::None;
   }
 
-  template <typename X> iterator<X> value_begin() const {
+  template <typename X>
+  iterator<X> value_begin() const {
     return *try_value_begin<X>();
+  }
+  template <typename X>
+  iterator<X> value_end() const {
+    return iterator<X>(getShape(), getStrides());
   }
 
 #if 1
