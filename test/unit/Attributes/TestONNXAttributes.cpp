@@ -113,6 +113,9 @@ public:
     assert(begin != i.value_end<uint64_t>());
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
+    assert(succeeded(i.tryGetValues<uint64_t>()));
+    for (auto v : i.getValues<uint64_t>())
+      std::cerr << "value:" << v << "\n";
     assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();

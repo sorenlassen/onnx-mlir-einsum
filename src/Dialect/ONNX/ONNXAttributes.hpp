@@ -234,6 +234,28 @@ public:
       : Super(PosIterator::end(shape, strides), nullptr) {}
 };
 
+#if 0
+template <typename IteratorT>
+class DisposableElementsAttrRange : public ElementsAttrRange<IteratorT> {
+public:
+  using Super = ElementsAttrRange<IteratorT>;
+  using reference = typename Super::reference;
+  DisposableElementsAttrRange(ShapedType shapeType, ArrayRef<int64_t> strides,
+      const llvm::iterator_range<IteratorT> &range)
+      : ElementsAttrRange<IteratorT>(shapeType, range), strides(strides) {}
+  DisposableElementsAttrRange(ShapedType shapeType, ArrayRef<int64_t> strides,
+      IteratorT beginIt, IteratorT endIt)
+      : DisposableElementsAttrRange(
+            shapeType, strides, llvm::make_range(beginIt, endIt)) {}
+  reference operator[](ArrayRef<uint64_t> index) const {
+    llvm_unreachable("TODO");
+  }
+
+private:
+  ArrayRef<int64_t> strides;
+};
+#endif
+
 } // namespace detail
 
 template <typename T>
@@ -408,6 +430,30 @@ public:
   template <typename X>
   iterator<X> value_end() const {
     return iterator<X>(getShape(), getStrides());
+  }
+
+#if 1
+  template <typename X>
+  using iterator_range = llvm::iterator_range<iterator<X>>;
+  template <typename X>
+  FailureOr<iterator_range<X>> tryGetValues() const {
+    if (auto begin = try_value_begin<X>())
+      return llvm::make_range(*begin, value_end<X>());
+    return failure();
+  }
+#else
+  template <typename X>
+  using iterator_range = detail::DisposableElementsAttrRange<iterator<X>>;
+  template <typename X>
+  FailureOr<iterator_range<X>> tryGetValues() const {
+    if (auto begin = try_value_begin<X>())
+      return iterator_range<X>(getType(), getStrides(), *begin, value_end<X>());
+    return failure();
+  }
+#endif
+  template <typename X>
+  iterator_range<X> getValues() const {
+    return *tryGetValues<X>();
   }
 
 #if 1
