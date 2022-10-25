@@ -107,19 +107,20 @@ public:
     std::cerr << "shape:" << t.getShape() << "\n";
     assert(i.isa<ElementsAttr>());
     assert(i.isSplat());
-    assert(succeeded(i.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
-    auto begin = i.cast<ElementsAttr>().value_begin<uint64_t>();
+    assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
+    assert(i.try_value_begin<uint64_t>());
+    auto begin = *i.try_value_begin<uint64_t>();
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
+    assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
     assert(e.isSplat());
     assert(t);
     llvm::errs() << "type:" << t << "\n";
-    assert(succeeded(e.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(e.try_value_begin<uint64_t>());
+    assert(failed(e.getValuesImpl(TypeID::get<uint64_t>())));
+    assert(!e.try_value_begin<uint64_t>());
     return 0;
   }
 };

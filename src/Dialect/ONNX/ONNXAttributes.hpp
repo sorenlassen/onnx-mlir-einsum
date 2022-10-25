@@ -139,8 +139,9 @@ private:
 class PosIterator {
 public:
   static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
-    SmallVector<int64_t, 4> zeros(shape.size(), 0);
-    return PosIterator(shape, strides, std::move(zeros), numElements(shape));
+    PosIterator it(shape, strides);
+    it.flatIndex = numElements(shape);
+    return it;
   }
 
   using iterator_category = std::forward_iterator_tag;
@@ -152,17 +153,20 @@ public:
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
       : shape(shape), strides(strides), flatIndex(0), pos(0),
         indices(shape.size(), 0) {}
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-      SmallVector<int64_t, 4> indices)
-      : shape(shape), strides(strides),
-        flatIndex(getFlattenedIndex(indices, shape)),
-        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {
-  }
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-      SmallVector<int64_t, 4> indices, int64_t flatIndex)
-      : shape(shape), strides(strides), flatIndex(flatIndex),
-        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {
-  }
+  // PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+  //     SmallVector<int64_t, 4> indices)
+  //     : shape(shape), strides(strides),
+  //       flatIndex(getFlattenedIndex(indices, shape)),
+  //       pos(getStridesPosition(indices, strides)),
+  //       indices(std::move(indices)) {
+  // }
+  // PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
+  //     SmallVector<int64_t, 4> indices, int64_t flatIndex)
+  //     : shape(shape), strides(strides), flatIndex(flatIndex),
+  //       pos(getStridesPosition(indices, strides)),
+  //       indices(std::move(indices)) {
+  // }
+public:
   PosIterator() = delete;
   PosIterator(const PosIterator &other) = default;
   PosIterator(PosIterator &&other) = default;
@@ -193,10 +197,10 @@ private:
   void incr() {
     assert(flatIndex < numElements(shape));
     ++flatIndex;
-    int64_t r = shape.size();
+    size_t r = shape.size();
     while (r > 0) {
       --r;
-      int64_t s = strides[r];
+      int64_t s = r < strides.size() ? strides[r] : 0;
       pos += s;
       int64_t i = ++indices[r];
       if (i < shape[r]) {
@@ -217,17 +221,17 @@ private:
 
 template <typename T>
 class DisposableElementsAttrIterator
-    : public llvm::mapped_iterator<PosIterator,
-          std::function<T(StringRef, size_t)>> {
+    : public llvm::mapped_iterator<PosIterator, std::function<T(size_t)>> {
 public:
-  using Super =
-      llvm::mapped_iterator<PosIterator, std::function<T(StringRef, size_t)>>;
+  using Super = llvm::mapped_iterator<PosIterator, std::function<T(size_t)>>;
   DisposableElementsAttrIterator(
-      DisposableElementsAttributeStorage<T> *s, size_t flatIndex = 0)
-      : Super(PosIterator(s->shape, s->strides, flatIndex), [s](size_t pos) {
-          return s->transform(s->buffer->getBuffer(), pos);
-        }) {
-    assert(flatIndex == 0 || flatIndex == ShapedType::getNumElements(s->shape));
+      DisposableElementsAttributeStorage<T> *s /*,int64_t flatIndex = 0*/)
+      : Super(PosIterator(s->type.getShape(), s->strides /*, flatIndex*/),
+            [s](size_t pos) {
+              return s->transform(s->buffer->getBuffer(), pos);
+            }) {
+    // assert(flatIndex == 0 ||
+    //        flatIndex == ShapedType::getNumElements(s->type.getShape()));
   }
 };
 
@@ -389,7 +393,7 @@ public:
   template <typename X>
   std::enable_if_t<std::is_same_v<X, T>, Optional<iterator<X>>>
   try_value_begin() const {
-    return iterator<X>(this);
+    return iterator<X>(this->getImpl());
   }
   // TODO: support iteration over more types
   template <typename X>
@@ -398,7 +402,11 @@ public:
     return llvm::None;
   }
 
-#if 0
+#if 1
+  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
+    return failure();
+  }
+#else
   // TODO: get rid of this and instead implement try_value_begin()
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     // TODO: do something with elementId
