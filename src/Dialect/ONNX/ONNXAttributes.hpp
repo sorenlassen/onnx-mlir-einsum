@@ -132,15 +132,45 @@ public:
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
   }
+  ShapedType getType() const { return this->getImpl()->type; }
+  Type getElementType() const { return getType().getElementType(); }
+  ArrayRef<int64_t> getShape() const { return getType().getShape(); }
+  int64_t getNumElements() const { return getType().getNumElements(); }
+  ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
+  const Buffer &getBuffer() const { return this->getImpl()->buffer; }
   bool isSplat() const {
-    return true;
-  } // TODO: return true iff strides is all-zeros
-  uint64_t getFlattenedIndex(ArrayRef<uint64_t> index) const {
-    return 0; // TODO: return strides calculation
+    return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
-  Type getType() const { return this->getImpl()->type; }
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     return failure(); // TODO: implement
+  }
+private:
+  // TODO: figure out if any of the following would be useful public methods
+  uint64_t getFlattenedIndex(ArrayRef<uint64_t> indices) const {
+    ArrayRef<int64_t> strides = getStrides();
+    assert(indices.size() >= strides.size());
+    uint64_t idx = 0;
+    for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+      idx += indices[a] * strides[s];
+    return idx;
+  }
+  int64_t getBufferNumElements() const {
+    ArrayRef<int64_t> shape = getShape();
+    if (ShapedType::getNumElements(shape) == 0)
+      return 0;
+    ArrayRef<int64_t> strides = getStrides();
+    assert(shape.size() >= strides.size());
+    int64_t last = 0;
+    for (int a = shape.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+      last += (shape[a] - 1) * strides[s];
+    return last + 1;
+  }
+  size_t getBufferElementBytewidth() const {
+    size_t n = getBufferNumElements();
+    const Buffer& buffer = getBuffer();
+    assert(buffer->getBufferSize() <= n);
+    assert(n % buffer->getBufferSize() == 0);
+    return n / buffer->getBufferSize();
   }
 };
 
