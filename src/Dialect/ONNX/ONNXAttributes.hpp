@@ -33,7 +33,7 @@ struct float_16 {
 namespace mlir {
 
 template <typename T>
-class DisposableElementsAttr;
+struct DisposableElementsAttributeStorage;
 
 namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
@@ -213,45 +213,19 @@ private:
 
 template <typename T>
 class DisposableElementsAttrIterator
-    : public llvm::iterator_facade_base<DisposableElementsAttrIterator<T>,
-          std::random_access_iterator_tag, T, T, T> {
+    : public llvm::mapped_iterator<PosIterator,
+          std::function<T(StringRef, size_t)>> {
 public:
+  using Super =
+      llvm::mapped_iterator<PosIterator, std::function<T(StringRef, size_t)>>;
   DisposableElementsAttrIterator(
-      DisposableElementsAttr<T> attr, size_t index = 0)
-      : attr(attr), index(index) {}
-  std::ptrdiff_t operator-(const DisposableElementsAttrIterator &rhs) const {
-    return index - rhs.index;
+      DisposableElementsAttributeStorage<T> *s, size_t flatIndex = 0)
+      : Super(PosIterator(s->shape, s->strides, flatIndex), [s](size_t pos) {
+          return s->transform(s->buffer->getBuffer(), pos);
+        }) {
+    assert(flatIndex == 0 || flatIndex == ShapedType::getNumElements(s->shape));
   }
-  bool operator==(const DisposableElementsAttrIterator &rhs) const {
-    return index == rhs.index;
-  }
-  bool operator<(const DisposableElementsAttrIterator &rhs) const {
-    return index < rhs.index;
-  }
-  DisposableElementsAttrIterator &operator+=(std::ptrdiff_t offset) {
-    index += offset;
-    return *this;
-  }
-  DisposableElementsAttrIterator &operator-=(std::ptrdiff_t offset) {
-    index -= offset;
-    return *this;
-  }
-  T operator*() const { return attr.lookup(index); }
-
-  // T lookup(ArrayRef<uint64_t> index) const { llvm_unreachable("TODO"); }
-
-private:
-  DisposableElementsAttr<T> attr;
-  size_t index;
 };
-
-// template <typename T>
-// auto
-// ElementsAttrRange<DisposableElementsAttrIterator<T>>::operator[](ArrayRef<uint64_t>
-// index) const
-//     -> reference {
-//   return begin().lookup(index);
-// }
 
 } // namespace detail
 

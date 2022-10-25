@@ -46,7 +46,18 @@ MLIRContext *createCtx() {
 
 template <typename Src, typename Dst = char>
 ArrayRef<Dst> castArrayRef(ArrayRef<Src> a) {
-  return llvm::makeArrayRef(reinterpret_cast<const Dst*>(a.data()), a.size() / sizeof(Src));
+  return llvm::makeArrayRef(
+    reinterpret_cast<const Dst*>(a.data()),
+    a.size() * sizeof(Src) / sizeof(Dst)
+  );
+}
+
+template <typename Dst = char>
+ArrayRef<Dst> asArrayRef(StringRef s) {
+  return llvm::makeArrayRef(
+    reinterpret_cast<const Dst*>(s.data()),
+    s.size() / sizeof(Dst)
+  );
 }
 
 template <typename T>
@@ -83,8 +94,11 @@ public:
 
   int test_attributes() {
     ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
+    auto fun = [](StringRef s, size_t p) -> uint64_t {
+      return asArrayRef<uint64_t>(s)[p];
+    };
     Attribute a;
-    a = DisposableU64ElementsAttr::get(type, {}, nullptr, nullptr);
+    a = DisposableU64ElementsAttr::get(type, {}, buffer<uint64_t>({7,9}), fun);
     assert(a);
     assert(a.isa<DisposableU64ElementsAttr>());
     DisposableU64ElementsAttr i = a.cast<DisposableU64ElementsAttr>();
@@ -93,15 +107,19 @@ public:
     std::cerr << "shape:" << t.getShape() << "\n";
     assert(i.isa<ElementsAttr>());
     assert(i.isSplat());
-    assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
+    assert(succeeded(i.getValuesImpl(TypeID::get<uint64_t>())));
+    assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
+    auto begin = i.cast<ElementsAttr>().value_begin<uint64_t>();
+    assert(*begin == 7);
+    std::cerr << "next:" << *++begin << "\n";
+
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
     assert(e.isSplat());
     assert(t);
     llvm::errs() << "type:" << t << "\n";
-    assert(failed(e.getValuesImpl(TypeID::get<uint64_t>())));
-    assert(!e.try_value_begin<uint64_t>());
+    assert(succeeded(e.getValuesImpl(TypeID::get<uint64_t>())));
+    assert(e.try_value_begin<uint64_t>());
     return 0;
   }
 };
