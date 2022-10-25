@@ -411,6 +411,39 @@ public:
 
   template <typename X>
   using iterator = detail::DisposableElementsAttrIterator<X>;
+#if 1
+  template <typename X>
+  using iterator_range = llvm::iterator_range<iterator<X>>;
+#define IRANGE(B, E) llvm::make_range(B, E)
+#else
+  template <typename X>
+  using iterator_range = detail::DisposableElementsAttrRange<iterator<X>>;
+#define IRANGE(B, E) iterator_range<X>(getType(), getStrides(), B, E)
+#endif
+
+  //using ElementsAttr::Trait<DisposableElementsAttr>::getValues;
+  //using ElementsAttr::Trait<DisposableElementsAttr>::try_value_begin;
+#if 1
+  using NonContiguousIterableTypesT = std::tuple<T, APInt, APFloat, Attribute>;
+  template <typename X>
+  using OverloadToken = typename Super::template OverloadToken<X>;
+  template <typename X>
+  std::enable_if_t<std::is_same_v<X, T>, FailureOr<iterator<X>>>
+  try_value_begin_impl(OverloadToken<X>) const {
+    return iterator<X>(this->getImpl());
+  }
+  // TODO: support iteration over more types
+  template <typename X>
+  std::enable_if_t<!std::is_same_v<X, T>, FailureOr<iterator<X>>>
+  try_value_begin_impl(OverloadToken<X>) const {
+    return failure();
+  }
+
+  template <typename X>
+  iterator<X> value_end() const {
+    return iterator<X>(getShape(), getStrides());
+  }
+#else
   template <typename X>
   std::enable_if_t<std::is_same_v<X, T>, Optional<iterator<X>>>
   try_value_begin() const {
@@ -432,25 +465,12 @@ public:
     return iterator<X>(getShape(), getStrides());
   }
 
-#if 1
-  template <typename X>
-  using iterator_range = llvm::iterator_range<iterator<X>>;
   template <typename X>
   FailureOr<iterator_range<X>> tryGetValues() const {
     if (auto begin = try_value_begin<X>())
-      return llvm::make_range(*begin, value_end<X>());
+      return IRANGE(*begin, value_end<X>());
     return failure();
   }
-#else
-  template <typename X>
-  using iterator_range = detail::DisposableElementsAttrRange<iterator<X>>;
-  template <typename X>
-  FailureOr<iterator_range<X>> tryGetValues() const {
-    if (auto begin = try_value_begin<X>())
-      return iterator_range<X>(getType(), getStrides(), *begin, value_end<X>());
-    return failure();
-  }
-#endif
   template <typename X>
   iterator_range<X> getValues() const {
     return *tryGetValues<X>();
@@ -476,6 +496,7 @@ public:
           return s->transform(s->buffer->getBuffer(), index);
         }));
   }
+#endif
 #endif
 
 private:
