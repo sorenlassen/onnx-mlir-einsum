@@ -86,6 +86,7 @@ inline int64_t getFlattenedIndex(
   return idx;
 }
 
+#if 0
 // TODO: re-structure DisposableElementsAttr implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
@@ -107,7 +108,9 @@ inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
   assert(flatIndex < shape.back());
   indices.push_back(flatIndex);
 }
+#endif
 
+#if 0
 // TODO: get rid of this together with DisposableElementsAttr::getValuesImpl
 class IndexIterator : public llvm::iterator_facade_base<IndexIterator,
                           std::random_access_iterator_tag, size_t> {
@@ -131,6 +134,7 @@ public:
 private:
   size_t index;
 };
+#endif
 
 class PosIterator {
 public:
@@ -326,7 +330,6 @@ class DisposableElementsAttr
           DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
-  // TODO: add iterator, built on PosIterator
   using Storage = DisposableElementsAttributeStorage<T>;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
@@ -371,6 +374,7 @@ public:
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
 
+#if 0
   // TODO: get rid of this, unflattenIndex() is too expensive
   T lookup(int64_t flatIndex) const {
     SmallVector<int64_t, 4> indices;
@@ -378,6 +382,7 @@ public:
     size_t pos = detail::getStridesPosition(indices, getStrides());
     return getTransform()(getBuffer()->getBuffer(), pos);
   }
+#endif
 
   template <typename X>
   using iterator = detail::DisposableElementsAttrIterator<X>;
@@ -393,6 +398,7 @@ public:
     return llvm::None;
   }
 
+#if 0
   // TODO: get rid of this and instead implement try_value_begin()
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     // TODO: do something with elementId
@@ -408,6 +414,7 @@ public:
           return s->transform(s->buffer->getBuffer(), index);
         }));
   }
+#endif
 
 private:
   // TODO: figure out if any of the following would be useful public methods
