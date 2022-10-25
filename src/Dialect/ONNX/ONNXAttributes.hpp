@@ -180,6 +180,30 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   Transform transform;
 }; // struct DisposableElementsAttributeStorage
 
+// DisposableElementsAttr is an alternative to DenseElementsAttr
+// with the following features:
+//
+// 1. The memory can be heap allocated or mmap'ed from a file and will be
+// released (heap allocation freed or file closed) between compiler passes
+// when it is no longer reachable from the operation graph.
+//
+// 2. The data can be represented with higher precision than the element
+// data type to avoid cumulative precision loss during constant propagation.
+//
+// 3. Element wise transformations are recorded lazily as a lambda and
+// only materialized on read thus avoiding some memory allocations and
+// copies.
+//
+// 4. Similarly, some tensor shape transformations can be recorded as
+// 'strides' metadata without rewriting the underlying data. In particular,
+// tensors can be broadcast, reshaped, and transposed in this fashion,
+// subject to some constraints, like Numpy arrays and PyTorch tensors.
+//
+// 5. A set of helper functions makes it possible to work with
+// DisposableElementsAttr and DenseElementsAttr interchangeably, and
+// DisposableElementsAttr prints the same as DenseElementsAttr so
+// we can switch between them without changing lit tests.
+//
 template <typename T>
 class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
