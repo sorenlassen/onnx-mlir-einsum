@@ -110,13 +110,17 @@ public:
     assert(succeeded(i.getValuesImpl(TypeID::get<uint64_t>())));
     //assert(i.try_value_begin<uint64_t>());
     auto begin = i.value_begin<uint64_t>();
-    assert(begin != i.value_end<uint64_t>());
+    auto end = i.value_end<uint64_t>();
+    assert(begin != end);
+    assert(begin == i.getValues<uint64_t>().begin());
+    assert(end == i.getValues<uint64_t>().end());
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
     //assert(succeeded(i.tryGetValues<uint64_t>()));
     for (auto v : i.getValues<uint64_t>())
       std::cerr << "ivalue:" << v << "\n";
     assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
+    std::cerr << "empty:" << i.empty() << "\n";
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
