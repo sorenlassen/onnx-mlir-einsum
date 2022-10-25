@@ -401,6 +401,10 @@ public:
     return llvm::None;
   }
 
+  template <typename X> iterator<X> value_begin() const {
+    return *try_value_begin<X>();
+  }
+
 #if 1
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
     return failure();
