@@ -109,7 +109,7 @@ public:
     assert(!i.isSplat());
     assert(failed(i.getValuesImpl(TypeID::get<uint64_t>())));
     assert(i.try_value_begin<uint64_t>());
-    auto begin = *i.try_value_begin<uint64_t>();
+    auto begin = i.value_begin<uint64_t>();
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
     assert(!i.cast<ElementsAttr>().try_value_begin<uint64_t>());
