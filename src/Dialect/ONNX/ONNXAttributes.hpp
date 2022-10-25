@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/SubElementInterfaces.h"
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinTypes.h"
@@ -30,6 +32,9 @@ struct float_16 {
 } // namespace onnx_mlir
 
 namespace mlir {
+
+template <typename T>
+class DisposableElementsAttr;
 
 namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
@@ -61,6 +66,71 @@ inline bool areStridesContiguous(
   return true;
 }
 
+inline size_t getStridesPosition(
+    ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
+  assert(indices.size() >= strides.size());
+  size_t pos = 0;
+  for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+    pos += indices[a] * strides[s];
+  return pos;
+}
+
+inline int64_t getFlattenedIndex(
+    ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
+  assert(indices.size() == shape.size());
+  int64_t multiplier = 1;
+  uint64_t idx = 0;
+  for (int a = indices.size() - 1; a >= 0; --a) {
+    idx += indices[a] * multiplier;
+    multiplier *= shape[a];
+  }
+  return idx;
+}
+
+// TODO: re-structure DisposableElementsAttr implementation so we don't need this expensive function
+inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex, SmallVectorImpl<int64_t> &indices) {
+  int64_t rank = shape.size();
+  if (rank == 0)
+    return;
+  SmallVector<int64_t, 4> factors(rank - 1, 0);
+  int64_t mult = 1;
+  for (int a = rank - 2; a >= 0; --a) {
+    mult *= shape[a];
+    factors[a] = mult;
+  }
+  for (int a = 0; a < rank - 1; ++a) {
+    int64_t d = flatIndex / factors[a];
+    indices.push_back(d);
+    flatIndex -= d * factors[a]; // modulo
+  }
+  assert(flatIndex < shape.back());
+  indices.push_back(flatIndex);
+}
+
+// TODO: get rid of this together with DisposableElementsAttr::getValuesImpl
+class IndexIterator : public llvm::iterator_facade_base<IndexIterator,
+                          std::random_access_iterator_tag, size_t> {
+public:
+  IndexIterator(size_t index = 0) : index(index) {}
+  difference_type operator-(const IndexIterator &rhs) const {
+    return index - rhs.index;
+  }
+  bool operator==(const IndexIterator &rhs) const { return index == rhs.index; }
+  bool operator<(const IndexIterator &rhs) const { return index < rhs.index; }
+  IndexIterator &operator+=(difference_type offset) {
+    index += offset;
+    return *this;
+  }
+  IndexIterator &operator-=(difference_type offset) {
+    index -= offset;
+    return *this;
+  }
+  size_t operator*() const { return index; }
+
+private:
+  size_t index;
+};
+
 class PosIterator {
 public:
   static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
@@ -70,7 +140,7 @@ public:
 
   using iterator_category = std::forward_iterator_tag;
   using difference_type = std::ptrdiff_t;
-  using value_type = int64_t;
+  using value_type = size_t;
   using pointer = const value_type *;
   using reference = const value_type &;
 
@@ -80,12 +150,12 @@ public:
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
       SmallVector<int64_t, 4> indices)
       : shape(shape), strides(strides),
-        flatIndex(flattenedIndex(indices, shape)),
-        pos(position(indices, strides)), indices(std::move(indices)) {}
+        flatIndex(getFlattenedIndex(indices, shape)),
+        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {}
   PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
       SmallVector<int64_t, 4> indices, int64_t flatIndex)
       : shape(shape), strides(strides), flatIndex(flatIndex),
-        pos(position(indices, strides)), indices(std::move(indices)) {}
+        pos(getStridesPosition(indices, strides)), indices(std::move(indices)) {}
   PosIterator() = delete;
   PosIterator(const PosIterator &other) = default;
   PosIterator(PosIterator &&other) = default;
@@ -109,25 +179,6 @@ public:
   };
 
 private:
-  static int64_t position(
-      ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
-    assert(indices.size() >= strides.size());
-    uint64_t pos = 0;
-    for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-      pos += indices[a] * strides[s];
-    return pos;
-  }
-  static int64_t flattenedIndex(
-      ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
-    assert(indices.size() == shape.size());
-    int64_t multiplier = 1;
-    uint64_t idx = 0;
-    for (int a = indices.size() - 1; a >= 0; --a) {
-      idx += indices[a] * multiplier;
-      multiplier *= shape[a];
-    }
-    return idx;
-  }
   static int64_t numElements(ArrayRef<int64_t> shape) {
     return ShapedType::getNumElements(shape);
   }
@@ -153,9 +204,42 @@ private:
   ArrayRef<int64_t> shape;
   ArrayRef<int64_t> strides;
   int64_t flatIndex; // runs from 0 through numElements-1
-  int64_t pos;       // takes values in range [0, bufferNumElements-1]
+  size_t pos;        // takes values in range [0, bufferNumElements-1]
   SmallVector<int64_t, 4> indices;
 }; // class PosIterator
+
+template <typename T>
+class DisposableElementsAttrIterator : public llvm::iterator_facade_base<DisposableElementsAttrIterator<T>,
+                          std::random_access_iterator_tag, T, T, T> {
+public:
+  DisposableElementsAttrIterator(DisposableElementsAttr<T> attr, size_t index = 0) : attr(attr), index(index) {}
+  std::ptrdiff_t operator-(const DisposableElementsAttrIterator &rhs) const {
+    return index - rhs.index;
+  }
+  bool operator==(const DisposableElementsAttrIterator &rhs) const { return index == rhs.index; }
+  bool operator<(const DisposableElementsAttrIterator &rhs) const { return index < rhs.index; }
+  DisposableElementsAttrIterator &operator+=(std::ptrdiff_t offset) {
+    index += offset;
+    return *this;
+  }
+  DisposableElementsAttrIterator &operator-=(std::ptrdiff_t offset) {
+    index -= offset;
+    return *this;
+  }
+  T operator*() const { return attr.lookup(index); }
+
+  // T lookup(ArrayRef<uint64_t> index) const { llvm_unreachable("TODO"); }
+
+private:
+  DisposableElementsAttr<T> attr;
+  size_t index;
+};
+
+// template <typename T>
+// auto ElementsAttrRange<DisposableElementsAttrIterator<T>>::operator[](ArrayRef<uint64_t> index) const
+//     -> reference {
+//   return begin().lookup(index);
+// }
 
 } // namespace detail
 
@@ -163,7 +247,7 @@ template <typename T>
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Transform = std::function<T(ArrayRef<char>, size_t)>;
+  using Transform = std::function<T(StringRef, size_t)>;
   using KeyTy = std::tuple<ShapedType, Strides>;
 
   // Constructs only type and strides while the caller sets buffer and transform
@@ -279,6 +363,7 @@ public:
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
   }
+
   ShapedType getType() const { return this->getImpl()->type; }
   Type getElementType() const { return getType().getElementType(); }
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
@@ -299,8 +384,43 @@ public:
   bool isSplat() const {
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
+
+  // TODO: get rid of this, unflattenIndex() is too expensive
+  T lookup(int64_t flatIndex) const {
+    SmallVector<int64_t, 4> indices;
+    detail::unflattenIndex(getShape(), flatIndex, indices);
+    size_t pos = detail::getStridesPosition(indices, getStrides());
+    return getTransform()(getBuffer()->getBuffer(), pos);
+  }
+
+  template <typename X>
+  using iterator = detail::DisposableElementsAttrIterator<X>;
+  template <typename X>
+  std::enable_if_t<std::is_same_v<X, T>, Optional<iterator<X>>>
+  try_value_begin() const {
+    return iterator<X>(this);
+  }
+  // TODO: support iteration over more types
+  template <typename X>
+  std::enable_if_t<!std::is_same_v<X, T>, Optional<iterator<X>>>
+  try_value_begin() const {
+    return llvm::None;
+  }
+
+  // TODO: get rid of this and instead implement try_value_begin() 
   FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
-    return failure(); // TODO: implement
+    // TODO: do something with elementId
+
+    // ElementsAttrIndexer is too inefficient unless the data is splat or
+    // contiguous because it looks up every element by a flat index relative
+    // to type's shape which we cannot efficiently translate to buffer position.
+    if (!isSplat() && !isContiguous())
+      return failure();
+    Storage *s = this->getImpl();
+    return detail::ElementsAttrIndexer::nonContiguous(isSplat(),
+        llvm::map_iterator(detail::IndexIterator(), [s](size_t index) {
+          return s->transform(s->buffer->getBuffer(), index);
+        }));
   }
 
 private:
