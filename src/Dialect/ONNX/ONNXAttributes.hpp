@@ -17,6 +17,7 @@
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/OpImplementation.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <memory>
@@ -314,6 +315,14 @@ public:
   template <typename X>
   iterator<X> value_end() const {
     return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
+  }
+
+  void print(AsmPrinter &printer) const {
+    llvm::errs() << "DisposableElementsAttr::print invoked\n";
+    print(printer.getStream());
+  }
+  void print(raw_ostream &os) const {
+    toDenseElementsAttr().print(os);
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
