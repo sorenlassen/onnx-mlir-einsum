@@ -12,7 +12,7 @@
 
 include "mlir/IR/AttrTypeBase.td"
 
-def DisposableElementsAttrInterface : AttrInterface<"DisposableElementsAttrInterface"> {
+def DisposableElementsAttr : AttrInterface<"DisposableElements"> {
   let description = [{
     Interface to access some methods shared by all DisposableElementsAttr<T>
     template instantiations.
