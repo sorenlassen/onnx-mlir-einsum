@@ -130,7 +130,6 @@ void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
       elements.getElementType(), src, fps);
 }
 
-
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
