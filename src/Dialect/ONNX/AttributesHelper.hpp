@@ -39,4 +39,6 @@ void readDenseInts(
 void readDenseFPs(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
+mlir::DenseElementsAttr toDenseElementsAttribute(mlir::ElementsAttr elements);
+
 } // namespace onnx_mlir
