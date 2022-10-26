@@ -1,7 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 add_onnx_mlir_library(OMMlirDialects
-  AttributesHelper.cpp
   DialectBuilder.cpp
   DType.cpp
   IndexExpr.cpp

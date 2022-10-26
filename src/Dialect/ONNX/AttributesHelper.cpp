@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/Mlir/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Builders.h"

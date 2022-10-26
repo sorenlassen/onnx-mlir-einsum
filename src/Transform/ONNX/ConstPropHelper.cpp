@@ -18,7 +18,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
-#include "src/Dialect/Mlir/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOpsHelper.hpp"
 #include "src/Support/TypeUtilities.hpp"
 
