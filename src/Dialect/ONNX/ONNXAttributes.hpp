@@ -249,6 +249,7 @@ public:
   }
 
   DenseElementsAttr toDenseElementsAttr() const {
+    llvm::errs() << "toDenseElementsAttr invoked\n";
     return nullptr; // TODO: implement this
   }
 
@@ -311,14 +312,19 @@ public:
     return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
-private:
-  // TODO: figure out if any of the following would be useful public methods
+private: // TODO: Figure out if any of the following would be useful publicly.
+
   bool isDisposed() const {
-    return !this->getImpl()->buffer || !this->getImpl()->transform;
+    //  TODO: Decide if a splat value can be represented with a constant
+    //        transform with no buffer; in that case isDisposed should
+    //        only return true if both buffer and transform are null.
+    return !this->getImpl()->buffer;
   }
+
   bool isContiguous() const {
     return detail::areStridesContiguous(getShape(), getStrides());
   }
+
   size_t getBufferElementBytewidth() const {
     size_t n = detail::getStridesNumElements(getShape(), getStrides());
     const Buffer &buffer = getBuffer();
