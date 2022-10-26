@@ -31,9 +31,6 @@ struct float_16 {
 
 namespace mlir {
 
-template <typename T>
-struct DisposableElementsAttributeStorage;
-
 namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
 // to defeat the storage uniquer.
@@ -85,32 +82,25 @@ inline int64_t getFlattenedIndex(
   return idx;
 }
 
-#if 0
 // TODO: re-structure DisposableElementsAttr implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
     SmallVectorImpl<int64_t> &indices) {
-  int64_t rank = shape.size();
-  if (rank == 0)
+  int64_t axis = shape.size();
+  if (axis == 0)
     return;
-  SmallVector<int64_t, 4> factors(rank - 1, 0);
-  int64_t mult = 1;
-  for (int a = rank - 2; a >= 0; --a) {
-    mult *= shape[a];
-    factors[a] = mult;
+  while (axis > 1) {
+    --axis;
+    int64_t dimSize = shape[axis];
+    assert(dimSize > 0 && "cannot unflatten shape with zeros");
+    int64_t rem = flatIndex % dimSize;
+    flatIndex /= dimSize;
+    indices.push_back(rem);
   }
-  for (int a = 0; a < rank - 1; ++a) {
-    int64_t d = flatIndex / factors[a];
-    indices.push_back(d);
-    flatIndex -= d * factors[a]; // modulo
-  }
-  assert(flatIndex < shape.back());
+  assert(flatIndex < shape[0]);
   indices.push_back(flatIndex);
 }
-#endif
 
-#if 0
-// TODO: get rid of this together with DisposableElementsAttr::getValuesImpl
 class IndexIterator : public llvm::iterator_facade_base<IndexIterator,
                           std::random_access_iterator_tag, size_t> {
 public:
@@ -133,128 +123,16 @@ public:
 private:
   size_t index;
 };
-#endif
-
-class PosIterator {
-public:
-  static PosIterator end(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
-    PosIterator it(shape, strides);
-    it.flatIndex = numElements(shape);
-    return it;
-  }
-
-  using iterator_category = std::forward_iterator_tag;
-  using difference_type = std::ptrdiff_t;
-  using value_type = size_t;
-  using pointer = const value_type *;
-  using reference = const value_type &;
-
-  PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
-      : shape(shape), strides(strides), flatIndex(0), pos(0),
-        indices(shape.size(), 0) {}
-  // PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-  //     SmallVector<int64_t, 4> indices)
-  //     : shape(shape), strides(strides),
-  //       flatIndex(getFlattenedIndex(indices, shape)),
-  //       pos(getStridesPosition(indices, strides)),
-  //       indices(std::move(indices)) {
-  // }
-  // PosIterator(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides,
-  //     SmallVector<int64_t, 4> indices, int64_t flatIndex)
-  //     : shape(shape), strides(strides), flatIndex(flatIndex),
-  //       pos(getStridesPosition(indices, strides)),
-  //       indices(std::move(indices)) {
-  // }
-public:
-  PosIterator() = delete;
-  PosIterator(const PosIterator &other) = default;
-  PosIterator(PosIterator &&other) = default;
-
-  reference operator*() const { return pos; }
-  pointer operator->() { return &pos; }
-  PosIterator &operator++() {
-    incr();
-    return *this;
-  }
-  PosIterator operator++(int) {
-    PosIterator tmp(*this);
-    incr();
-    return tmp;
-  }
-  friend bool operator==(const PosIterator &a, const PosIterator &b) {
-    return a.flatIndex == b.flatIndex;
-  };
-  friend bool operator!=(const PosIterator &a, const PosIterator &b) {
-    return a.flatIndex != b.flatIndex;
-  };
-
-private:
-  static int64_t numElements(ArrayRef<int64_t> shape) {
-    return ShapedType::getNumElements(shape);
-  }
-
-  void incr() {
-    assert(flatIndex < numElements(shape));
-    ++flatIndex;
-    size_t r = shape.size();
-    while (r > 0) {
-      --r;
-      int64_t s = r < strides.size() ? strides[r] : 0;
-      pos += s;
-      int64_t i = ++indices[r];
-      if (i < shape[r]) {
-        break;
-      } else {
-        pos -= i * s;
-        indices[r] = 0;
-      }
-    }
-  }
-
-  ArrayRef<int64_t> shape;
-  ArrayRef<int64_t> strides;
-  int64_t flatIndex; // runs from 0 through numElements-1
-  size_t pos;        // takes values in range [0, bufferNumElements-1]
-  SmallVector<int64_t, 4> indices;
-}; // class PosIterator
 
 template <typename T>
-class DisposableElementsAttrIterator
-    : public llvm::mapped_iterator<PosIterator, std::function<T(size_t)>> {
-public:
-  using Super = llvm::mapped_iterator<PosIterator, std::function<T(size_t)>>;
-  // begin iterator:
-  DisposableElementsAttrIterator(DisposableElementsAttributeStorage<T> *s)
-      : Super(PosIterator(s->type.getShape(), s->strides), [s](size_t pos) {
-          return s->transform(s->buffer->getBuffer(), pos);
-        }) {}
-  // end iterator:
-  DisposableElementsAttrIterator(
-      ArrayRef<int64_t> shape, ArrayRef<int64_t> strides)
-      : Super(PosIterator::end(shape, strides), nullptr) {}
-};
+using MappedIndexIterator =
+    llvm::mapped_iterator<IndexIterator, std::function<T(size_t)>>;
 
-#if 0
-template <typename IteratorT>
-class DisposableElementsAttrRange : public ElementsAttrRange<IteratorT> {
-public:
-  using Super = ElementsAttrRange<IteratorT>;
-  using reference = typename Super::reference;
-  DisposableElementsAttrRange(ShapedType shapeType, ArrayRef<int64_t> strides,
-      const llvm::iterator_range<IteratorT> &range)
-      : ElementsAttrRange<IteratorT>(shapeType, range), strides(strides) {}
-  DisposableElementsAttrRange(ShapedType shapeType, ArrayRef<int64_t> strides,
-      IteratorT beginIt, IteratorT endIt)
-      : DisposableElementsAttrRange(
-            shapeType, strides, llvm::make_range(beginIt, endIt)) {}
-  reference operator[](ArrayRef<uint64_t> index) const {
-    llvm_unreachable("TODO");
-  }
-
-private:
-  ArrayRef<int64_t> strides;
-};
-#endif
+template <typename T>
+inline auto makeMappedIndexIterator(
+    size_t index, const std::function<T(size_t)> &fun) {
+  return MappedIndexIterator<T>(IndexIterator(index), fun);
+}
 
 } // namespace detail
 
@@ -399,38 +277,30 @@ public:
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
 
-#if 0
-  // TODO: get rid of this, unflattenIndex() is too expensive
-  T lookup(int64_t flatIndex) const {
-    SmallVector<int64_t, 4> indices;
-    detail::unflattenIndex(getShape(), flatIndex, indices);
-    size_t pos = detail::getStridesPosition(indices, getStrides());
-    return getTransform()(getBuffer()->getBuffer(), pos);
-  }
-#endif
-
   template <typename X>
-  using iterator = detail::DisposableElementsAttrIterator<X>;
-#if 1
+  using iterator = detail::MappedIndexIterator<X>;
+
   template <typename X>
   using iterator_range = llvm::iterator_range<iterator<X>>;
-#define IRANGE(B, E) llvm::make_range(B, E)
-#else
-  template <typename X>
-  using iterator_range = detail::DisposableElementsAttrRange<iterator<X>>;
-#define IRANGE(B, E) iterator_range<X>(getType(), getStrides(), B, E)
-#endif
 
-#if 1
   using NonContiguousIterableTypesT = std::tuple<T, APInt, APFloat, Attribute>;
+
   template <typename X>
   using OverloadToken = typename Super::template OverloadToken<X>;
+
   template <typename X>
   std::enable_if_t<std::is_same_v<X, T>, FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
-    return iterator<X>(this->getImpl());
+    DisposableElementsAttributeStorage<T> *s = this->getImpl();
+    return detail::makeMappedIndexIterator<X>(0, [s](size_t flatIndex) -> X {
+      SmallVector<int64_t, 4> indices;
+      detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
+      size_t pos = detail::getStridesPosition(indices, s->strides);
+      return s->transform(s->buffer->getBuffer(), pos);
+    });
   }
-  // TODO: support iteration over more types
+
+  // TODO: support iteration over APInt, APFloat, Attribute
   template <typename X>
   std::enable_if_t<!std::is_same_v<X, T>, FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
@@ -440,63 +310,8 @@ public:
   // equivalent to getValues<X>().end(), which is probably slower?
   template <typename X>
   iterator<X> value_end() const {
-    return iterator<X>(getShape(), getStrides());
+    return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
   }
-#else
-  template <typename X>
-  std::enable_if_t<std::is_same_v<X, T>, Optional<iterator<X>>>
-  try_value_begin() const {
-    return iterator<X>(this->getImpl());
-  }
-  // TODO: support iteration over more types
-  template <typename X>
-  std::enable_if_t<!std::is_same_v<X, T>, Optional<iterator<X>>>
-  try_value_begin() const {
-    return llvm::None;
-  }
-
-  template <typename X>
-  iterator<X> value_begin() const {
-    return *try_value_begin<X>();
-  }
-  template <typename X>
-  iterator<X> value_end() const {
-    return iterator<X>(getShape(), getStrides());
-  }
-
-  template <typename X>
-  FailureOr<iterator_range<X>> tryGetValues() const {
-    if (auto begin = try_value_begin<X>())
-      return IRANGE(*begin, value_end<X>());
-    return failure();
-  }
-  template <typename X>
-  iterator_range<X> getValues() const {
-    return *tryGetValues<X>();
-  }
-
-#if 1
-  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
-    return failure();
-  }
-#else
-  // TODO: get rid of this and instead implement try_value_begin()
-  FailureOr<detail::ElementsAttrIndexer> getValuesImpl(TypeID elementID) const {
-    // TODO: do something with elementId
-
-    // ElementsAttrIndexer is too inefficient unless the data is splat or
-    // contiguous because it looks up every element by a flat index relative
-    // to type's shape which we cannot efficiently translate to buffer position.
-    if (!isSplat() && !isContiguous())
-      return failure();
-    Storage *s = this->getImpl();
-    return detail::ElementsAttrIndexer::nonContiguous(isSplat(),
-        llvm::map_iterator(detail::IndexIterator(), [s](size_t index) {
-          return s->transform(s->buffer->getBuffer(), index);
-        }));
-  }
-#endif
-#endif
 
 private:
   // TODO: figure out if any of the following would be useful public methods

@@ -79,19 +79,6 @@ public:
     I32 = builder.getI32Type();
   }
 
-  int test_PosIterator() {
-    int64_t shape[] = {1, 2, 3};
-    int64_t strides[] = {0, 1, 2};
-    detail::PosIterator begin(shape, strides);
-    std::cerr << *begin << "\n";
-    std::cerr << *++begin << "\n";
-    begin++;
-    auto end = detail::PosIterator::end(shape, strides);
-    assert(begin != end);
-    while (begin != end) { std::cerr << *begin << "\n"; ++begin; }
-    return 0;
-  }
-
   int test_attributes() {
     ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
     auto fun = [](StringRef s, size_t p) -> uint64_t {
@@ -132,6 +119,11 @@ public:
     std::cerr << "*e.try_value_begin():" << (**e.try_value_begin<uint64_t>()) << "\n";
     auto it = *e.try_value_begin<uint64_t>();
     std::cerr << "++*e.try_value_begin():" << *++it << "\n";
+    for (auto it = e.tryGetValues<uint64_t>()->begin(), en = e.tryGetValues<uint64_t>()->end(); it != en; ++it)
+      std::cerr << "evalue:" << *it << "\n";
+    auto vs = e.tryGetValues<uint64_t>();
+    for (auto v : *vs) // we crash here, why?
+      std::cerr << "evalue:" << v << "\n";
     for (auto v : *e.tryGetValues<uint64_t>()) // we crash here, why?
       std::cerr << "evalue:" << v << "\n";
 
@@ -144,7 +136,6 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
-  failures += test.test_PosIterator();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
