@@ -10,14 +10,14 @@
 
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
-template class ::mlir::DisposableElementsAttr<bool>;
-template class ::mlir::DisposableElementsAttr<int8_t>;
-template class ::mlir::DisposableElementsAttr<uint8_t>;
-template class ::mlir::DisposableElementsAttr<int16_t>;
-template class ::mlir::DisposableElementsAttr<uint16_t>;
-template class ::mlir::DisposableElementsAttr<::onnx_mlir::float_16>;
-template class ::mlir::DisposableElementsAttr<float>;
-template class ::mlir::DisposableElementsAttr<uint64_t>;
+template class ::mlir::DisposableElementsAttrBase<bool>;
+template class ::mlir::DisposableElementsAttrBase<int8_t>;
+template class ::mlir::DisposableElementsAttrBase<uint8_t>;
+template class ::mlir::DisposableElementsAttrBase<int16_t>;
+template class ::mlir::DisposableElementsAttrBase<uint16_t>;
+template class ::mlir::DisposableElementsAttrBase<::onnx_mlir::float_16>;
+template class ::mlir::DisposableElementsAttrBase<float>;
+template class ::mlir::DisposableElementsAttrBase<uint64_t>;
 
 MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableBoolElementsAttr)
 MLIR_DEFINE_EXPLICIT_TYPE_ID(::mlir::DisposableI8ElementsAttr)

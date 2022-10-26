@@ -138,7 +138,7 @@ DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
     ArrayRef<char> bytes = resource.getRawHandle().getResource()->getBlob()->getData();
     return DenseElementsAttr::getFromRawBuffer(resource.getType(), bytes);
   }
-  if (auto disposable = elements.dyn_cast<DisposableElements>())
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
     return disposable.toDenseElementsAttr();
   llvm_unreachable("unexpected ElementsAttr instance"); // TODO: read data from elements.getValues()
 }
