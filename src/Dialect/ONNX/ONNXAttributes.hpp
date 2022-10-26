@@ -221,7 +221,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 template <typename T>
 class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-          DisposableElementsAttributeStorage<T>, DisposableElementsAttrInterface::Trait, ElementsAttr::Trait,
+          DisposableElementsAttributeStorage<T>, DisposableElements::Trait, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
   using Storage = DisposableElementsAttributeStorage<T>;
@@ -229,7 +229,7 @@ public:
   using Buffer = typename Storage::Buffer;
   using Transform = typename Storage::Transform;
   using Super = Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-      DisposableElementsAttributeStorage<T>, DisposableElementsAttrInterface::Trait, ElementsAttr::Trait,
+      DisposableElementsAttributeStorage<T>, DisposableElements::Trait, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
   static DisposableElementsAttr get(
