@@ -73,7 +73,7 @@ inline size_t getStridesPosition(
   return pos;
 }
 
-// TODO: re-structure DisposableElementsAttr implementation so we don't need
+// TODO: re-structure DisposableElementsAttrBase implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
     SmallVectorImpl<int64_t> &indices) {
@@ -219,29 +219,29 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 // we can switch between them without changing lit tests.
 //
 template <typename T>
-class DisposableElementsAttr
-    : public Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-          DisposableElementsAttributeStorage<T>, DisposableElements::Trait, ElementsAttr::Trait,
+class DisposableElementsAttrBase
+    : public Attribute::AttrBase<DisposableElementsAttrBase<T>, Attribute,
+          DisposableElementsAttributeStorage<T>, DisposableElementsAttr::Trait, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
   using Storage = DisposableElementsAttributeStorage<T>;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
   using Transform = typename Storage::Transform;
-  using Super = Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-      DisposableElementsAttributeStorage<T>, DisposableElements::Trait, ElementsAttr::Trait,
+  using Super = Attribute::AttrBase<DisposableElementsAttrBase<T>, Attribute,
+      DisposableElementsAttributeStorage<T>, DisposableElementsAttr::Trait, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
-  static DisposableElementsAttr get(
+  static DisposableElementsAttrBase get(
       ShapedType type, Strides strides, Buffer buffer, Transform transform) {
-    DisposableElementsAttr a =
+    DisposableElementsAttrBase a =
         Super::Base::get(type.getContext(), type, strides);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
     s.transform = std::move(transform);
     return a;
   }
-  DisposableElementsAttr(std::nullptr_t) {}
+  DisposableElementsAttrBase(std::nullptr_t) {}
 
   // Allow implicit conversion to ElementsAttr.
   operator ElementsAttr() const {
@@ -326,25 +326,25 @@ private:
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
   }
-}; // class DisposableElementsAttr
+}; // class DisposableElementsAttrBase
 
-extern template class DisposableElementsAttr<bool>;
-extern template class DisposableElementsAttr<int8_t>;
-extern template class DisposableElementsAttr<uint8_t>;
-extern template class DisposableElementsAttr<int16_t>;
-extern template class DisposableElementsAttr<uint16_t>;
-extern template class DisposableElementsAttr<::onnx_mlir::float_16>;
-extern template class DisposableElementsAttr<float>;
-extern template class DisposableElementsAttr<uint64_t>;
+extern template class DisposableElementsAttrBase<bool>;
+extern template class DisposableElementsAttrBase<int8_t>;
+extern template class DisposableElementsAttrBase<uint8_t>;
+extern template class DisposableElementsAttrBase<int16_t>;
+extern template class DisposableElementsAttrBase<uint16_t>;
+extern template class DisposableElementsAttrBase<::onnx_mlir::float_16>;
+extern template class DisposableElementsAttrBase<float>;
+extern template class DisposableElementsAttrBase<uint64_t>;
 
-using DisposableBoolElementsAttr = DisposableElementsAttr<bool>;
-using DisposableI8ElementsAttr = DisposableElementsAttr<int8_t>;
-using DisposableU8ElementsAttr = DisposableElementsAttr<uint8_t>;
-using DisposableI16ElementsAttr = DisposableElementsAttr<int16_t>;
-using DisposableU16ElementsAttr = DisposableElementsAttr<uint16_t>;
-using DisposableF16ElementsAttr = DisposableElementsAttr<::onnx_mlir::float_16>;
-using DisposableF32ElementsAttr = DisposableElementsAttr<float>;
-using DisposableU64ElementsAttr = DisposableElementsAttr<uint64_t>;
+using DisposableBoolElementsAttr = DisposableElementsAttrBase<bool>;
+using DisposableI8ElementsAttr = DisposableElementsAttrBase<int8_t>;
+using DisposableU8ElementsAttr = DisposableElementsAttrBase<uint8_t>;
+using DisposableI16ElementsAttr = DisposableElementsAttrBase<int16_t>;
+using DisposableU16ElementsAttr = DisposableElementsAttrBase<uint16_t>;
+using DisposableF16ElementsAttr = DisposableElementsAttrBase<::onnx_mlir::float_16>;
+using DisposableF32ElementsAttr = DisposableElementsAttrBase<float>;
+using DisposableU64ElementsAttr = DisposableElementsAttrBase<uint64_t>;
 
 } // namespace mlir
 
