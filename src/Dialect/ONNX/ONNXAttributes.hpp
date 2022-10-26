@@ -70,18 +70,6 @@ inline size_t getStridesPosition(
   return pos;
 }
 
-inline int64_t getFlattenedIndex(
-    ArrayRef<int64_t> indices, ArrayRef<int64_t> shape) {
-  assert(indices.size() == shape.size());
-  int64_t multiplier = 1;
-  uint64_t idx = 0;
-  for (int a = indices.size() - 1; a >= 0; --a) {
-    idx += indices[a] * multiplier;
-    multiplier *= shape[a];
-  }
-  return idx;
-}
-
 // TODO: re-structure DisposableElementsAttr implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
