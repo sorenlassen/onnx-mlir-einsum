@@ -93,6 +93,9 @@ public:
     auto d = i.toDenseElementsAttr();
     d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
     (void)d;
+    i.print(llvm::outs());
+    d.print(llvm::outs());
+    a.print(llvm::outs());
     ShapedType t = i.getType();
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";
