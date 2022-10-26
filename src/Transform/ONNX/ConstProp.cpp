@@ -97,14 +97,6 @@ struct CastIntsOrFPs {
       });
     }
   };
-  template <typename... Args>
-  static void evalFP(Type type, Args... args) {
-    dispatchFP<Cast, void, Args...>::eval(type, args...);
-  }
-  template <typename... Args>
-  static void evalInt(Type type, Args... args) {
-    dispatchInt<Cast, void, Args...>::eval(type, args...);
-  }
 };
 
 ArrayRef<char> getDenseIntOrFPRawDataFromConstOp(
@@ -123,9 +115,11 @@ ArrayRef<char> getDenseIntOrFPRawDataFromConstOp(
     bufferPtrs.push_back(res);
     Type elementType = type.getElementType();
     if (elementType.isa<FloatType>()) {
-      CastIntsOrFPs<double>::evalFP(elementType, src, res);
+      dispatchFP<CastIntsOrFPs<double>::template Cast, void>::eval(
+          elementType, src, res);
     } else if (elementType.isa<IntegerType>()) {
-      CastIntsOrFPs<int64_t>::evalInt(elementType, src, res);
+      dispatchInt<CastIntsOrFPs<int64_t>::template Cast, void>::eval(
+          elementType, src, res);
     } else {
       llvm_unreachable("Unknown data type");
     }
@@ -357,10 +351,6 @@ struct ElementwiseBinary {
       }
     }
   };
-  template <typename... Args>
-  static void eval(Type type, Args... args) {
-    dispatchFPOrInt<Compute, void, Args...>::eval(type, args...);
-  }
 };
 
 /// Do element-wise binary calculation of 'lhs' and 'rhs' values and create an
@@ -394,8 +384,10 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       type, [&](MutableArrayRef<char> dst) {
-        ElementwiseBinary<ElementwiseBinaryOp>::eval(
-            elementType, lhsShape, lhs, rhsShape, rhs, type.getShape(), dst);
+        dispatchFPOrInt<
+            ElementwiseBinary<ElementwiseBinaryOp>::template Compute,
+            void>::eval(elementType, lhsShape, lhs, rhsShape, rhs,
+            type.getShape(), dst);
       });
 
   // Construct a new ONNXConstantOp.
@@ -464,8 +456,7 @@ Value ConstPropElementwiseUnary(
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       replacingType, [&](MutableArrayRef<char> dst) {
         dispatchFPOrInt<ElementwiseUnary<ElementwiseUnaryOp>::template Compute,
-            void, ArrayRef<char>, MutableArrayRef<char>>::eval(elementType, src,
-            dst);
+            void>::eval(elementType, src, dst);
       });
 
   // Construct a new ONNXConstantOp.
@@ -786,16 +777,9 @@ struct SrcDstCast {
 
   static void eval(
       Type dstType, ArrayRef<char> src, MutableArrayRef<char> dst) {
-    dispatchFPOrInt<DstCast, void, ArrayRef<S>, MutableArrayRef<char>>::eval(
-        dstType, castArrayRef<S>(src), dst);
+    dispatchFPOrInt<DstCast, void>::eval(dstType, castArrayRef<S>(src), dst);
   }
 };
-
-template <typename... Args>
-void evalSrcDstCast(Type srcType, Type dstType, Args... args) {
-  dispatchFPOrInt<SrcDstCast, void, Type, Args...>::eval(
-      srcType, dstType, args...);
-}
 
 Value ConstPropCast(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
@@ -813,7 +797,8 @@ Value ConstPropCast(
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       dstType, [&](MutableArrayRef<char> dst) {
-        evalSrcDstCast(srcElemType, dstElemType, src, dst);
+        dispatchFPOrInt<SrcDstCast, void>::eval(
+            srcElemType, dstElemType, src, dst);
       });
 
   // Construct a new ONNXConstantOp.
