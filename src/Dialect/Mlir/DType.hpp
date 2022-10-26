@@ -123,9 +123,9 @@ struct dispatchIntOrFP {
 };
 #endif
 
-template <template <typename, typename...> class Action, typename Out,
-    typename... Ts>
+template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
+  template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
 #define ACT(TY) (Action<DType<DTYPE::TY>, Ts...>::eval(xs...))
     // clang-format off
@@ -144,8 +144,9 @@ struct dispatchInt {
 };
 
 template <template <typename, typename...> class Action, typename Alt,
-    typename Out, typename... Ts>
+    typename Out>
 struct dispatchFPOr {
+  template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
 #define ACT(TY) (Action<DType<DTYPE::TY>, Ts...>::eval(xs...))
     // clang-format off
@@ -159,21 +160,20 @@ struct dispatchFPOr {
   }
 };
 
-template <typename Out, typename... Ts>
+template <typename Out>
 struct dispatchFail {
+  template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
     llvm_unreachable("unsupported type");
   }
 };
 
-template <template <typename, typename...> class Action, typename Out,
-    typename... Ts>
-using dispatchFP = dispatchFPOr<Action, dispatchFail<Out, Ts...>, Out, Ts...>;
+template <template <typename, typename...> class Action, typename Out>
+using dispatchFP = dispatchFPOr<Action, dispatchFail<Out>, Out>;
 
-template <template <typename, typename...> class Action, typename Out,
-    typename... Ts>
+template <template <typename, typename...> class Action, typename Out>
 using dispatchFPOrInt =
-    dispatchFPOr<Action, dispatchInt<Action, Out, Ts...>, Out, Ts...>;
+    dispatchFPOr<Action, dispatchInt<Action, Out>, Out>;
 
 // Helper functions frequently used together with dispatch classes.
 

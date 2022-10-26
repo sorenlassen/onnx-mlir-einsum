@@ -118,14 +118,14 @@ struct ReadIntsOrFPs {
 
 void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
   ArrayRef<char> src = getDenseIntOrFPRawData(elements);
-  dispatchInt<ReadIntsOrFPs<int64_t>::template Read, void, ArrayRef<char>,
-      MutableArrayRef<int64_t>>::eval(elements.getElementType(), src, ints);
+  dispatchInt<ReadIntsOrFPs<int64_t>::template Read, void>::eval(
+      elements.getElementType(), src, ints);
 }
 
 void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
   ArrayRef<char> src = getDenseIntOrFPRawData(elements);
-  dispatchFP<ReadIntsOrFPs<double>::template Read, void, ArrayRef<char>,
-      MutableArrayRef<double>>::eval(elements.getElementType(), src, fps);
+  dispatchFP<ReadIntsOrFPs<double>::template Read, void>::eval(
+      elements.getElementType(), src, fps);
 }
 
 } // namespace onnx_mlir
