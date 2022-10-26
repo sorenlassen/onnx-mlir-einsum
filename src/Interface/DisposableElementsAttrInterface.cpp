@@ -11,9 +11,5 @@
 
 #include "src/Interface/DisposableElementsAttrInterface.hpp"
 
-namespace mlir {
-
 /// Include the auto-generated declarations.
 #include "src/Interface/DisposableElementsAttrInterface.cpp.inc"
-
-} // end namespace mlir

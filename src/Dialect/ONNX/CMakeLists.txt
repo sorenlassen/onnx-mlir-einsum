@@ -61,12 +61,12 @@ add_onnx_mlir_library(OMONNXOps
   OMONNXRewriteIncGen
   OMResultTypeInferenceOpInterfaceIncGen
   OMShapeInferenceOpInterfaceIncGen
-  OMDisposableElementsAttrInterfaceIncGen
 
   LINK_LIBS PRIVATE
   Diagnostic
     
   LINK_LIBS PUBLIC
+  OMDisposableElementsAttrInterface
   OMMlirDialects
   OMMlirUtilities
   onnx

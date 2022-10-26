@@ -88,7 +88,11 @@ public:
     a = DisposableU64ElementsAttr::get(type, {1}, buffer<uint64_t>({7,9}), fun);
     assert(a);
     assert(a.isa<DisposableU64ElementsAttr>());
+    assert(a.isa<DisposableElementsAttr>());
     DisposableU64ElementsAttr i = a.cast<DisposableU64ElementsAttr>();
+    auto d = i.toDenseElementsAttr();
+    d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
+    (void)d;
     ShapedType t = i.getType();
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";
