@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Builders.h"
@@ -18,6 +19,7 @@
 
 #include "src/Dialect/Mlir/DType.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
+#include "src/Interface/DisposableElementsAttrInterface.hpp"
 
 using namespace mlir;
 
@@ -126,6 +128,19 @@ void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
   ArrayRef<char> src = getDenseIntOrFPRawData(elements);
   dispatchFP<ReadIntsOrFPs<double>::template Read, void>::eval(
       elements.getElementType(), src, fps);
+}
+
+
+DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>())
+    return dense;
+  if (auto resource = elements.dyn_cast<DenseResourceElementsAttr>()) {
+    ArrayRef<char> bytes = resource.getRawHandle().getResource()->getBlob()->getData();
+    return DenseElementsAttr::getFromRawBuffer(resource.getType(), bytes);
+  }
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttrInterface>())
+    return disposable.toDenseElementsAttr();
+  llvm_unreachable("unexpected ElementsAttr instance"); // TODO: read data from elements.getValues()
 }
 
 } // namespace onnx_mlir

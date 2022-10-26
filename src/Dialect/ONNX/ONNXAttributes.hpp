@@ -13,8 +13,11 @@
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/MemoryBuffer.h"
+
+#include "src/Interface/DisposableElementsAttrInterface.hpp"
 
 #include <memory>
 
@@ -218,7 +221,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 template <typename T>
 class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-          DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
+          DisposableElementsAttributeStorage<T>, DisposableElementsAttrInterface::Trait, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
   using Storage = DisposableElementsAttributeStorage<T>;
@@ -226,7 +229,7 @@ public:
   using Buffer = typename Storage::Buffer;
   using Transform = typename Storage::Transform;
   using Super = Attribute::AttrBase<DisposableElementsAttr<T>, Attribute,
-      DisposableElementsAttributeStorage<T>, ElementsAttr::Trait,
+      DisposableElementsAttributeStorage<T>, DisposableElementsAttrInterface::Trait, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
   static DisposableElementsAttr get(
@@ -239,9 +242,14 @@ public:
     return a;
   }
   DisposableElementsAttr(std::nullptr_t) {}
+
   // Allow implicit conversion to ElementsAttr.
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
+  }
+
+  DenseElementsAttr toDenseElementsAttr() const {
+    llvm_unreachable("TODO: implement toDenseElementsAttr");
   }
 
   ShapedType getType() const { return this->getImpl()->type; }
@@ -264,6 +272,8 @@ public:
   bool isSplat() const {
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
+  template <typename X>
+  X getSplatValue() const { llvm_unreachable("TODO: implement getSplatValue"); }
 
   template <typename X>
   using iterator = detail::MappedIndexIterator<X>;
