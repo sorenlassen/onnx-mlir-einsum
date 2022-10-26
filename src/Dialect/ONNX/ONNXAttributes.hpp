@@ -10,14 +10,14 @@
 
 #pragma once
 
+#include "src/Interface/DisposableElementsAttrInterface.hpp"
+
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/MemoryBuffer.h"
-
-#include "src/Interface/DisposableElementsAttrInterface.hpp"
 
 #include <memory>
 
