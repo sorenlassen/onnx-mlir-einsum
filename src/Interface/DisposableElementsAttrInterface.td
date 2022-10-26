@@ -20,7 +20,7 @@ def DisposableElementsAttr : AttrInterface<"DisposableElementsAttr"> {
 
   let methods = [
     InterfaceMethod<"Infer and set the output shape for the current operation.",
-                    "DenseElementsAttr", "toDenseElementsAttr">
+                    "::mlir::DenseElementsAttr", "toDenseElementsAttr">
   ];
   
   let cppNamespace = "::mlir";

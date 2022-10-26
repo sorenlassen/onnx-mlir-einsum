@@ -249,7 +249,7 @@ public:
   }
 
   DenseElementsAttr toDenseElementsAttr() const {
-    llvm_unreachable("TODO: implement toDenseElementsAttr");
+    return nullptr; // TODO: implement this
   }
 
   ShapedType getType() const { return this->getImpl()->type; }
