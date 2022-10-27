@@ -120,52 +120,7 @@ inline auto makeMappedIndexIterator(
 
 } // namespace detail
 
-// An instance of Number64 should be interpreted in the context of a number
-// type (FloatType or IntegerType), e.g. with a given a mlir type t a
-// Number64 n can be converted to float as follows:
-//
-//   float toF2(Type t, Number64 n) {
-//     if (auto i = t.dyn_cast<IntegerType>()) {
-//       if (i.isSigned) return n.i64; else return n.u64;
-//     }
-//     return n.f64; // must be float, assuming isIntOrFPType(t, 64)
-//   }
-//
-union Number64 {
-  double f64;  // Floating point numbers with precision and range up to FLOAT64.
-  int64_t i64; // Signed ints up to bitwidth 64.
-  uint64_t u64; // Unsigned ints up to bitwidth 64, including BOOL (F=0, T=1).
-};
-
-inline bool isIntOrFPType(Type t, unsigned maxWidth) {
-  if (auto i = t.dyn_cast<IntegerType>())
-    return i.getWidth() <= maxWidth;
-  if (auto f = t.dyn_cast<FloatType>())
-    return f.getWidth() <= maxWidth;
-  return false;
-}
-
-template <typename T>
-constexpr bool isIntOrFP() {
-  using Trait = onnx_mlir::DTypeTraitByType<T>;
-  return (Trait::is_int || Trait::is_float) && Trait::width <= 64;
-}
-
-template <typename T>
-constexpr T fromNumber64(Number64 n) {
-  using Trait = onnx_mlir::DTypeTraitByType<T>;
-  if (Trait::is_int) {
-    if (std::is_signed_v<T>)
-      return n.i64;
-    else
-      return n.u64;
-  }
-  if (Trait::is_float)
-    return Trait::pack(n.f64);
-  llvm_unreachable("unsupported native iteration type");
-}
-
-using ElementsTransform = std::function<Number64(StringRef, size_t)>;
+using ElementsTransform = std::function<onnx_mlir::Number64(StringRef, size_t)>;
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
@@ -281,7 +236,7 @@ public:
   using Super::Base::Base;
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
-    assert(isIntOrFPType(type.getElementType(), 64));
+    assert(onnx_mlir::isIntOrFPType(type.getElementType(), 64));
     DisposableElementsAttr a =
         Super::Base::get(type.getContext(), type, strides, dtype);
     Storage &s = *a.getImpl();
@@ -335,21 +290,21 @@ public:
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
-  std::enable_if_t<isIntOrFP<X>(), FailureOr<iterator<X>>> try_value_begin_impl(
+  std::enable_if_t<onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>> try_value_begin_impl(
       OverloadToken<X>) const {
     DisposableElementsAttributeStorage *s = this->getImpl();
     return detail::makeMappedIndexIterator<X>(0, [s](size_t flatIndex) -> X {
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
-      Number64 n = s->transform(s->buffer->getBuffer(), pos);
-      return fromNumber64<X>(n);
+      onnx_mlir::Number64 n = s->transform(s->buffer->getBuffer(), pos);
+      return onnx_mlir::fromNumber64<X>(n);
     });
   }
 
   // TODO: support iteration over APInt, APFloat, Attribute
   template <typename X>
-  std::enable_if_t<!isIntOrFP<X>(), FailureOr<iterator<X>>>
+  std::enable_if_t<!onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
     return failure();
   }
