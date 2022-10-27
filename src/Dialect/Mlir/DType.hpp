@@ -253,6 +253,20 @@ using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
+inline bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
+  if (auto i = t.dyn_cast<mlir::IntegerType>())
+    return i.getWidth() <= maxWidth;
+  if (auto f = t.dyn_cast<mlir::FloatType>())
+    return f.getWidth() <= maxWidth;
+  return false;
+}
+
+template <typename T>
+constexpr bool isIntOrFP(unsigned maxWidth) {
+  using Trait = DTypeTraitByType<T>;
+  return (Trait::is_int || Trait::is_float) && Trait::width <= maxWidth;
+}
+
 // An instance of Number64 should be interpreted in the context of a number
 // type (FloatType or IntegerType), e.g. with a given a mlir type t a
 // Number64 n can be converted to float as follows:
@@ -270,20 +284,8 @@ union Number64 {
   uint64_t u64; // Unsigned ints up to bitwidth 64, including BOOL (F=0, T=1).
 };
 
-inline bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>())
-    return i.getWidth() <= maxWidth;
-  if (auto f = t.dyn_cast<mlir::FloatType>())
-    return f.getWidth() <= maxWidth;
-  return false;
-}
-
-template <typename T>
-constexpr bool isIntOrFP(unsigned maxWidth) {
-  using Trait = DTypeTraitByType<T>;
-  return (Trait::is_int || Trait::is_float) && Trait::width <= maxWidth;
-}
-
+// Here we're assuming that Number64 n is represented in accordance with T,
+// i.e. the f64/i64/u64 field in n was set based on T.
 template <typename T>
 constexpr T fromNumber64(Number64 n) {
   using Trait = DTypeTraitByType<T>;
@@ -295,7 +297,21 @@ constexpr T fromNumber64(Number64 n) {
   }
   if (Trait::is_float)
     return Trait::pack(n.f64);
-  llvm_unreachable("unsupported native iteration type");
+  llvm_unreachable("unsupported native type");
+}
+
+template <typename T>
+constexpr Number64 toNumber64(T x) {
+  using Trait = DTypeTraitByType<T>;
+  if (Trait::is_int) {
+    if (std::is_signed_v<T>)
+      return { .i64 = static_cast<int64_t>(x) };
+    else
+      return { .u64 = static_cast<uint64_t>(x) };
+  }
+  if (Trait::is_float)
+    return { .f64 = static_cast<double>(Trait::unpack(x)) };
+  llvm_unreachable("unsupported native type");
 }
 
 } // namespace onnx_mlir
