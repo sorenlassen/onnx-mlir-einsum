@@ -94,9 +94,9 @@ public:
     ElementsAttr e = a.cast<ElementsAttr>();
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
-    i.print(llvm::errs()); llvm::errs() << "\n";
-    e.print(llvm::outs()); llvm::errs() << "\n";
-    a.print(llvm::outs()); llvm::errs() << "\n";
+    llvm::errs() << "as DisposableElementsAttr " << i << "\n";
+    llvm::errs() << "as ElementsAttr " << e << "\n";
+    llvm::errs() << "as Attribute " << a << "\n";
     assert(e.isSplat());
     llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
     assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-6);
@@ -107,8 +107,7 @@ public:
     assert(fabs(f.convertToDouble() - 4.2) < 1e-6);
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs());
-    llvm::errs() << "\n";
+    llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
 
@@ -119,8 +118,8 @@ public:
     auto fun = [](StringRef s, size_t p) -> Number64 {
       return {.f64 = float_16::toFloat(asArrayRef<float_16>(s)[p])};
     };
-    Attribute a = DisposableElementsAttr::get(
-        type, {0}, DType::FLOAT16, buffer<float_16>({float_16::fromFloat(4.2)}), fun);
+    Attribute a = DisposableElementsAttr::get(type, {0}, DType::FLOAT16,
+        buffer<float_16>({float_16::fromFloat(4.2)}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -134,7 +133,7 @@ public:
     llvm::errs() << "x " << x << "\n";
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs()); llvm::errs() << "\n";
+    llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
 
@@ -159,7 +158,7 @@ public:
     llvm::errs() << "x " << x << "\n";
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs()); llvm::errs() << "\n";
+    llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
 
@@ -177,10 +176,10 @@ public:
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
     auto d = i.toDenseElementsAttr();
     d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
-    (void)d;
-    i.print(llvm::outs()); llvm::errs() << "\n";
-    d.print(llvm::outs()); llvm::errs() << "\n";
-    a.print(llvm::outs()); llvm::errs() << "\n";
+    llvm::errs() << "as DisposableElementsAttr " << i << "\n";
+    llvm::errs() << "as DenseElementsAttr " << d << "\n";
+    llvm::errs() << "as Attribute " << a << "\n";
+
     ShapedType t = i.getType();
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";

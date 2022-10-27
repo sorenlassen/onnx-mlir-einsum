@@ -260,11 +260,14 @@ public:
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
     assert(onnx_mlir::isIntOrFPType(type.getElementType(), 64));
-    unsigned bytewidth = (onnx_mlir::widthOfIntOrFPType(type.getElementType()) + 7) / 8;
+    unsigned bytewidth =
+        (onnx_mlir::widthOfIntOrFPType(type.getElementType()) + 7) / 8;
     assert(buffer->getBufferSize() % bytewidth == 0);
     int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
     assert(!detail::isSplat(strides) || numBufferElements == 1);
-    assert(numBufferElements == 1 || numBufferElements == detail::getStridesNumElements(type.getShape(), strides));
+    assert(numBufferElements == 1 ||
+           numBufferElements ==
+               detail::getStridesNumElements(type.getShape(), strides));
     DisposableElementsAttr a =
         Super::Base::get(type.getContext(), type, strides, dtype);
     Storage &s = *a.getImpl();
@@ -297,9 +300,7 @@ public:
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
-  bool isSplat() const {
-    return detail::isSplat(getStrides());
-  }
+  bool isSplat() const { return detail::isSplat(getStrides()); }
   template <typename X>
   X getSplatValue() const {
     onnx_mlir::Number64 n = getTransform()(getBuffer()->getBuffer(), 0);
@@ -347,6 +348,8 @@ public:
     return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
+  // TODO: figure out how to register this so that it prints correctly
+  //       when accessed from ElementsAttr or Attribute base types...
   void print(AsmPrinter &printer) const {
     llvm::errs() << "DisposableElementsAttr::print invoked\n";
     print(printer.getStream());
@@ -358,6 +361,8 @@ public:
     else
       return toDenseElementsAttrByType<APFloat>();
   }
+
+private: // TODO: Figure out if any of the following would be useful publicly.
   template <typename X>
   DenseElementsAttr toDenseElementsAttrByType() const {
     if (isSplat())
@@ -369,7 +374,6 @@ public:
     return DenseElementsAttr::get(getType(), xs);
   }
 
-private: // TODO: Figure out if any of the following would be useful publicly.
   bool isDisposed() const {
     //  TODO: Decide if a splat value can be represented with a constant
     //        transform with no buffer; in that case isDisposed should
@@ -389,6 +393,11 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     return n / buffer->getBufferSize();
   }
 }; // class DisposableElementsAttr
+
+inline raw_ostream &operator<<(raw_ostream &os, DisposableElementsAttr attr) {
+  attr.print(os);
+  return os;
+}
 
 } // namespace mlir
 
