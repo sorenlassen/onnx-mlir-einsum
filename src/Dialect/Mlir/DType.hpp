@@ -13,15 +13,17 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/ADT/APFloat.h"
+#include "llvm/ADT/APInt.h"
 
 namespace onnx_mlir {
 
 // Numerical representation of basic data types.
 //
-// DTYPE faithfully copies onnx::TensorProto::DataType from
+// DType faithfully copies onnx::TensorProto::DataType from
 // https://github.com/onnx/onnx/blob/main/onnx/onnx.proto
-// and DTYPE and onnx::TensorProto::DataType can be used interchangeably.
-// In some places it is convenient to use DTYPE to avoid compile time
+// and DType and onnx::TensorProto::DataType can be used interchangeably.
+// In some places it is convenient to use DType to avoid compile time
 // dependencies on third_party/onnx.
 enum class DType : int {
   // clang-format off
@@ -57,6 +59,9 @@ enum class DType : int {
 // Helper functions.
 float U16ToF32(uint16_t);
 uint16_t F32ToU16(float);
+
+llvm::APFloat U16ToAPFloat(uint16_t);
+uint16_t APFloatToU16(llvm::APFloat);
 
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
