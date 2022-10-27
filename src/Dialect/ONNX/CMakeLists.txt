@@ -108,7 +108,6 @@ add_onnx_mlir_library(OMONNXOps
   Diagnostic
     
   LINK_LIBS PUBLIC
-  OMDisposableElementsAttrInterface
   OMMlirDialects
   OMMlirUtilities
   onnx

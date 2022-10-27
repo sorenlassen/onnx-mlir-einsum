@@ -121,13 +121,6 @@ function(add_onnx_mlir_interface interface)
   add_public_tablegen_target(OM${interface}IncGen)
 endfunction()
 
-function(add_onnx_mlir_attr_interface interface)
-  set(LLVM_TARGET_DEFINITIONS ${interface}.td)
-  mlir_tablegen(${interface}.hpp.inc -gen-attr-interface-decls)
-  mlir_tablegen(${interface}.cpp.inc -gen-attr-interface-defs)
-  add_public_tablegen_target(OM${interface}IncGen)
-endfunction()
-
 # add_onnx_mlir_library(name sources...
 #   This function (generally) has the same semantic as add_library. In
 #   addition it supports the arguments below and it does the following
