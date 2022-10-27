@@ -283,8 +283,9 @@ public:
   template <typename X>
   using iterator_range = llvm::iterator_range<iterator<X>>;
 
-  // TODO: add APInt, APFloat, Attribute
-  using NonContiguousIterableTypesT = onnx_mlir::IntOrFPDTypes;
+  // TODO: add Attribute
+  using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
+    int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16, float, double, APInt, APFloat>;
 
   template <typename X>
   using OverloadToken = typename Super::template OverloadToken<X>;
@@ -298,7 +299,7 @@ public:
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
       onnx_mlir::Number64 n = s->transform(s->buffer->getBuffer(), pos);
-      return onnx_mlir::fromNumber64<X>(n);
+      return onnx_mlir::fromNumber64<X>(s->type.getElementType(), n);
     });
   }
 
