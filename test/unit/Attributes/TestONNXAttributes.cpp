@@ -82,6 +82,7 @@ public:
   }
 
   int test_splat() {
+    llvm::errs() << "test_splat:\n";
     ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
     auto fun = [](StringRef s, size_t p) -> Number64 {
       return {.f64 = asArrayRef<float>(s)[p]};
@@ -115,6 +116,7 @@ public:
   }
 
   int test_f16() {
+    llvm::errs() << "test_f16:\n";
     assert(fabs(float_16::toFloat(float_16::fromFloat(4.2)) - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
     auto fun = [](StringRef s, size_t p) -> Number64 {
@@ -127,12 +129,6 @@ public:
     ElementsAttr e = a.cast<ElementsAttr>();
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
-    i.print(llvm::errs());
-    llvm::errs() << "\n";
-    e.print(llvm::outs());
-    llvm::errs() << "\n";
-    a.print(llvm::outs());
-    llvm::errs() << "\n";
     assert(e.isSplat());
     llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
     assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-3);
@@ -146,7 +142,34 @@ public:
     return 0;
   }
 
+  int test_bool() {
+    llvm::errs() << "test_bool:\n";
+    ShapedType type = RankedTensorType::get({1}, getUInt(1));
+    auto fun = [](StringRef s, size_t p) -> Number64 {
+      return {.u64 = asArrayRef<bool>(s)[p]};
+    };
+    Attribute a = DisposableElementsAttr::get(
+        type, {0}, DType::BOOL, buffer<bool>({true}), fun);
+    assert(a);
+    assert(a.isa<ElementsAttr>());
+    ElementsAttr e = a.cast<ElementsAttr>();
+    assert(a.isa<DisposableElementsAttr>());
+    DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
+    assert(e.isSplat());
+    llvm::errs() << "splat value " << i.getSplatValue<bool>() << "\n";
+    assert(i.getSplatValue<bool>());
+    auto b = i.value_begin<bool>();
+    auto x = *b;
+    llvm::errs() << "x " << x << "\n";
+    auto d = i.toDenseElementsAttr();
+    d = i.toDenseElementsAttr();
+    d.print(llvm::outs());
+    llvm::errs() << "\n";
+    return 0;
+  }
+
   int test_attributes() {
+    llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
     auto fun = [](StringRef s, size_t p) -> Number64 {
       return {.u64 = asArrayRef<uint64_t>(s)[p]};
@@ -221,6 +244,7 @@ int main(int argc, char *argv[]) {
   int failures = 0;
   failures += test.test_splat();
   failures += test.test_f16();
+  failures += test.test_bool();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
