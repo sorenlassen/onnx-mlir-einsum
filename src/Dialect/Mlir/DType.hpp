@@ -181,10 +181,25 @@ struct DTypeTraitByType<double> : public DTypeTrait<DType::DOUBLE> {};
 
 template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
+#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
+  // clang-format off
+  template <typename... Ts>
+  static Out eval(DType dtype, Ts... xs) {
+    switch (dtype) {
+      case DType::BOOL  : return ACT(BOOL);
+      case DType::INT8  : return ACT(INT8);
+      case DType::UINT8 : return ACT(UINT8);
+      case DType::INT16 : return ACT(INT16);
+      case DType::UINT16: return ACT(UINT16);
+      case DType::INT32 : return ACT(INT32);
+      case DType::UINT32: return ACT(UINT32);
+      case DType::INT64 : return ACT(INT64);
+      case DType::UINT64: return ACT(UINT64);
+      default: llvm_unreachable("not a supported integer type");
+    }
+  }
   template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
-#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
-    // clang-format off
     auto itype = type.cast<mlir::IntegerType>();
     switch (itype.getWidth()) {
       case  1: return ACT(BOOL);
@@ -194,32 +209,42 @@ struct dispatchInt {
       case 64: return itype.isUnsigned() ? ACT(UINT64) : ACT(INT64);
       default: llvm_unreachable("unsupported integer width");
     }
-    // clang-format on
-#undef ACT
   }
+  // clang-format on
+#undef ACT
 };
 
 template <template <typename, typename...> class Action, typename Alt,
     typename Out>
 struct dispatchFPOr {
+#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
+  // clang-format off
+  template <typename... Ts>
+  static Out eval(DType dtype, Ts... xs) {
+    switch (dtype) {
+      case DType::BFLOAT16: return ACT(BOOL);
+      case DType::FLOAT16 : return ACT(FLOAT16);
+      case DType::FLOAT   : return ACT(FLOAT);
+      case DType::DOUBLE  : return ACT(DOUBLE);
+      default: return Alt::eval(dtype, xs...);
+    }
+  }
   template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
-#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
-    // clang-format off
     if (type.isBF16()) llvm_unreachable("BF16 is unsupported");
     if (type.isF16()) return ACT(FLOAT16);
     if (type.isF32()) return ACT(FLOAT);
     if (type.isF64()) return ACT(DOUBLE);
     return Alt::eval(type, xs...);
-    // clang-format on
-#undef ACT
   }
+  // clang-format on
+#undef ACT
 };
 
 template <typename Out>
 struct dispatchFail {
-  template <typename... Ts>
-  static Out eval(mlir::Type type, Ts... xs) {
+  template <typename T, typename... Ts>
+  static Out eval(T dtype, Ts... xs) {
     llvm_unreachable("unsupported type");
   }
 };
