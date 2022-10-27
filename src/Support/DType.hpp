@@ -278,16 +278,7 @@ constexpr bool isIntOrFP<llvm::APInt>(unsigned maxWidth) {
 }
 
 // An instance of Number64 should be interpreted in the context of a number
-// type (FloatType or IntegerType), e.g. with a given a mlir type t a
-// Number64 n can be converted to float as follows:
-//
-//   float toF2(Type t, Number64 n) {
-//     if (auto i = t.dyn_cast<IntegerType>()) {
-//       if (i.isSigned) return n.i64; else return n.u64;
-//     }
-//     return n.f64; // must be float, assuming isIntOrFPType(t, 64)
-//   }
-//
+// type (FloatType or IntegerType) as in fromNumber64(Type, Number64) below.
 union Number64 {
   double f64;  // Floating point numbers with precision and range up to FLOAT64.
   int64_t i64; // Signed ints up to bitwidth 64.
@@ -300,14 +291,11 @@ template <typename T>
 inline T fromNumber64(mlir::Type t, Number64 n) {
   if (auto i = t.dyn_cast<mlir::IntegerType>()) {
     if (i.isSigned()) {
-      llvm::errs() << "i64";
       return n.i64;
     } else {
-      llvm::errs() << "u64";
       return n.u64;
     }
   }
-  llvm::errs() << "f64";
   return n.f64; // t must be float, assuming isIntOrFPType(t, 64)
 }
 
