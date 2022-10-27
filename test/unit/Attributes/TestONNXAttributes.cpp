@@ -115,13 +115,13 @@ public:
   }
 
   int test_f16() {
-    assert(fabs(F16ToF32(F32ToF16(4.2)) - 4.2) < 1e-3);
+    assert(fabs(float_16::toFloat(float_16::fromFloat(4.2)) - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
     auto fun = [](StringRef s, size_t p) -> Number64 {
-      return {.f64 = F16ToF32(asArrayRef<float_16>(s)[p])};
+      return {.f64 = float_16::toFloat(asArrayRef<float_16>(s)[p])};
     };
     Attribute a = DisposableElementsAttr::get(
-        type, {0}, DType::FLOAT16, buffer<float_16>({F32ToF16(4.2)}), fun);
+        type, {0}, DType::FLOAT16, buffer<float_16>({float_16::fromFloat(4.2)}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();

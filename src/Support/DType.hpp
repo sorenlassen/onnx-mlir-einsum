@@ -56,22 +56,17 @@ enum class DType : int {
   // clang-format on
 };
 
-// Helper functions.
-float U16ToF32(uint16_t);
-uint16_t F32ToU16(float);
-
-llvm::APFloat U16ToAPFloat(uint16_t);
-uint16_t APFloatToU16(llvm::APFloat);
-
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct float_16 {
   uint16_t u16;
-};
 
-inline float F16ToF32(float_16 f16) { return U16ToF32(f16.u16); };
-inline float_16 F32ToF16(float f32) { return {F32ToU16(f32)}; }
+  static llvm::APFloat toAPFloat(float_16);
+  static float_16 fromAPFloat(llvm::APFloat);
+  static float toFloat(float_16);
+  static float_16 fromFloat(float);
+};
 
 using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
     int32_t, uint32_t, int64_t, uint64_t, float_16, float, double>;
@@ -99,8 +94,8 @@ struct DTypeTraitBase {
 template <>
 struct DTypeTrait<DType::FLOAT16>
     : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {
-  static float_16 pack(float unpacked) { return F32ToF16(unpacked); }
-  static float unpack(float_16 packed) { return F16ToF32(packed); }
+  static float_16 pack(float unpacked) { return float_16::fromFloat(unpacked); }
+  static float unpack(float_16 packed) { return float_16::toFloat(packed); }
 };
 
 #define DEFINE_DTypeTrait(TY, CPPTY)                                           \

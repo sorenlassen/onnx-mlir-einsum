@@ -18,6 +18,27 @@ using llvm::APInt;
 
 namespace onnx_mlir {
 
+/*static*/
+llvm::APFloat float_16::toAPFloat(float_16 f16) {
+  return APFloat(APFloat::IEEEhalf(), APInt(16, f16.u16));
+}
+/*static*/
+float_16 float_16::fromAPFloat(llvm::APFloat a) {
+  bool ignored;
+  a.convert(APFloat::IEEEhalf(), APFloat::rmNearestTiesToEven, &ignored);
+  APInt i = a.bitcastToAPInt();
+  uint16_t u16 = i.getZExtValue();
+  return {u16};
+}
+/*static*/
+float float_16::toFloat(float_16 f16) {
+  return toAPFloat(f16).convertToFloat();
+}
+/*static*/
+float_16 float_16::fromFloat(float f) {
+  return fromAPFloat(APFloat(f));
+}
+
 llvm::APFloat U16ToAPFloat(uint16_t u) {
   return APFloat(APFloat::IEEEhalf(), APInt(16, u));
 }
