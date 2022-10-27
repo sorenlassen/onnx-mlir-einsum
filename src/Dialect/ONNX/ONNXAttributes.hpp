@@ -280,7 +280,8 @@ public:
   }
   template <typename X>
   X getSplatValue() const {
-    llvm_unreachable("TODO: implement getSplatValue");
+    onnx_mlir::Number64 n = getTransform()(getBuffer()->getBuffer(), 0);
+    return onnx_mlir::fromNumber64<X>(getElementType(), n);
   }
 
   template <typename X>

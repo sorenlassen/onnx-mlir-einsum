@@ -77,6 +77,33 @@ public:
     I32 = builder.getI32Type();
   }
 
+  int test_splat() {
+    ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
+    auto fun = [](StringRef s, size_t p) -> Number64 {
+      return {.f64 = asArrayRef<float>(s)[p]};
+    };
+    Attribute a = DisposableElementsAttr::get(
+        type, {0}, DType::UINT64, buffer<float>({4.2}), fun);
+    assert(a);
+    assert(a.isa<ElementsAttr>());
+    ElementsAttr e = a.cast<ElementsAttr>();
+    assert(a.isa<DisposableElementsAttr>());
+    DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
+    i.print(llvm::errs()); llvm::errs() << "\n";
+    e.print(llvm::outs()); llvm::errs() << "\n";
+    a.print(llvm::outs()); llvm::errs() << "\n";
+    assert(e.isSplat());
+    llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
+    assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-6);
+    auto b = i.value_begin<float>();
+    auto x = *b;
+    llvm::errs() << "x " << x << "\n";
+    auto d = i.toDenseElementsAttr();
+    d = i.toDenseElementsAttr();
+    d.print(llvm::outs()); llvm::errs() << "\n";
+    return 0;
+  }
+
   int test_attributes() {
     ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
     auto fun = [](StringRef s, size_t p) -> Number64 {
@@ -86,7 +113,6 @@ public:
     a = DisposableElementsAttr::get(
         type, {1}, DType::UINT64, buffer<uint64_t>({7, 9}), fun);
     assert(a);
-    assert(a.isa<DisposableElementsAttr>());
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
     auto d = i.toDenseElementsAttr();
@@ -107,6 +133,8 @@ public:
     assert(begin != end);
     assert(begin == i.getValues<uint64_t>().begin());
     assert(end == i.getValues<uint64_t>().end());
+    auto x = *begin;
+    llvm::errs() << "x " << x << "\n";
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
     // assert(succeeded(i.tryGetValues<uint64_t>()));
@@ -145,6 +173,7 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_splat();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
