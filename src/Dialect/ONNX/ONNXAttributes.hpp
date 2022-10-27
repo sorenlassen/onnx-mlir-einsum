@@ -222,6 +222,12 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 // NOTE: DenseResourceElementsAttr is an alternative for heap allocated memory
 //       (but without garbage collection or the other features listed above).
 //
+// NOTE: DisposableElementsAttr doesn't support complex numbers and strings.
+//       It could be extended with 'DisposableStringElemenetsAttr` and
+//       `DisposableComplexElementsAttr' in the same way that
+//       DenseElementsAttr has different implementations for strings and
+//       numbers.
+//
 class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr, Attribute,
           DisposableElementsAttributeStorage, ElementsAttr::Trait,
