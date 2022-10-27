@@ -76,8 +76,6 @@ struct DTypeTrait {
   static constexpr DType dtype = TY;
 };
 
-#if 1
-
 namespace detail {
 template <DType DTYPE, typename ty, typename unpacked_ty = ty>
 struct DTypeTraitBase {
@@ -104,41 +102,6 @@ struct DTypeTrait<DType::FLOAT16>
   template <>                                                                  \
   struct DTypeTrait<DType::TY>                                                 \
       : public detail::DTypeTraitBase<DType::TY, CPPTY> {};
-
-#else
-
-namespace detail {
-template <typename T>
-constexpr unsigned bitwidth_v() {
-  return std::is_same_v<T, bool> ? 1 : sizeof(T);
-}
-} // namespace detail
-template <>
-struct DTypeTrait<DType::FLOAT16> {
-  static constexpr DType dtype = DType::FLOAT16;
-  using type = float_16;
-  static constexpr bool is_int = false;
-  static constexpr bool is_float = true;
-  static constexpr unsigned width = 16;
-  using unpacked_type = float;
-  static type pack(unpacked_type unpacked) { return F32ToF16(unpacked); }
-  static unpacked_type unpack(type packed) { return F16ToF32(packed); }
-};
-
-#define DEFINE_DTypeTrait(TY, CPPTY)                                           \
-  template <>                                                                  \
-  struct DTypeTrait<DType::TY> {                                               \
-    static constexpr DType dtype = DType::TY;                                  \
-    using type = CPPTY;                                                        \
-    static constexpr bool is_int = std::is_integral_v<type>;                   \
-    static constexpr bool is_float = std::is_floating_point_v<type>;           \
-    static constexpr unsigned width = bitwidth_v<type>;                        \
-    using unpacked_type = type;                                                \
-    static type pack(unpacked_type unpacked) { return unpacked; }              \
-    static unpacked_type unpack(type packed) { return packed; }                \
-  }
-
-#endif
 
 DEFINE_DTypeTrait(FLOAT, float);
 DEFINE_DTypeTrait(DOUBLE, double);
