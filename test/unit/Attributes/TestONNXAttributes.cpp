@@ -77,8 +77,12 @@ public:
     I32 = builder.getI32Type();
   }
 
+  Type getUInt(unsigned width) const {
+    return IntegerType::get(ctx.get(), width, IntegerType::Unsigned);
+  }
+
   int test_splat() {
-    ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
+    ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
     auto fun = [](StringRef s, size_t p) -> Number64 {
       return {.f64 = asArrayRef<float>(s)[p]};
     };
@@ -89,23 +93,61 @@ public:
     ElementsAttr e = a.cast<ElementsAttr>();
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
-    i.print(llvm::errs()); llvm::errs() << "\n";
-    e.print(llvm::outs()); llvm::errs() << "\n";
-    a.print(llvm::outs()); llvm::errs() << "\n";
+    i.print(llvm::errs());
+    llvm::errs() << "\n";
+    e.print(llvm::outs());
+    llvm::errs() << "\n";
+    a.print(llvm::outs());
+    llvm::errs() << "\n";
     assert(e.isSplat());
     llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
     assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-6);
     auto b = i.value_begin<float>();
     auto x = *b;
     llvm::errs() << "x " << x << "\n";
+    auto f = i.getSplatValue<APFloat>();
+    assert(fabs(f.convertToDouble() - 4.2) < 1e-6);
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs()); llvm::errs() << "\n";
+    d.print(llvm::outs());
+    llvm::errs() << "\n";
+    return 0;
+  }
+
+  int test_f16() {
+    assert(fabs(F16ToF32(F32ToF16(4.2)) - 4.2) < 1e-3);
+    ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
+    auto fun = [](StringRef s, size_t p) -> Number64 {
+      return {.f64 = F16ToF32(asArrayRef<float_16>(s)[p])};
+    };
+    Attribute a = DisposableElementsAttr::get(
+        type, {0}, DType::FLOAT16, buffer<float_16>({F32ToF16(4.2)}), fun);
+    assert(a);
+    assert(a.isa<ElementsAttr>());
+    ElementsAttr e = a.cast<ElementsAttr>();
+    assert(a.isa<DisposableElementsAttr>());
+    DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
+    i.print(llvm::errs());
+    llvm::errs() << "\n";
+    e.print(llvm::outs());
+    llvm::errs() << "\n";
+    a.print(llvm::outs());
+    llvm::errs() << "\n";
+    assert(e.isSplat());
+    llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
+    assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-3);
+    auto b = i.value_begin<float>();
+    auto x = *b;
+    llvm::errs() << "x " << x << "\n";
+    auto d = i.toDenseElementsAttr();
+    d = i.toDenseElementsAttr();
+    d.print(llvm::outs());
+    llvm::errs() << "\n";
     return 0;
   }
 
   int test_attributes() {
-    ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
+    ShapedType type = RankedTensorType::get({2}, getUInt(64));
     auto fun = [](StringRef s, size_t p) -> Number64 {
       return {.u64 = asArrayRef<uint64_t>(s)[p]};
     };
@@ -143,6 +185,10 @@ public:
     assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
     std::cerr << "empty:" << i.empty() << "\n";
 
+    auto apbegin = i.value_begin<APInt>();
+    auto api = *apbegin;
+    assert(api.getZExtValue() == 7);
+
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
     assert(!e.isSplat());
@@ -174,6 +220,7 @@ int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
   failures += test.test_splat();
+  failures += test.test_f16();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";

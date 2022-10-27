@@ -299,11 +299,15 @@ union Number64 {
 template <typename T>
 inline T fromNumber64(mlir::Type t, Number64 n) {
   if (auto i = t.dyn_cast<mlir::IntegerType>()) {
-    if (i.isSigned())
+    if (i.isSigned()) {
+      llvm::errs() << "i64";
       return n.i64;
-    else
+    } else {
+      llvm::errs() << "u64";
       return n.u64;
+    }
   }
+  llvm::errs() << "f64";
   return n.f64; // t must be float, assuming isIntOrFPType(t, 64)
 }
 

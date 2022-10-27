@@ -120,6 +120,19 @@ inline auto makeMappedIndexIterator(
 
 } // namespace detail
 
+// TODO: remove after testing :
+inline raw_ostream &operator<<(raw_ostream &os, const ArrayRef<int64_t> &v) {
+  os << "(";
+  for (auto i : v)
+    os << i << ",";
+  os << ")";
+  return os;
+}
+inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
+  return os << "APFloat(" << af.convertToDouble() << ")";
+}
+// TODO: remove after testing ^
+
 using ElementsTransform = std::function<onnx_mlir::Number64(StringRef, size_t)>;
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
@@ -291,22 +304,28 @@ public:
   using iterator_range = llvm::iterator_range<iterator<X>>;
 
   // TODO: add Attribute
-  using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
-    int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16, float, double, APInt, APFloat>;
+  using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
+      uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
+      float, double, APInt, APFloat>;
 
   template <typename X>
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
-  std::enable_if_t<onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>> try_value_begin_impl(
-      OverloadToken<X>) const {
+  std::enable_if_t<onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
+  try_value_begin_impl(OverloadToken<X>) const {
     DisposableElementsAttributeStorage *s = this->getImpl();
     return detail::makeMappedIndexIterator<X>(0, [s](size_t flatIndex) -> X {
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
       onnx_mlir::Number64 n = s->transform(s->buffer->getBuffer(), pos);
-      return onnx_mlir::fromNumber64<X>(s->type.getElementType(), n);
+      llvm::errs() << "DisposableElementsAttr::try_value_begin_impl "
+                   << flatIndex << "," << pos << "," << n.u64 << "\n";
+      X x = onnx_mlir::fromNumber64<X>(s->type.getElementType(), n);
+      llvm::errs() << "DisposableElementsAttr::try_value_begin_impl " << x
+                   << "\n";
+      return x;
     });
   }
 
