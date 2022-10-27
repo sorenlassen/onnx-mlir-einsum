@@ -32,6 +32,10 @@ namespace detail {
 // to defeat the storage uniquer.
 size_t uniqueNumber();
 
+inline bool isSplat(ArrayRef<int64_t> strides) {
+  return llvm::all_of(strides, [](int64_t s) { return s == 0; });
+}
+
 inline int64_t getStridesNumElements(
     ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   if (ShapedType::getNumElements(shape) == 0)
@@ -256,6 +260,11 @@ public:
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
     assert(onnx_mlir::isIntOrFPType(type.getElementType(), 64));
+    unsigned bytewidth = (onnx_mlir::widthOfIntOrFPType(type.getElementType()) + 7) / 8;
+    assert(buffer->getBufferSize() % bytewidth == 0);
+    int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
+    assert(!detail::isSplat(strides) || numBufferElements == 1);
+    assert(numBufferElements == 1 || numBufferElements == detail::getStridesNumElements(type.getShape(), strides));
     DisposableElementsAttr a =
         Super::Base::get(type.getContext(), type, strides, dtype);
     Storage &s = *a.getImpl();
@@ -289,7 +298,7 @@ public:
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
   bool isSplat() const {
-    return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
+    return detail::isSplat(getStrides());
   }
   template <typename X>
   X getSplatValue() const {
@@ -345,6 +354,15 @@ public:
   void print(raw_ostream &os) const { toDenseElementsAttr().print(os); }
   DenseElementsAttr toDenseElementsAttr() const {
     llvm::errs() << "toDenseElementsAttr invoked\n";
+    ShapedType type = getType();
+    Type elementType = type.getElementType();
+    if (isSplat()) {
+      if (elementType.isa<IntegerType>())
+        return DenseElementsAttr::get(type, getSplatValue<APInt>());
+      else
+        return DenseElementsAttr::get(type, getSplatValue<APFloat>());
+    }
+    // TODO
     return nullptr; // TODO: implement this
   }
 

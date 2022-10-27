@@ -248,12 +248,21 @@ using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
+// TODO: move implementations to .cpp
+
 inline bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
   if (auto i = t.dyn_cast<mlir::IntegerType>())
     return i.getWidth() <= maxWidth;
   if (auto f = t.dyn_cast<mlir::FloatType>())
     return f.getWidth() <= maxWidth;
   return false;
+}
+
+inline unsigned widthOfIntOrFPType(mlir::Type t) {
+  if (auto i = t.dyn_cast<mlir::IntegerType>())
+    return i.getWidth();
+  auto f = t.cast<mlir::FloatType>();
+  return f.getWidth();
 }
 
 template <typename T>
@@ -296,18 +305,23 @@ inline T fromNumber64(mlir::Type t, Number64 n) {
 
 template <>
 inline auto fromNumber64<llvm::APFloat>(mlir::Type t, Number64 n) -> llvm::APFloat {
-  return llvm::APFloat(fromNumber64<double>(t, n));
+  auto f = t.cast<mlir::FloatType>();
+  if (f.getWidth() == 16)
+    return float_16::toAPFloat(float_16::fromFloat(fromNumber64<float>(t, n)));
+  if (f.getWidth() == 32)
+    return llvm::APFloat(fromNumber64<float>(t, n));
+  if (f.getWidth() == 64)
+    return llvm::APFloat(fromNumber64<double>(t, n));
+  llvm_unreachable("unsupport floatint point width");
 }
 
 template <>
 inline auto fromNumber64<llvm::APInt>(mlir::Type t, Number64 n) -> llvm::APInt {
-  if (auto i = t.dyn_cast<mlir::IntegerType>()) {
-    if (!i.isSigned())
-      return llvm::APInt(i.getWidth(), n.u64);
-    else
-      return llvm::APInt(i.getWidth(), n.i64, /*isSigned=*/true);
-  }
-  return llvm::APInt(64, static_cast<int64_t>(n.f64), /*isSigned=*/true);
+  auto i = t.cast<mlir::IntegerType>();
+  if (!i.isSigned())
+    return llvm::APInt(i.getWidth(), n.u64);
+  else
+    return llvm::APInt(i.getWidth(), n.i64, /*isSigned=*/true);
 }
 
 } // namespace onnx_mlir
