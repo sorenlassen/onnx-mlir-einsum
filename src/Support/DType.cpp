@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/Mlir/DType.hpp"
+#include "src/Support/DType.hpp"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"

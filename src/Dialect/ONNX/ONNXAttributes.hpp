@@ -18,7 +18,7 @@
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include "src/Dialect/Mlir/DType.hpp"
+#include "src/Support/DType.hpp"
 
 #include <memory>
 
