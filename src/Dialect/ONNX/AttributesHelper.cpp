@@ -19,7 +19,6 @@
 
 #include "src/Dialect/Mlir/DType.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
-#include "src/Interface/DisposableElementsAttrInterface.hpp"
 
 using namespace mlir;
 
@@ -112,8 +111,8 @@ struct ReadIntsOrFPs {
   struct Read {
     using S = typename DTy::type;
     static void eval(ArrayRef<char> src, MutableArrayRef<D> dst) {
-      fillOrTransform(
-          castArrayRef<S>(src), dst, [](S v) { return static_cast<D>(v); });
+      fillOrTransform(castArrayRef<S>(src), dst,
+          [](S v) { return static_cast<D>(DTy::unpack(v)); });
     }
   };
 };
@@ -134,12 +133,14 @@ DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
   if (auto resource = elements.dyn_cast<DenseResourceElementsAttr>()) {
-    ArrayRef<char> bytes = resource.getRawHandle().getResource()->getBlob()->getData();
+    ArrayRef<char> bytes =
+        resource.getRawHandle().getResource()->getBlob()->getData();
     return DenseElementsAttr::getFromRawBuffer(resource.getType(), bytes);
   }
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
     return disposable.toDenseElementsAttr();
-  llvm_unreachable("unexpected ElementsAttr instance"); // TODO: read data from elements.getValues()
+  llvm_unreachable("unexpected ElementsAttr instance"); // TODO: read data from
+                                                        // elements.getValues()
 }
 
 } // namespace onnx_mlir

@@ -46,24 +46,22 @@ MLIRContext *createCtx() {
 
 template <typename Src, typename Dst = char>
 ArrayRef<Dst> castArrayRef(ArrayRef<Src> a) {
-  return llvm::makeArrayRef(
-    reinterpret_cast<const Dst*>(a.data()),
-    a.size() * sizeof(Src) / sizeof(Dst)
-  );
+  return llvm::makeArrayRef(reinterpret_cast<const Dst *>(a.data()),
+      a.size() * sizeof(Src) / sizeof(Dst));
 }
 
 template <typename Dst = char>
 ArrayRef<Dst> asArrayRef(StringRef s) {
   return llvm::makeArrayRef(
-    reinterpret_cast<const Dst*>(s.data()),
-    s.size() / sizeof(Dst)
-  );
+      reinterpret_cast<const Dst *>(s.data()), s.size() / sizeof(Dst));
 }
 
 template <typename T>
 std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
-  StringRef s(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(T));
-  return std::shared_ptr<llvm::MemoryBuffer>(llvm::MemoryBuffer::getMemBufferCopy(s));
+  StringRef s(
+      reinterpret_cast<const char *>(data.data()), data.size() * sizeof(T));
+  return std::shared_ptr<llvm::MemoryBuffer>(
+      llvm::MemoryBuffer::getMemBufferCopy(s));
 }
 
 class Test {
@@ -81,15 +79,16 @@ public:
 
   int test_attributes() {
     ShapedType type = RankedTensorType::get({2}, builder.getF16Type());
-    auto fun = [](StringRef s, size_t p) -> uint64_t {
-      return asArrayRef<uint64_t>(s)[p];
+    auto fun = [](StringRef s, size_t p) -> Number64 {
+      return {.u64 = asArrayRef<uint64_t>(s)[p]};
     };
     Attribute a;
-    a = DisposableU64ElementsAttr::get(type, {1}, buffer<uint64_t>({7,9}), fun);
+    a = DisposableElementsAttr::get(
+        type, {1}, DType::UINT64, buffer<uint64_t>({7, 9}), fun);
     assert(a);
-    assert(a.isa<DisposableU64ElementsAttr>());
     assert(a.isa<DisposableElementsAttr>());
-    DisposableU64ElementsAttr i = a.cast<DisposableU64ElementsAttr>();
+    assert(a.isa<DisposableElementsAttr>());
+    DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
     auto d = i.toDenseElementsAttr();
     d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
     (void)d;
@@ -102,7 +101,7 @@ public:
     assert(i.isa<ElementsAttr>());
     assert(!i.isSplat());
     assert(succeeded(i.getValuesImpl(TypeID::get<uint64_t>())));
-    //assert(i.try_value_begin<uint64_t>());
+    // assert(i.try_value_begin<uint64_t>());
     auto begin = i.value_begin<uint64_t>();
     auto end = i.value_end<uint64_t>();
     assert(begin != end);
@@ -110,7 +109,7 @@ public:
     assert(end == i.getValues<uint64_t>().end());
     assert(*begin == 7);
     std::cerr << "next:" << *++begin << "\n";
-    //assert(succeeded(i.tryGetValues<uint64_t>()));
+    // assert(succeeded(i.tryGetValues<uint64_t>()));
     for (auto v : i.getValues<uint64_t>())
       std::cerr << "ivalue:" << v << "\n";
     assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
@@ -123,10 +122,13 @@ public:
     llvm::errs() << "type:" << t << "\n";
     assert(succeeded(e.getValuesImpl(TypeID::get<uint64_t>())));
     assert(e.try_value_begin<uint64_t>());
-    std::cerr << "*e.try_value_begin():" << (**e.try_value_begin<uint64_t>()) << "\n";
+    std::cerr << "*e.try_value_begin():" << (**e.try_value_begin<uint64_t>())
+              << "\n";
     auto it = *e.try_value_begin<uint64_t>();
     std::cerr << "++*e.try_value_begin():" << *++it << "\n";
-    for (auto it = e.tryGetValues<uint64_t>()->begin(), en = e.tryGetValues<uint64_t>()->end(); it != en; ++it)
+    for (auto it = e.tryGetValues<uint64_t>()->begin(),
+              en = e.tryGetValues<uint64_t>()->end();
+         it != en; ++it)
       std::cerr << "evalue:" << *it << "\n";
     auto vs = e.tryGetValues<uint64_t>();
     for (auto v : *vs) // we crash here, why?

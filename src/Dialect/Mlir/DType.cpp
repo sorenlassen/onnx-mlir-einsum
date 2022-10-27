@@ -18,6 +18,9 @@ using llvm::APInt;
 
 namespace onnx_mlir {
 
+// TODO: Explore if it's feasible and worthwhile to use _cvtss_sh, _cvtsh_ss
+//       https://clang.llvm.org/doxygen/f16cintrin_8h.html
+
 float U16ToF32(uint16_t u) {
   APFloat a(APFloat::IEEEhalf(), APInt(16, u));
   return a.convertToFloat();

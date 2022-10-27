@@ -24,8 +24,8 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/Mlir/DType.hpp"
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/ShapeHelper.hpp"
@@ -274,22 +274,22 @@ struct ElementWiseBinaryOpImpl {
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXAddOp, U, onlyNumber<U>> {
+struct ElementWiseBinaryOpImpl<ONNXAddOp, U, notBool<U>> {
   static U impl(U lhs, U rhs) { return lhs + rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXSubOp, U, onlyNumber<U>> {
+struct ElementWiseBinaryOpImpl<ONNXSubOp, U, notBool<U>> {
   static U impl(U lhs, U rhs) { return lhs - rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXMulOp, U, onlyNumber<U>> {
+struct ElementWiseBinaryOpImpl<ONNXMulOp, U, notBool<U>> {
   static U impl(U lhs, U rhs) { return lhs * rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXDivOp, U, onlyNumber<U>> {
+struct ElementWiseBinaryOpImpl<ONNXDivOp, U, notBool<U>> {
   static U impl(U lhs, U rhs) { return lhs / rhs; }
 };
 
@@ -412,12 +412,12 @@ struct ElementWiseUnaryOpImpl<ONNXSqrtOp, U, onlyFP<U>> {
 };
 
 template <typename U>
-struct ElementWiseUnaryOpImpl<ONNXNegOp, U, onlyNumber<U>> {
+struct ElementWiseUnaryOpImpl<ONNXNegOp, U, notBool<U>> {
   static U impl(U val) { return -val; }
 };
 
 template <typename U>
-struct ElementWiseUnaryOpImpl<ONNXReluOp, U, onlyNumber<U>> {
+struct ElementWiseUnaryOpImpl<ONNXReluOp, U, notBool<U>> {
   static U impl(U val) { return val < 0 ? 0 : val; }
 };
 
@@ -768,7 +768,6 @@ struct SrcDstCast {
     using D = typename DstDTy::type;
     static void eval(ArrayRef<S> src, MutableArrayRef<char> dst) {
       fillOrTransform(src, castMutableArrayRef<D>(dst), [](S v) {
-        // TODO: check if BOOL needs to be special cased
         return DstDTy::pack(
             static_cast<typename DstDTy::unpacked_type>(SrcDTy::unpack(v)));
       });

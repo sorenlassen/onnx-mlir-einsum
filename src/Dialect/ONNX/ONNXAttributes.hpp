@@ -10,8 +10,6 @@
 
 #pragma once
 
-#include "src/Interface/DisposableElementsAttrInterface.hpp"
-
 #include "mlir/IR/AttributeSupport.h"
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
@@ -20,22 +18,16 @@
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include <memory>
+#include "src/Dialect/Mlir/DType.hpp"
 
-namespace onnx_mlir {
-// Represents a FLOAT16 value with the correct bitwidth and in a form that
-// is unambiguous when used as a template parameter alongside the other basic
-// Cpp data types uint16_t, float, etc.
-//
-// TODO: Move to DType.h
-struct float_16 {
-  uint16_t u;
-};
-} // namespace onnx_mlir
+#include <memory>
 
 namespace mlir {
 
+// TODO: move implementation to .cpp
+
 namespace detail {
+
 // Generates a unique number each time it is called. Is used as hash function
 // to defeat the storage uniquer.
 size_t uniqueNumber();
@@ -74,7 +66,7 @@ inline size_t getStridesPosition(
   return pos;
 }
 
-// TODO: re-structure DisposableElementsAttrBase implementation so we don't need
+// TODO: re-structure DisposableElementsAttr implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
     SmallVectorImpl<int64_t> &indices) {
@@ -128,17 +120,63 @@ inline auto makeMappedIndexIterator(
 
 } // namespace detail
 
+// An instance of Number64 should be interpreted in the context of a number
+// type (FloatType or IntegerType), e.g. with a given a mlir type t a
+// Number64 n can be converted to float as follows:
+//
+//   float toF2(Type t, Number64 n) {
+//     if (auto i = t.dyn_cast<IntegerType>()) {
+//       if (i.isSigned) return n.i64; else return n.u64;
+//     }
+//     return n.f64; // must be float, assuming isIntOrFPType(t, 64)
+//   }
+//
+union Number64 {
+  double f64;  // Floating point numbers with precision and range up to FLOAT64.
+  int64_t i64; // Signed ints up to bitwidth 64.
+  uint64_t u64; // Unsigned ints up to bitwidth 64, including BOOL (F=0, T=1).
+};
+
+inline bool isIntOrFPType(Type t, unsigned maxWidth) {
+  if (auto i = t.dyn_cast<IntegerType>())
+    return i.getWidth() <= maxWidth;
+  if (auto f = t.dyn_cast<FloatType>())
+    return f.getWidth() <= maxWidth;
+  return false;
+}
+
 template <typename T>
+constexpr bool isIntOrFP() {
+  using Trait = onnx_mlir::DTypeTraitByType<T>;
+  return (Trait::is_int || Trait::is_float) && Trait::width <= 64;
+}
+
+template <typename T>
+constexpr T fromNumber64(Number64 n) {
+  using Trait = onnx_mlir::DTypeTraitByType<T>;
+  if (Trait::is_int) {
+    if (std::is_signed_v<T>)
+      return n.i64;
+    else
+      return n.u64;
+  }
+  if (Trait::is_float)
+    return Trait::pack(n.f64);
+  llvm_unreachable("unsupported native iteration type");
+}
+
+using ElementsTransform = std::function<Number64(StringRef, size_t)>;
+
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Transform = std::function<T(StringRef, size_t)>;
-  using KeyTy = std::tuple<ShapedType, Strides>;
+  using KeyTy = std::tuple<ShapedType, Strides, onnx_mlir::DType>;
 
   // Constructs only type and strides while the caller sets buffer and transform
   // after construction to minimize copying.
-  DisposableElementsAttributeStorage(ShapedType type, Strides strides)
-      : type(type), strides(strides) {}
+  DisposableElementsAttributeStorage(
+      ShapedType type, Strides strides, onnx_mlir::DType dtype)
+      : type(type), strides(strides), dtype(dtype) {}
 
   // Equality and hashKey are engineered to defeat the storage uniquer.
   // We don't want uniqueing because we can't compare transforms for equality
@@ -154,8 +192,10 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
       AttributeStorageAllocator &allocator, const KeyTy &key) {
     ShapedType type = std::get<0>(key);
     Strides strides = std::get<1>(key);
+    onnx_mlir::DType dtype = std::get<2>(key);
     return new (allocator.allocate<DisposableElementsAttributeStorage>())
-        DisposableElementsAttributeStorage(type, allocator.copyInto(strides));
+        DisposableElementsAttributeStorage(
+            type, allocator.copyInto(strides), dtype);
   }
 
   // The tensor shape and element type that this object represents.
@@ -170,6 +210,9 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // to fill in type's shape. A special case is when the buffer holds a single
   // splat value that broadcasts to shape's size with all-zero strides.
   Strides strides;
+
+  // Data type (BOOL, INT8, FLOAT16, etc) of the elements in buffer.
+  onnx_mlir::DType dtype;
 
   // shared_ptr to an underlying MemoryBuffer which can be either heap allocated
   // or a mmap'ed file or point to the raw data of a DenseElementsAttr.
@@ -192,7 +235,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   //
   // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
-  Transform transform;
+  ElementsTransform transform;
 }; // struct DisposableElementsAttributeStorage
 
 // DisposableElementsAttr is an alternative to DenseElementsAttr
@@ -223,39 +266,34 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 //
 // NOTE: DenseResourceElementsAttr is an alternative for heap allocated memory
 //       (but without garbage collection or the other features listed above).
-template <typename T>
-class DisposableElementsAttrBase
-    : public Attribute::AttrBase<DisposableElementsAttrBase<T>, Attribute,
-          DisposableElementsAttributeStorage<T>, DisposableElementsAttr::Trait, ElementsAttr::Trait,
+//
+class DisposableElementsAttr
+    : public Attribute::AttrBase<DisposableElementsAttr, Attribute,
+          DisposableElementsAttributeStorage, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
-  using Storage = DisposableElementsAttributeStorage<T>;
+  using Storage = DisposableElementsAttributeStorage;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
-  using Transform = typename Storage::Transform;
-  using Super = Attribute::AttrBase<DisposableElementsAttrBase<T>, Attribute,
-      DisposableElementsAttributeStorage<T>, DisposableElementsAttr::Trait, ElementsAttr::Trait,
+  using Super = Attribute::AttrBase<DisposableElementsAttr, Attribute,
+      DisposableElementsAttributeStorage, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
-  static DisposableElementsAttrBase get(
-      ShapedType type, Strides strides, Buffer buffer, Transform transform) {
-    DisposableElementsAttrBase a =
-        Super::Base::get(type.getContext(), type, strides);
+  static DisposableElementsAttr get(ShapedType type, Strides strides,
+      onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
+    assert(isIntOrFPType(type.getElementType(), 64));
+    DisposableElementsAttr a =
+        Super::Base::get(type.getContext(), type, strides, dtype);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
     s.transform = std::move(transform);
     return a;
   }
-  DisposableElementsAttrBase(std::nullptr_t) {}
+  DisposableElementsAttr(std::nullptr_t) {}
 
   // Allow implicit conversion to ElementsAttr.
   operator ElementsAttr() const {
     return *this ? this->template cast<ElementsAttr>() : nullptr;
-  }
-
-  DenseElementsAttr toDenseElementsAttr() const {
-    llvm::errs() << "toDenseElementsAttr invoked\n";
-    return nullptr; // TODO: implement this
   }
 
   ShapedType getType() const { return this->getImpl()->type; }
@@ -264,11 +302,12 @@ public:
   int64_t getRank() const { return getType().getRank(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
   ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
+  onnx_mlir::DType getDType() const { return this->getImpl()->dtype; }
   const Buffer &getBuffer() const {
     assert(!isDisposed());
     return this->getImpl()->buffer;
   }
-  const Transform &getTransform() const {
+  const ElementsTransform &getTransform() const {
     assert(!isDisposed());
     return this->getImpl()->transform;
   }
@@ -279,7 +318,9 @@ public:
     return llvm::all_of(getStrides(), [](int64_t s) { return s == 0; });
   }
   template <typename X>
-  X getSplatValue() const { llvm_unreachable("TODO: implement getSplatValue"); }
+  X getSplatValue() const {
+    llvm_unreachable("TODO: implement getSplatValue");
+  }
 
   template <typename X>
   using iterator = detail::MappedIndexIterator<X>;
@@ -287,26 +328,28 @@ public:
   template <typename X>
   using iterator_range = llvm::iterator_range<iterator<X>>;
 
-  using NonContiguousIterableTypesT = std::tuple<T, APInt, APFloat, Attribute>;
+  // TODO: add APInt, APFloat, Attribute
+  using NonContiguousIterableTypesT = onnx_mlir::IntOrFPDTypes;
 
   template <typename X>
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
-  std::enable_if_t<std::is_same_v<X, T>, FailureOr<iterator<X>>>
-  try_value_begin_impl(OverloadToken<X>) const {
-    DisposableElementsAttributeStorage<T> *s = this->getImpl();
+  std::enable_if_t<isIntOrFP<X>(), FailureOr<iterator<X>>> try_value_begin_impl(
+      OverloadToken<X>) const {
+    DisposableElementsAttributeStorage *s = this->getImpl();
     return detail::makeMappedIndexIterator<X>(0, [s](size_t flatIndex) -> X {
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
-      return s->transform(s->buffer->getBuffer(), pos);
+      Number64 n = s->transform(s->buffer->getBuffer(), pos);
+      return fromNumber64<X>(n);
     });
   }
 
   // TODO: support iteration over APInt, APFloat, Attribute
   template <typename X>
-  std::enable_if_t<!std::is_same_v<X, T>, FailureOr<iterator<X>>>
+  std::enable_if_t<!isIntOrFP<X>(), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
     return failure();
   }
@@ -321,12 +364,13 @@ public:
     llvm::errs() << "DisposableElementsAttr::print invoked\n";
     print(printer.getStream());
   }
-  void print(raw_ostream &os) const {
-    toDenseElementsAttr().print(os);
+  void print(raw_ostream &os) const { toDenseElementsAttr().print(os); }
+  DenseElementsAttr toDenseElementsAttr() const {
+    llvm::errs() << "toDenseElementsAttr invoked\n";
+    return nullptr; // TODO: implement this
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
-
   bool isDisposed() const {
     //  TODO: Decide if a splat value can be represented with a constant
     //        transform with no buffer; in that case isDisposed should
@@ -345,33 +389,8 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
   }
-}; // class DisposableElementsAttrBase
-
-extern template class DisposableElementsAttrBase<bool>;
-extern template class DisposableElementsAttrBase<int8_t>;
-extern template class DisposableElementsAttrBase<uint8_t>;
-extern template class DisposableElementsAttrBase<int16_t>;
-extern template class DisposableElementsAttrBase<uint16_t>;
-extern template class DisposableElementsAttrBase<::onnx_mlir::float_16>;
-extern template class DisposableElementsAttrBase<float>;
-extern template class DisposableElementsAttrBase<uint64_t>;
-
-using DisposableBoolElementsAttr = DisposableElementsAttrBase<bool>;
-using DisposableI8ElementsAttr = DisposableElementsAttrBase<int8_t>;
-using DisposableU8ElementsAttr = DisposableElementsAttrBase<uint8_t>;
-using DisposableI16ElementsAttr = DisposableElementsAttrBase<int16_t>;
-using DisposableU16ElementsAttr = DisposableElementsAttrBase<uint16_t>;
-using DisposableF16ElementsAttr = DisposableElementsAttrBase<::onnx_mlir::float_16>;
-using DisposableF32ElementsAttr = DisposableElementsAttrBase<float>;
-using DisposableU64ElementsAttr = DisposableElementsAttrBase<uint64_t>;
+}; // class DisposableElementsAttr
 
 } // namespace mlir
 
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableBoolElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableI8ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU8ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableI16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableF16ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableF32ElementsAttr)
-MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableU64ElementsAttr)
+MLIR_DECLARE_EXPLICIT_TYPE_ID(::mlir::DisposableElementsAttr)

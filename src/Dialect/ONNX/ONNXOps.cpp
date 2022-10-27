@@ -60,8 +60,7 @@ void ONNXDialect::initialize() {
 #include "src/Dialect/ONNX/ONNXTypes.cpp.inc"
       >();
 
-  addAttributes<DisposableBoolElementsAttr, DisposableI16ElementsAttr,
-      DisposableF32ElementsAttr, DisposableU64ElementsAttr>();
+  addAttributes<DisposableElementsAttr>();
   addAttributes<
 #define GET_ATTRDEF_LIST
 #include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"

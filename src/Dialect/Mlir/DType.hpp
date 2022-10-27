@@ -23,8 +23,7 @@ namespace onnx_mlir {
 // and DTYPE and onnx::TensorProto::DataType can be used interchangeably.
 // In some places it is convenient to use DTYPE to avoid compile time
 // dependencies on third_party/onnx.
-namespace DTYPE {
-enum DataType : int {
+enum class DType : int {
   // clang-format off
   UNDEFINED = 0,
   // Basic types.
@@ -54,80 +53,137 @@ enum DataType : int {
   BFLOAT16 = 16
   // clang-format on
 };
-}
 
 // Helper functions.
 float U16ToF32(uint16_t);
 uint16_t F32ToU16(float);
 
-template <int TY>
-struct DType {
-  static constexpr int dtype = TY;
+// Represents a FLOAT16 value with the correct bitwidth and in a form that
+// is unambiguous when used as a template parameter alongside the other basic
+// Cpp data types uint16_t, float, etc.
+struct float_16 {
+  uint16_t u16;
 };
 
-#define DEFINE_DType_X(TY, CPPTY, XTRA)                                        \
+inline float F16ToF32(float_16 f16) { return U16ToF32(f16.u16); };
+inline float_16 F32ToF16(float f32) { return {F32ToU16(f32)}; }
+
+using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
+    int32_t, uint32_t, int64_t, uint64_t, float_16, float, double>;
+
+template <DType TY>
+struct DTypeTrait {
+  static constexpr DType dtype = TY;
+};
+
+#if 1
+
+namespace detail {
+template <DType DTYPE, typename ty, typename unpacked_ty = ty>
+struct DTypeTraitBase {
+  static constexpr DType dtype = DTYPE;
+  static constexpr bool is_int = std::is_integral_v<ty>;
+  static constexpr bool is_float = std::is_floating_point_v<ty>;
+  static constexpr unsigned width =
+      std::is_same_v<ty, bool> ? 1 : (8 * sizeof(ty));
+  using type = ty;
+  using unpacked_type = unpacked_ty;
+  static type pack(unpacked_type unpacked) { return unpacked; }
+  static unpacked_type unpack(type packed) { return packed; }
+};
+} // namespace detail
+
+template <>
+struct DTypeTrait<DType::FLOAT16>
+    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {
+  static float_16 pack(float unpacked) { return F32ToF16(unpacked); }
+  static float unpack(float_16 packed) { return F16ToF32(packed); }
+};
+
+#define DEFINE_DTypeTrait(TY, CPPTY)                                           \
   template <>                                                                  \
-  struct DType<DTYPE::TY> {                                                    \
-    static constexpr int dtype = DTYPE::TY;                                    \
-    using type = CPPTY;                                                        \
-    XTRA                                                                       \
-  }
+  struct DTypeTrait<DType::TY>                                                 \
+      : public detail::DTypeTraitBase<DType::TY, CPPTY> {};
 
-#define DEFINE_DType(TY, CPPTY)                                                \
-  DEFINE_DType_X(                                                              \
-      TY, CPPTY, using unpacked_type = type;                                   \
-      static type pack(unpacked_type unpacked) {                               \
-        return unpacked;                                                       \
-      } static unpacked_type unpack(type packed) { return packed; })
+#else
 
-DEFINE_DType(FLOAT, float);
-DEFINE_DType(DOUBLE, double);
-DEFINE_DType(BOOL, bool);
-DEFINE_DType(INT8, int8_t);
-DEFINE_DType(UINT8, uint8_t);
-DEFINE_DType(INT16, int16_t);
-DEFINE_DType(UINT16, uint16_t);
-DEFINE_DType(INT32, int32_t);
-DEFINE_DType(UINT32, uint32_t);
-DEFINE_DType(INT64, int64_t);
-DEFINE_DType(UINT64, uint64_t);
-DEFINE_DType_X(
-    FLOAT16, uint16_t, using unpacked_type = float;
-    static type pack(unpacked_type unpacked) {
-      return F32ToU16(unpacked);
-    } static unpacked_type unpack(type packed) { return U16ToF32(packed); });
-
-#if 0
-template <template <typename, typename...> class Action,
-    typename Out, typename... Ts>
-struct dispatchIntOrFP {
-  static Out eval(mlir::Type type, Ts... xs) {
-#define ACT(TY) (Action<DType<DTYPE::TY>, Ts...>::eval(xs...))
-    // clang-format off
-    if (type.isBF16()) llvm_unreachable("BF16 is unsupported");
-    if (type.isF16()) return ACT(FLOAT16);
-    if (type.isF32()) return ACT(FLOAT);
-    if (type.isF64()) return ACT(DOUBLE);
-    auto itype = type.cast<mlir::IntegerType>();
-    switch (itype.getWidth()) {
-      case  1: return ACT(BOOL);
-      case  8: return itype.isUnsigned() ? ACT(UINT8)  : ACT(INT8);
-      case 16: return itype.isUnsigned() ? ACT(UINT16) : ACT(INT16);
-      case 32: return itype.isUnsigned() ? ACT(UINT32) : ACT(INT32);
-      case 64: return itype.isUnsigned() ? ACT(UINT64) : ACT(INT64);
-      default: llvm_unreachable("unsupported integer width");
-    }
-    // clang-format on
-#undef ACT
-  }
+namespace detail {
+template <typename T>
+constexpr unsigned bitwidth_v() {
+  return std::is_same_v<T, bool> ? 1 : sizeof(T);
+}
+} // namespace detail
+template <>
+struct DTypeTrait<DType::FLOAT16> {
+  static constexpr DType dtype = DType::FLOAT16;
+  using type = float_16;
+  static constexpr bool is_int = false;
+  static constexpr bool is_float = true;
+  static constexpr unsigned width = 16;
+  using unpacked_type = float;
+  static type pack(unpacked_type unpacked) { return F32ToF16(unpacked); }
+  static unpacked_type unpack(type packed) { return F16ToF32(packed); }
 };
+
+#define DEFINE_DTypeTrait(TY, CPPTY)                                           \
+  template <>                                                                  \
+  struct DTypeTrait<DType::TY> {                                               \
+    static constexpr DType dtype = DType::TY;                                  \
+    using type = CPPTY;                                                        \
+    static constexpr bool is_int = std::is_integral_v<type>;                   \
+    static constexpr bool is_float = std::is_floating_point_v<type>;           \
+    static constexpr unsigned width = bitwidth_v<type>;                        \
+    using unpacked_type = type;                                                \
+    static type pack(unpacked_type unpacked) { return unpacked; }              \
+    static unpacked_type unpack(type packed) { return packed; }                \
+  }
+
 #endif
+
+DEFINE_DTypeTrait(FLOAT, float);
+DEFINE_DTypeTrait(DOUBLE, double);
+DEFINE_DTypeTrait(BOOL, bool);
+DEFINE_DTypeTrait(INT8, int8_t);
+DEFINE_DTypeTrait(UINT8, uint8_t);
+DEFINE_DTypeTrait(INT16, int16_t);
+DEFINE_DTypeTrait(UINT16, uint16_t);
+DEFINE_DTypeTrait(INT32, int32_t);
+DEFINE_DTypeTrait(UINT32, uint32_t);
+DEFINE_DTypeTrait(INT64, int64_t);
+DEFINE_DTypeTrait(UINT64, uint64_t);
+
+template <typename>
+struct DTypeTraitByType {};
+template <>
+struct DTypeTraitByType<bool> : public DTypeTrait<DType::BOOL> {};
+template <>
+struct DTypeTraitByType<int8_t> : public DTypeTrait<DType::INT8> {};
+template <>
+struct DTypeTraitByType<uint8_t> : public DTypeTrait<DType::UINT8> {};
+template <>
+struct DTypeTraitByType<int16_t> : public DTypeTrait<DType::INT16> {};
+template <>
+struct DTypeTraitByType<uint16_t> : public DTypeTrait<DType::UINT16> {};
+template <>
+struct DTypeTraitByType<int32_t> : public DTypeTrait<DType::INT32> {};
+template <>
+struct DTypeTraitByType<uint32_t> : public DTypeTrait<DType::UINT32> {};
+template <>
+struct DTypeTraitByType<int64_t> : public DTypeTrait<DType::INT64> {};
+template <>
+struct DTypeTraitByType<uint64_t> : public DTypeTrait<DType::UINT64> {};
+template <>
+struct DTypeTraitByType<float_16> : public DTypeTrait<DType::FLOAT16> {};
+template <>
+struct DTypeTraitByType<float> : public DTypeTrait<DType::FLOAT> {};
+template <>
+struct DTypeTraitByType<double> : public DTypeTrait<DType::DOUBLE> {};
 
 template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
   template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
-#define ACT(TY) (Action<DType<DTYPE::TY>, Ts...>::eval(xs...))
+#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
     // clang-format off
     auto itype = type.cast<mlir::IntegerType>();
     switch (itype.getWidth()) {
@@ -148,7 +204,7 @@ template <template <typename, typename...> class Action, typename Alt,
 struct dispatchFPOr {
   template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
-#define ACT(TY) (Action<DType<DTYPE::TY>, Ts...>::eval(xs...))
+#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
     // clang-format off
     if (type.isBF16()) llvm_unreachable("BF16 is unsupported");
     if (type.isF16()) return ACT(FLOAT16);
@@ -172,8 +228,7 @@ template <template <typename, typename...> class Action, typename Out>
 using dispatchFP = dispatchFPOr<Action, dispatchFail<Out>, Out>;
 
 template <template <typename, typename...> class Action, typename Out>
-using dispatchFPOrInt =
-    dispatchFPOr<Action, dispatchInt<Action, Out>, Out>;
+using dispatchFPOrInt = dispatchFPOr<Action, dispatchInt<Action, Out>, Out>;
 
 // Helper functions frequently used together with dispatch classes.
 
@@ -199,9 +254,10 @@ void fillOrTransform(
 }
 
 template <typename U>
-using onlyFP = std::enable_if_t<std::is_floating_point_v<U>>;
+using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
+                                std::is_same_v<U, float_16>>;
 
 template <typename U>
-using onlyNumber = std::enable_if_t<!std::is_same_v<U, bool>>;
+using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
 } // namespace onnx_mlir
