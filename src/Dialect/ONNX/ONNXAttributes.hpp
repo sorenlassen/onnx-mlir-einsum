@@ -353,17 +353,20 @@ public:
   }
   void print(raw_ostream &os) const { toDenseElementsAttr().print(os); }
   DenseElementsAttr toDenseElementsAttr() const {
-    llvm::errs() << "toDenseElementsAttr invoked\n";
-    ShapedType type = getType();
-    Type elementType = type.getElementType();
-    if (isSplat()) {
-      if (elementType.isa<IntegerType>())
-        return DenseElementsAttr::get(type, getSplatValue<APInt>());
-      else
-        return DenseElementsAttr::get(type, getSplatValue<APFloat>());
-    }
-    // TODO
-    return nullptr; // TODO: implement this
+    if (getElementType().isa<IntegerType>())
+      return toDenseElementsAttrByType<APInt>();
+    else
+      return toDenseElementsAttrByType<APFloat>();
+  }
+  template <typename X>
+  DenseElementsAttr toDenseElementsAttrByType() const {
+    if (isSplat())
+      return DenseElementsAttr::get(getType(), getSplatValue<X>());
+    std::vector<X> xs;
+    xs.reserve(getNumElements());
+    for (X x : getValues<X>())
+      xs.emplace_back(x);
+    return DenseElementsAttr::get(getType(), xs);
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.

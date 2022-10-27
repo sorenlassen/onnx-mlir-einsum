@@ -94,12 +94,9 @@ public:
     ElementsAttr e = a.cast<ElementsAttr>();
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
-    i.print(llvm::errs());
-    llvm::errs() << "\n";
-    e.print(llvm::outs());
-    llvm::errs() << "\n";
-    a.print(llvm::outs());
-    llvm::errs() << "\n";
+    i.print(llvm::errs()); llvm::errs() << "\n";
+    e.print(llvm::outs()); llvm::errs() << "\n";
+    a.print(llvm::outs()); llvm::errs() << "\n";
     assert(e.isSplat());
     llvm::errs() << "splat value " << i.getSplatValue<float>() << "\n";
     assert(fabs(i.getSplatValue<float>() - 4.2) < 1e-6);
@@ -137,8 +134,7 @@ public:
     llvm::errs() << "x " << x << "\n";
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs());
-    llvm::errs() << "\n";
+    d.print(llvm::outs()); llvm::errs() << "\n";
     return 0;
   }
 
@@ -163,8 +159,7 @@ public:
     llvm::errs() << "x " << x << "\n";
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
-    d.print(llvm::outs());
-    llvm::errs() << "\n";
+    d.print(llvm::outs()); llvm::errs() << "\n";
     return 0;
   }
 
@@ -183,9 +178,9 @@ public:
     auto d = i.toDenseElementsAttr();
     d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
     (void)d;
-    i.print(llvm::outs());
-    d.print(llvm::outs());
-    a.print(llvm::outs());
+    i.print(llvm::outs()); llvm::errs() << "\n";
+    d.print(llvm::outs()); llvm::errs() << "\n";
+    a.print(llvm::outs()); llvm::errs() << "\n";
     ShapedType t = i.getType();
     llvm::errs() << "type:" << t << "\n";
     std::cerr << "shape:" << t.getShape() << "\n";
