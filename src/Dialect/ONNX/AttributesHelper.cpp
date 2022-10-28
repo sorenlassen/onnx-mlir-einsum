@@ -38,13 +38,16 @@ size_t byteWidth(size_t bitWidth) {
   return bitWidth / BYTE_BITWIDTH;
 }
 
-void splatterBlob(ShapedType type, AsmResourceBlob &blob) {
+bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   bool isSplat;
-  bool isValid =
-      DenseElementsAttr::isValidRawBuffer(type, blob.getData(), isSplat);
-  assert(isValid && "invalid dense int or fps raw buffer");
-  (void)isValid;
-  // TODO: change to splat if isSplat
+  if (!DenseElementsAttr::isValidRawBuffer(type, buffer, isSplat))
+    llvm_unreachable("invalid dense int or fps raw buffer");
+  return isSplat;
+}
+
+bool splatterBlob(ShapedType type, AsmResourceBlob &blob) {
+  // TODO: change blob to splat if true
+  return splatterBuffer(type, blob.getData());
 }
 
 } // namespace
@@ -72,6 +75,12 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     ShapedType type, FillDenseRawBufferFn fill) {
   size_t size = type.getNumElements() *
                 byteWidth(type.getElementType().getIntOrFloatBitWidth());
+#if 1
+  std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
+      llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
+  fill(buffer->getBuffer());
+  return DisposableElementsAttr::get(type, std::move(buffer));
+#else
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob = HeapAsmResourceBlob::allocate(size, ALIGN);
@@ -85,6 +94,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     fill(bytes);
     return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
+#endif
 }
 
 ArrayRef<char> getDenseIntOrFPRawData(ElementsAttr elements) {

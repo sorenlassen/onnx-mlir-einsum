@@ -18,6 +18,90 @@
 
 namespace onnx_mlir {
 
+// Represents a FLOAT16 value with the correct bitwidth and in a form that
+// is unambiguous when used as a template parameter alongside the other basic
+// Cpp data types uint16_t, float, etc.
+struct float_16 {
+  uint16_t u16;
+
+  static llvm::APFloat toAPFloat(float_16);
+  static float_16 fromAPFloat(llvm::APFloat);
+  static float toFloat(float_16);
+  static float_16 fromFloat(float);
+};
+
+// An instance of Number64 should be interpreted in the context of a number
+// type (FloatType or IntegerType) as in fromNumber64(Type, Number64) below.
+union Number64 {
+  double f64;  // Floating point numbers with precision and range up to FLOAT64.
+  int64_t i64; // Signed ints up to bitwidth 64.
+  uint64_t u64; // Unsigned ints up to bitwidth 64, including BOOL (F=0, T=1).
+};
+
+// Here we're assuming that Number64 n is represented in accordance with t,
+// i.e. the f64/i64/u64 field in n was set based on t.
+template <typename T>
+inline T fromNumber64(mlir::Type t, Number64 n) {
+  // assert(isIntOrFPType(t, 64)); // TODO remove after testing
+  if (auto i = t.dyn_cast<mlir::IntegerType>()) {
+    if (i.isSigned())
+      return n.i64;
+    else
+      return n.u64;
+  }
+  return n.f64;
+}
+
+template <>
+inline auto fromNumber64<llvm::APFloat>(mlir::Type t, Number64 n) -> llvm::APFloat {
+  auto f = t.cast<mlir::FloatType>();
+  if (f.getWidth() == 16)
+    return float_16::toAPFloat(float_16::fromFloat(fromNumber64<float>(t, n)));
+  if (f.getWidth() == 32)
+    return llvm::APFloat(fromNumber64<float>(t, n));
+  if (f.getWidth() == 64)
+    return llvm::APFloat(fromNumber64<double>(t, n));
+  llvm_unreachable("unsupported floating point width");
+}
+
+template <>
+inline auto fromNumber64<llvm::APInt>(mlir::Type t, Number64 n) -> llvm::APInt {
+  auto i = t.cast<mlir::IntegerType>();
+  if (i.isSigned())
+    return llvm::APInt(i.getWidth(), n.i64, /*isSigned=*/true);
+  else
+    return llvm::APInt(i.getWidth(), n.u64);
+}
+
+// Here we're assuming that Number64 n is represented in accordance with t,
+// i.e. the f64/i64/u64 field in n was set based on t.
+template <typename X>
+inline Number64 toNumber64(mlir::Type t, X x) {
+  // assert(isIntOrFPType(t, 64)); // TODO remove after testing
+  if (auto i = t.dyn_cast<mlir::IntegerType>()) {
+    if (i.isSigned())
+      return { .i64 = static_cast<int64_t>(x) };
+    else
+      return { .u64 = static_cast<uint64_t>(x) };
+  }
+  return { .f64 = static_cast<double>(x) };
+}
+
+template <>
+inline Number64 toNumber64<llvm::APFloat>(mlir::Type t, llvm::APFloat x) {
+  assert(t.isa<mlir::FloatType>());
+  return { .f64 = x.convertToDouble() };
+}
+
+template <>
+inline Number64 toNumber64<llvm::APInt>(mlir::Type t, llvm::APInt x) {
+  auto i = t.cast<mlir::IntegerType>();
+  if (i.isSigned())
+    return { .i64 = x.getSExtValue() };
+  else
+    return { .u64 = x.getZExtValue() };
+}
+
 // Numerical representation of basic data types.
 //
 // DType faithfully copies onnx::TensorProto::DataType from
@@ -56,20 +140,25 @@ enum class DType : int {
   // clang-format on
 };
 
-// Represents a FLOAT16 value with the correct bitwidth and in a form that
-// is unambiguous when used as a template parameter alongside the other basic
-// Cpp data types uint16_t, float, etc.
-struct float_16 {
-  uint16_t u16;
-
-  static llvm::APFloat toAPFloat(float_16);
-  static float_16 fromAPFloat(llvm::APFloat);
-  static float toFloat(float_16);
-  static float_16 fromFloat(float);
-};
-
 using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
     int32_t, uint32_t, int64_t, uint64_t, float_16, float, double>;
+
+inline DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
+  // clang-format off
+  if (type.isa<mlir::Float16Type>()) return DType::FLOAT16;
+  if (type.isa<mlir::Float32Type>()) return DType::FLOAT;
+  if (type.isa<mlir::Float64Type>()) return DType::DOUBLE;
+  auto itype = type.cast<mlir::IntegerType>();
+  switch (itype.getWidth()) {
+    case  1: return DType::BOOL;
+    case  8: return itype.isUnsigned() ? DType::UINT8  : DType::INT8;
+    case 16: return itype.isUnsigned() ? DType::UINT16 : DType::INT16;
+    case 32: return itype.isUnsigned() ? DType::UINT32 : DType::INT32;
+    case 64: return itype.isUnsigned() ? DType::UINT64 : DType::INT64;
+  }
+  llvm_unreachable("unsupported int or float type");
+  // clang-format on
+}
 
 template <DType TY>
 struct DTypeTrait {
@@ -88,6 +177,12 @@ struct DTypeTraitBase {
   using unpacked_type = unpacked_ty;
   static type pack(unpacked_type unpacked) { return unpacked; }
   static unpacked_type unpack(type packed) { return packed; }
+  // static type fromNumber64(mlir::Type t, Number64 n) {
+  //   return pack(::onnx_mlir::fromNumber64(t, n));
+  // }
+  // static Number64 toNumber64(mlir::Type t, type x) {
+  //   return ::onnx_mlir::toNumber64(t, unpack(x));
+  // }
 };
 } // namespace detail
 
@@ -279,49 +374,6 @@ constexpr bool isIntOrFP<llvm::APFloat>(unsigned maxWidth) {
 template <>
 constexpr bool isIntOrFP<llvm::APInt>(unsigned maxWidth) {
   return true;
-}
-
-// An instance of Number64 should be interpreted in the context of a number
-// type (FloatType or IntegerType) as in fromNumber64(Type, Number64) below.
-union Number64 {
-  double f64;  // Floating point numbers with precision and range up to FLOAT64.
-  int64_t i64; // Signed ints up to bitwidth 64.
-  uint64_t u64; // Unsigned ints up to bitwidth 64, including BOOL (F=0, T=1).
-};
-
-// Here we're assuming that Number64 n is represented in accordance with t,
-// i.e. the f64/i64/u64 field in n was set based on t.
-template <typename T>
-inline T fromNumber64(mlir::Type t, Number64 n) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>()) {
-    if (i.isSigned()) {
-      return n.i64;
-    } else {
-      return n.u64;
-    }
-  }
-  return n.f64; // t must be float, assuming isIntOrFPType(t, 64)
-}
-
-template <>
-inline auto fromNumber64<llvm::APFloat>(mlir::Type t, Number64 n) -> llvm::APFloat {
-  auto f = t.cast<mlir::FloatType>();
-  if (f.getWidth() == 16)
-    return float_16::toAPFloat(float_16::fromFloat(fromNumber64<float>(t, n)));
-  if (f.getWidth() == 32)
-    return llvm::APFloat(fromNumber64<float>(t, n));
-  if (f.getWidth() == 64)
-    return llvm::APFloat(fromNumber64<double>(t, n));
-  llvm_unreachable("unsupport floatint point width");
-}
-
-template <>
-inline auto fromNumber64<llvm::APInt>(mlir::Type t, Number64 n) -> llvm::APInt {
-  auto i = t.cast<mlir::IntegerType>();
-  if (!i.isSigned())
-    return llvm::APInt(i.getWidth(), n.u64);
-  else
-    return llvm::APInt(i.getWidth(), n.i64, /*isSigned=*/true);
 }
 
 } // namespace onnx_mlir

@@ -70,10 +70,32 @@ inline size_t getStridesPosition(
   return pos;
 }
 
+inline SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {
+  SmallVector<int64_t, 4> strides;
+  int64_t rank = shape.size();
+  if (rank == 0)
+    return strides;
+  int64_t skip = 0;
+  while (shape[skip] == 1) {
+    ++skip;
+    if (skip == rank)
+      return strides;
+  }
+  strides.resize_for_overwrite(rank - skip);
+  int64_t mult = 1;
+  for (int64_t axis = rank - 1; axis >= skip; --axis) {
+    int64_t dimSize = shape[axis];
+    strides[axis - skip] = dimSize == 1 ? 0 : mult;
+    mult *= dimSize;
+  }
+  return strides;
+}
+
 // TODO: re-structure DisposableElementsAttr implementation so we don't need
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
     SmallVectorImpl<int64_t> &indices) {
+  indices.clear();
   int64_t axis = shape.size();
   if (axis == 0)
     return;
@@ -138,6 +160,20 @@ inline auto makeMappedIndexIterator(
 // TODO: remove after testing ^
 
 using ElementsTransform = std::function<onnx_mlir::Number64(StringRef, size_t)>;
+
+template <typename DTyTrait, typename... Args>
+struct ReadNumber64 {
+  using X = typename DTyTrait::type;
+  static onnx_mlir::Number64 eval(Type t, StringRef s, size_t pos) {
+    X x = reinterpret_cast<const X *>(s.data())[pos];
+    return onnx_mlir::toNumber64(t, DTyTrait::unpack(x));
+  }
+};
+inline ElementsTransform readNumber64(Type t) {
+  return [t](StringRef s, size_t pos) -> onnx_mlir::Number64 {
+    return onnx_mlir::dispatchFPOrInt<ReadNumber64, onnx_mlir::Number64>::eval(t, t, s, pos);
+  };
+}
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
@@ -257,6 +293,14 @@ public:
       DisposableElementsAttributeStorage, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
+  static DisposableElementsAttr get(ShapedType type, Buffer buffer) {
+    Type elementType = type.getElementType();
+    SmallVector<int64_t, 4> strides =
+        detail::getDefaultStrides(type.getShape());
+    onnx_mlir::DType dtype =
+        onnx_mlir::fromIntOrFPMlirTypeToDType(elementType);
+    return get(type, strides, dtype, std::move(buffer), readNumber64(elementType));
+  }
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
     assert(onnx_mlir::isIntOrFPType(type.getElementType(), 64));

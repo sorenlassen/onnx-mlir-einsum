@@ -121,10 +121,8 @@ struct ONNXOpAsmDialectInterface : public OpAsmDialectInterface {
       : OpAsmDialectInterface(dialect) {}
 
   AliasResult getAlias(Attribute attr, raw_ostream &os) const override {
-    llvm::errs() << "ONNX getAlias called\n";
     if (attr.isa<DisposableElementsAttr>()) {
-      llvm::errs() << "ONNX getAlias called on DisposableElementsAttr\n";
-      os << "dense";
+      os << "DisposableElementsAttr";
       return AliasResult::FinalAlias;
     }
     return AliasResult::NoAlias;
