@@ -21,38 +21,19 @@ namespace onnx_mlir {
 namespace detail {
 uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 
-template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-llvm::APFloat toAPFloatFromInt(T i) {
-  // TODO: figure out if it's better to use llvm::APFloat::convertFromAPInt
-  return llvm::APFloat(static_cast<double>(i));
-}
-
-template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-auto toIntFromAPFloat(llvm::APFloat f) -> T {
-  // TODO: figure out if there is a better way to do this
-  return static_cast<T>(f.convertToDouble());
-}
-
 template <typename ConcreteT>
 struct float16Base {
 public:
   float16Base() = default;
-  explicit float16Base(ConcreteT f16) : u16(f16.u16) {}
-  explicit float16Base(float f) : u16(fromAPFloat(llvm::APFloat(f)).u16) {}
-  explicit float16Base(double d) : u16(fromAPFloat(llvm::APFloat(d)).u16) {}
-  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-  explicit float16Base(T i) : u16(fromAPFloat(toAPFloatFromInt(i)).u16) {}
 
-  explicit operator float() const {
-    return toAPFloat(*static_cast<const ConcreteT *>(this)).convertToFloat();
-  }
-  explicit operator double() const {
-    return toAPFloat(*static_cast<const ConcreteT *>(this)).convertToDouble();
-  }
-  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+  explicit float16Base(ConcreteT f16) : u16(f16.u16) {}
+
+  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
+  explicit float16Base(T x) : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
+
+  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
   explicit operator T() const {
-    return toIntFromAPFloat<T>(
-        toAPFloat(*static_cast<const ConcreteT *>(this)));
+    return static_cast<float>(toFloat(*static_cast<const ConcreteT *>(this)));
   }
 
   static llvm::APFloat toAPFloat(ConcreteT f16) {
