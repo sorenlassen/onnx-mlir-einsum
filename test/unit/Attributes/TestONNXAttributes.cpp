@@ -84,8 +84,8 @@ public:
   int test_splat() {
     llvm::errs() << "test_splat:\n";
     ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
-    auto fun = [](StringRef s, size_t p) -> Number64 {
-      return {.f64 = asArrayRef<float>(s)[p]};
+    auto fun = [](StringRef s, size_t p) -> IntOrFP {
+      return {.dbl = asArrayRef<float>(s)[p]};
     };
     Attribute a = DisposableElementsAttr::get(
         type, {0}, DType::UINT64, buffer<float>({4.2}), fun);
@@ -115,8 +115,8 @@ public:
     llvm::errs() << "test_f16:\n";
     assert(fabs(float_16::toFloat(float_16::fromFloat(4.2)) - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
-    auto fun = [](StringRef s, size_t p) -> Number64 {
-      return {.f64 = float_16::toFloat(asArrayRef<float_16>(s)[p])};
+    auto fun = [](StringRef s, size_t p) -> IntOrFP {
+      return {.dbl = float_16::toFloat(asArrayRef<float_16>(s)[p])};
     };
     Attribute a = DisposableElementsAttr::get(type, {0}, DType::FLOAT16,
         buffer<float_16>({float_16::fromFloat(4.2)}), fun);
@@ -140,7 +140,7 @@ public:
   int test_bool() {
     llvm::errs() << "test_bool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    auto fun = [](StringRef s, size_t p) -> Number64 {
+    auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.u64 = asArrayRef<bool>(s)[p]};
     };
     Attribute a = DisposableElementsAttr::get(
@@ -165,7 +165,7 @@ public:
   int test_attributes() {
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
-    auto fun = [](StringRef s, size_t p) -> Number64 {
+    auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.u64 = asArrayRef<uint64_t>(s)[p]};
     };
     Attribute a;

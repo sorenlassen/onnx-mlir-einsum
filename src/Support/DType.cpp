@@ -39,26 +39,29 @@ float_16 float_16::fromFloat(float f) {
   return fromAPFloat(APFloat(f));
 }
 
-llvm::APFloat U16ToAPFloat(uint16_t u) {
-  return APFloat(APFloat::IEEEhalf(), APInt(16, u));
+bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
+  if (auto i = t.dyn_cast<mlir::IntegerType>())
+    return i.getWidth() <= maxWidth;
+  if (auto f = t.dyn_cast<mlir::FloatType>())
+    return f.getWidth() <= maxWidth;
+  return false;
 }
 
-uint16_t APFloatToU16(llvm::APFloat a) {
-  bool ignored;
-  a.convert(APFloat::IEEEhalf(), APFloat::rmNearestTiesToEven, &ignored);
-  APInt i = a.bitcastToAPInt();
-  return i.getZExtValue();
+llvm::APFloat toAPFloat(mlir::FloatType ftag, IntOrFP n) {
+  if (ftag.getWidth() == 16)
+    return float_16::toAPFloat(float_16::fromFloat(fromIntOrFP<float>(ftag, n)));
+  if (ftag.getWidth() == 32)
+    return llvm::APFloat(fromIntOrFP<float>(ftag, n));
+  if (ftag.getWidth() == 64)
+    return llvm::APFloat(fromIntOrFP<double>(ftag, n));
+  llvm_unreachable("unsupported floating point width");
 }
 
-// TODO: Explore if it's feasible and worthwhile to use _cvtss_sh, _cvtsh_ss
-//       https://clang.llvm.org/doxygen/f16cintrin_8h.html
-
-float U16ToF32(uint16_t u) {
-  return U16ToAPFloat(u).convertToFloat();
-}
-
-uint16_t F32ToU16(float f) {
-  return APFloatToU16(APFloat(f));
+llvm::APInt toAPInt(mlir::IntegerType itag, IntOrFP n) {
+  if (itag.isSigned())
+    return llvm::APInt(itag.getWidth(), n.i64, /*isSigned=*/true);
+  else
+    return llvm::APInt(itag.getWidth(), n.u64);
 }
 
 } // namespace onnx_mlir

@@ -159,19 +159,19 @@ inline auto makeMappedIndexIterator(
 // }
 // TODO: remove after testing ^
 
-using ElementsTransform = std::function<onnx_mlir::Number64(StringRef, size_t)>;
+using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 template <typename DTyTrait, typename... Args>
-struct ReadNumber64 {
+struct ReadIntOrFP {
   using X = typename DTyTrait::type;
-  static onnx_mlir::Number64 eval(Type t, StringRef s, size_t pos) {
+  static onnx_mlir::IntOrFP eval(Type t, StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
-    return onnx_mlir::toNumber64(t, DTyTrait::unpack(x));
+    return onnx_mlir::toIntOrFP(t, DTyTrait::unpack(x));
   }
 };
-inline ElementsTransform readNumber64(Type t) {
-  return [t](StringRef s, size_t pos) -> onnx_mlir::Number64 {
-    return onnx_mlir::dispatchFPOrInt<ReadNumber64, onnx_mlir::Number64>::eval(t, t, s, pos);
+inline ElementsTransform readIntOrFP(Type t) {
+  return [t](StringRef s, size_t pos) -> onnx_mlir::IntOrFP {
+    return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(t, t, s, pos);
   };
 }
 
@@ -299,7 +299,7 @@ public:
         detail::getDefaultStrides(type.getShape());
     onnx_mlir::DType dtype =
         onnx_mlir::fromIntOrFPMlirTypeToDType(elementType);
-    return get(type, strides, dtype, std::move(buffer), readNumber64(elementType));
+    return get(type, strides, dtype, std::move(buffer), readIntOrFP(elementType));
   }
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
@@ -347,8 +347,8 @@ public:
   bool isSplat() const { return detail::isSplat(getStrides()); }
   template <typename X>
   X getSplatValue() const {
-    onnx_mlir::Number64 n = getTransform()(getBuffer()->getBuffer(), 0);
-    return onnx_mlir::fromNumber64<X>(getElementType(), n);
+    onnx_mlir::IntOrFP n = getTransform()(getBuffer()->getBuffer(), 0);
+    return onnx_mlir::fromIntOrFP<X>(getElementType(), n);
   }
 
   template <typename X>
@@ -373,8 +373,8 @@ public:
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
-      onnx_mlir::Number64 n = s->transform(s->buffer->getBuffer(), pos);
-      X x = onnx_mlir::fromNumber64<X>(s->type.getElementType(), n);
+      onnx_mlir::IntOrFP n = s->transform(s->buffer->getBuffer(), pos);
+      X x = onnx_mlir::fromIntOrFP<X>(s->type.getElementType(), n);
       return x;
     });
   }
