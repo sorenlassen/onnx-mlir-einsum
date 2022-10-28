@@ -427,15 +427,28 @@ union IntOrFP {
     return { .dbl = static_cast<double>(x) };
   }
 
-  // TODO: make this work for T == APInt, APFloat
   template <typename X>
-  static IntOrFP from(mlir::Type tag, X x) {
+  static std::enable_if_t<!std::is_same_v<X, llvm::APInt> && !std::is_same_v<X, llvm::APFloat>, IntOrFP>
+  from(mlir::Type tag, X x) {
     assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
     if (auto itag = tag.dyn_cast<mlir::IntegerType>())
       return fromInt<X>(itag, x);
     return fromFP<X>(tag, x);
   }
-
+  template <typename X>
+  static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP>
+  from(mlir::Type tag, X x) {
+    if (tag.cast<mlir::IntegerType>().isSigned())
+      return { .i64 = x.getSExtValue() };
+    else
+      return { .i64 = x.getZExtValue() };
+  }
+  template <typename X>
+  static std::enable_if_t<std::is_same_v<X, llvm::APFloat>, IntOrFP>
+  from(mlir::Type tag, X x) {
+    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
+    return { .f64 = x.convertToDouble() };
+  }
 };
 
 } // namespace onnx_mlir
