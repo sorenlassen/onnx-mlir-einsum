@@ -166,7 +166,7 @@ struct ReadIntOrFP {
   using X = typename DTyTrait::type;
   static onnx_mlir::IntOrFP eval(Type t, StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
-    return onnx_mlir::toIntOrFP(t, x);
+    return onnx_mlir::IntOrFP::from(t, x);
   }
 };
 inline ElementsTransform readIntOrFP(Type t) {
@@ -349,7 +349,7 @@ public:
   template <typename X>
   X getSplatValue() const {
     onnx_mlir::IntOrFP n = getTransform()(getBuffer()->getBuffer(), 0);
-    return onnx_mlir::fromIntOrFP<X>(getElementType(), n);
+    return n.to<X>(getElementType());
   }
 
   template <typename X>
@@ -375,7 +375,7 @@ public:
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
       onnx_mlir::IntOrFP n = s->transform(s->buffer->getBuffer(), pos);
-      X x = onnx_mlir::fromIntOrFP<X>(s->type.getElementType(), n);
+      X x = n.to<X>(s->type.getElementType());
       return x;
     });
   }

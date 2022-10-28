@@ -122,91 +122,6 @@ inline bfloat_16::bfloat_16(float_16 f16)
     : bfloat_16::Base(float_16::toFloat(f16)) {}
 inline bfloat_16::operator float_16() const { return float_16(*this); }
 
-bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
-
-// Union of 64-bit integers and double precision floating point numbers.
-// It is tagless and should always be used in a conjunction
-// with an mlir Type which is either an IntegerType or FloatType.
-// The type tags which field of the union is populated:
-// dbl if FloatType, i64 or u64 if IntegerType and isSigned() or not.
-//
-// Use toIntOrFP<T> and fromIntOrFP<T> to create and access with the
-// tagging mlir Type.
-//
-union IntOrFP {
-  double dbl;   // Floating point numbers with precision and range up to double.
-  int64_t i64;  // Signed ints up to bitwidth 64.
-  uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
-};
-
-llvm::APFloat toAPFloat(mlir::FloatType ftag, IntOrFP n);
-llvm::APInt toAPInt(mlir::IntegerType itag, IntOrFP n);
-
-template <typename T>
-inline T fromIntOrFP(mlir::Type tag, IntOrFP n) {
-  assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
-  if (auto itag = tag.dyn_cast<mlir::IntegerType>()) {
-    if (itag.isSigned())
-      return static_cast<T>(n.i64);
-    else
-      return static_cast<T>(n.u64);
-  }
-  return static_cast<T>(n.dbl);
-}
-
-template <>
-inline auto fromIntOrFP<llvm::APFloat>(mlir::Type tag, IntOrFP n)
-    -> llvm::APFloat {
-  return toAPFloat(tag.cast<mlir::FloatType>(), n);
-}
-
-template <>
-inline auto fromIntOrFP<llvm::APInt>(mlir::Type tag, IntOrFP n) -> llvm::APInt {
-  return toAPInt(tag.cast<mlir::IntegerType>(), n);
-}
-
-// template <typename X>
-// inline IntOrFP toInt(mlir::IntegerType itag, X x) {
-//   assert(itag.getWidth() <= maxWidth);
-//   if (itag.isSigned())
-//     return { .i64 = static_cast<int64_t>(x) };
-//   else
-//     return { .u64 = static_cast<uint64_t>(x) };
-// }
-
-// template <typename X>
-// inline IntOrFP toFP(mlir::Type tag, X x) {
-//   assert(tag.cast<mlir::FloatType>().getWidth() <= maxWidth); // TODO remove
-//   return { .dbl = static_cast<double>(x) };
-// }
-
-template <typename X>
-inline IntOrFP toIntOrFP(mlir::Type tag, X x) {
-  assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
-  if (auto itag = tag.dyn_cast<mlir::IntegerType>()) {
-    if (itag.isSigned())
-      return {.i64 = static_cast<int64_t>(x)};
-    else
-      return {.u64 = static_cast<uint64_t>(x)};
-  }
-  return {.dbl = static_cast<double>(x)};
-}
-
-template <>
-inline IntOrFP toIntOrFP<llvm::APFloat>(mlir::Type tag, llvm::APFloat x) {
-  assert(tag.isa<mlir::FloatType>());
-  return {.dbl = x.convertToDouble()};
-}
-
-template <>
-inline IntOrFP toIntOrFP<llvm::APInt>(mlir::Type tag, llvm::APInt x) {
-  auto itag = tag.cast<mlir::IntegerType>();
-  if (itag.isSigned())
-    return {.i64 = x.getSExtValue()};
-  else
-    return {.u64 = x.getZExtValue()};
-}
-
 // Numerical representation of basic data types.
 //
 // DType faithfully copies onnx::TensorProto::DataType from
@@ -450,5 +365,77 @@ template <>
 constexpr bool isIntOrFP<llvm::APInt>(unsigned maxWidth) {
   return true;
 }
+
+bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
+
+// Union of 64-bit integers and double precision floating point numbers.
+// It is tagless and should always be used in a conjunction
+// with an mlir Type which is either an IntegerType or FloatType.
+// The type tags which field of the union is populated:
+// dbl if FloatType, i64 or u64 if IntegerType and isSigned() or not.
+union IntOrFP {
+  double dbl;   // Floating point numbers with precision and range up to double.
+  int64_t i64;  // Signed ints up to bitwidth 64.
+  uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
+
+  llvm::APInt toAPInt(mlir::IntegerType itag) const;
+  llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
+
+  template <typename T>
+  T toInt(mlir::IntegerType itag) const {
+    assert(itag.getWidth() <= 64);
+    return itag.isSigned() ? static_cast<T>(i64) : static_cast<T>(u64);
+  }
+
+  template <typename T>
+  T toFP(mlir::Type tag) const {
+    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
+    return static_cast<T>(dbl);
+  }
+
+  template <typename T>
+  std::enable_if_t<!std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
+  to(mlir::Type tag) const {
+    assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
+    if (auto itag = tag.dyn_cast<mlir::IntegerType>())
+      return toInt<T>(itag);
+    return toFP<T>(tag);
+  }
+  template <typename T>
+  std::enable_if_t<std::is_same_v<T, llvm::APInt>, T>
+  to(mlir::Type tag) const {
+    return toAPInt(tag.cast<mlir::IntegerType>());
+  }
+  template <typename T>
+  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T>
+  to(mlir::Type tag) const {
+    return toAPFloat(tag.cast<mlir::FloatType>());
+  }
+
+  template <typename X>
+  static IntOrFP fromInt(mlir::IntegerType itag, X x) {
+    assert(itag.getWidth() <= 64);
+    if (itag.isSigned())
+      return { .i64 = static_cast<int64_t>(x) };
+    else
+      return { .u64 = static_cast<uint64_t>(x) };
+  }
+
+  template <typename X>
+  static IntOrFP fromFP(mlir::Type tag, X x) {
+    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
+    return { .dbl = static_cast<double>(x) };
+  }
+
+  // TODO: make this work for T == APInt, APFloat
+  template <typename X>
+  static IntOrFP from(mlir::Type tag, X x) {
+    assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
+    if (auto itag = tag.dyn_cast<mlir::IntegerType>())
+      return fromInt<X>(itag, x);
+    return fromFP<X>(tag, x);
+  }
+
+};
 
 } // namespace onnx_mlir

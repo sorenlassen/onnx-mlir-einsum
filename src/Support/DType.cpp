@@ -25,34 +25,6 @@ uint64_t detail::bitcastAPFloat(llvm::APFloat f, const llvm::fltSemantics &seman
   return i.getZExtValue();
 }
 
-bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>())
-    return i.getWidth() <= maxWidth;
-  if (auto f = t.dyn_cast<mlir::FloatType>())
-    return f.getWidth() <= maxWidth;
-  return false;
-}
-
-llvm::APFloat toAPFloat(mlir::FloatType ftag, IntOrFP n) {
-  if (ftag.isa<mlir::Float64Type>())
-    return llvm::APFloat(n.dbl);
-  float f = static_cast<float>(n.dbl);
-  if (ftag.isa<mlir::Float32Type>())
-    return llvm::APFloat(f);
-  if (ftag.isa<mlir::Float16Type>())
-    return float_16::toAPFloat(float_16(f));
-  if (ftag.isa<mlir::BFloat16Type>())
-    return bfloat_16::toAPFloat(bfloat_16(f));
-  llvm_unreachable("unsupported floating point width");
-}
-
-llvm::APInt toAPInt(mlir::IntegerType itag, IntOrFP n) {
-  if (itag.isSigned())
-    return llvm::APInt(itag.getWidth(), n.i64, /*isSigned=*/true);
-  else
-    return llvm::APInt(itag.getWidth(), n.u64);
-}
-
 DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
   // clang-format off
   if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
@@ -76,6 +48,34 @@ unsigned widthOfIntOrFPType(mlir::Type t) {
     return i.getWidth();
   auto f = t.cast<mlir::FloatType>();
   return f.getWidth();
+}
+
+bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
+  if (auto i = t.dyn_cast<mlir::IntegerType>())
+    return i.getWidth() <= maxWidth;
+  if (auto f = t.dyn_cast<mlir::FloatType>())
+    return f.getWidth() <= maxWidth;
+  return false;
+}
+
+llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
+  if (ftag.isa<mlir::Float64Type>())
+    return llvm::APFloat(dbl);
+  float f = static_cast<float>(dbl);
+  if (ftag.isa<mlir::Float32Type>())
+    return llvm::APFloat(f);
+  if (ftag.isa<mlir::Float16Type>())
+    return float_16::toAPFloat(float_16(f));
+  if (ftag.isa<mlir::BFloat16Type>())
+    return bfloat_16::toAPFloat(bfloat_16(f));
+  llvm_unreachable("unsupported floating point width");
+}
+
+llvm::APInt IntOrFP::toAPInt(mlir::IntegerType itag) const {
+  if (itag.isSigned())
+    return llvm::APInt(itag.getWidth(), i64, /*isSigned=*/true);
+  else
+    return llvm::APInt(itag.getWidth(), u64);
 }
 
 } // namespace onnx_mlir
