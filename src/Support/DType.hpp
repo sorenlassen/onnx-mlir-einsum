@@ -164,25 +164,7 @@ enum class DType : int {
 using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
     int32_t, uint32_t, int64_t, uint64_t, double, float, float_16, bfloat_16>;
 
-// TODO: move implementations from this source file to DType.cpp
-
-inline DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
-  // clang-format off
-  if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
-  if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
-  if (type.isa<mlir::Float16Type>())  return DType::FLOAT16;
-  if (type.isa<mlir::BFloat16Type>()) return DType::BFLOAT16;
-  auto itype = type.cast<mlir::IntegerType>();
-  switch (itype.getWidth()) {
-    case  1: return DType::BOOL;
-    case  8: return itype.isUnsigned() ? DType::UINT8  : DType::INT8;
-    case 16: return itype.isUnsigned() ? DType::UINT16 : DType::INT16;
-    case 32: return itype.isUnsigned() ? DType::UINT32 : DType::INT32;
-    case 64: return itype.isUnsigned() ? DType::UINT64 : DType::INT64;
-  }
-  llvm_unreachable("unsupported int or float type");
-  // clang-format on
-}
+DType fromIntOrFPMlirTypeToDType(mlir::Type type);
 
 template <DType TY>
 struct DTypeTrait {
@@ -376,12 +358,7 @@ using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
-inline unsigned widthOfIntOrFPType(mlir::Type t) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>())
-    return i.getWidth();
-  auto f = t.cast<mlir::FloatType>();
-  return f.getWidth();
-}
+unsigned widthOfIntOrFPType(mlir::Type t);
 
 template <typename T>
 constexpr bool isIntOrFP(unsigned maxWidth) {

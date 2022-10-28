@@ -52,4 +52,29 @@ llvm::APInt toAPInt(mlir::IntegerType itag, IntOrFP n) {
     return llvm::APInt(itag.getWidth(), n.u64);
 }
 
+DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
+  // clang-format off
+  if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
+  if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
+  if (type.isa<mlir::Float16Type>())  return DType::FLOAT16;
+  if (type.isa<mlir::BFloat16Type>()) return DType::BFLOAT16;
+  auto itype = type.cast<mlir::IntegerType>();
+  switch (itype.getWidth()) {
+    case  1: return DType::BOOL;
+    case  8: return itype.isUnsigned() ? DType::UINT8  : DType::INT8;
+    case 16: return itype.isUnsigned() ? DType::UINT16 : DType::INT16;
+    case 32: return itype.isUnsigned() ? DType::UINT32 : DType::INT32;
+    case 64: return itype.isUnsigned() ? DType::UINT64 : DType::INT64;
+  }
+  llvm_unreachable("unsupported int or float type");
+  // clang-format on
+}
+
+unsigned widthOfIntOrFPType(mlir::Type t) {
+  if (auto i = t.dyn_cast<mlir::IntegerType>())
+    return i.getWidth();
+  auto f = t.cast<mlir::FloatType>();
+  return f.getWidth();
+}
+
 } // namespace onnx_mlir
