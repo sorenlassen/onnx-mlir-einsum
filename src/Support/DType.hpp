@@ -18,16 +18,40 @@
 
 namespace onnx_mlir {
 
+namespace detail {
+uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
+
+template <typename ConcreteT>
+struct float16Base {
+  uint16_t u16;
+  static llvm::APFloat toAPFloat(ConcreteT f16) {
+    return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, f16.u16));
+  }
+  static ConcreteT fromAPFloat(llvm::APFloat a) {
+    uint16_t u16 = bitcastAPFloat(a, ConcreteT::semantics());
+    return {u16};
+  }
+  static float toFloat(ConcreteT f16) {
+    return toAPFloat(f16).convertToFloat();
+  }
+  static ConcreteT fromFloat(float f) {
+    return fromAPFloat(llvm::APFloat(f));
+  }
+};
+}
+
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
-struct float_16 {
-  uint16_t u16;
+struct float_16 : public detail::float16Base<float_16> {
+  static const llvm::fltSemantics &semantics() { return llvm::APFloat::IEEEhalf(); }
+};
 
-  static llvm::APFloat toAPFloat(float_16);
-  static float_16 fromAPFloat(llvm::APFloat);
-  static float toFloat(float_16);
-  static float_16 fromFloat(float);
+// Represents a BFLOAT16 value with the correct bitwidth and in a form that
+// is unambiguous when used as a template parameter alongside the other basic
+// Cpp data types uint16_t, float, etc.
+struct bfloat_16 : public detail::float16Base<bfloat_16> {
+  static const llvm::fltSemantics &semantics() { return llvm::APFloat::BFloat(); }
 };
 
 bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
@@ -138,15 +162,16 @@ enum class DType : int {
 };
 
 using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
-    int32_t, uint32_t, int64_t, uint64_t, float_16, float, double>;
+    int32_t, uint32_t, int64_t, uint64_t, double, float, float_16, bfloat_16>;
 
 // TODO: move implementations from this source file to DType.cpp
 
 inline DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
   // clang-format off
-  if (type.isa<mlir::Float16Type>()) return DType::FLOAT16;
-  if (type.isa<mlir::Float32Type>()) return DType::FLOAT;
-  if (type.isa<mlir::Float64Type>()) return DType::DOUBLE;
+  if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
+  if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
+  if (type.isa<mlir::Float16Type>())  return DType::FLOAT16;
+  if (type.isa<mlir::BFloat16Type>()) return DType::BFLOAT16;
   auto itype = type.cast<mlir::IntegerType>();
   switch (itype.getWidth()) {
     case  1: return DType::BOOL;
@@ -192,13 +217,18 @@ struct DTypeTrait<DType::FLOAT16>
   static float unpack(float_16 packed) { return float_16::toFloat(packed); }
 };
 
+template <>
+struct DTypeTrait<DType::BFLOAT16>
+    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {
+  static bfloat_16 pack(float unpacked) { return bfloat_16::fromFloat(unpacked); }
+  static float unpack(bfloat_16 packed) { return bfloat_16::toFloat(packed); }
+};
+
 #define DEFINE_DTypeTrait(TY, CPPTY)                                           \
   template <>                                                                  \
   struct DTypeTrait<DType::TY>                                                 \
       : public detail::DTypeTraitBase<DType::TY, CPPTY> {};
 
-DEFINE_DTypeTrait(FLOAT, float);
-DEFINE_DTypeTrait(DOUBLE, double);
 DEFINE_DTypeTrait(BOOL, bool);
 DEFINE_DTypeTrait(INT8, int8_t);
 DEFINE_DTypeTrait(UINT8, uint8_t);
@@ -208,6 +238,8 @@ DEFINE_DTypeTrait(INT32, int32_t);
 DEFINE_DTypeTrait(UINT32, uint32_t);
 DEFINE_DTypeTrait(INT64, int64_t);
 DEFINE_DTypeTrait(UINT64, uint64_t);
+DEFINE_DTypeTrait(DOUBLE, double);
+DEFINE_DTypeTrait(FLOAT, float);
 
 template <typename>
 struct DTypeTraitByType {};
@@ -230,11 +262,13 @@ struct DTypeTraitByType<int64_t> : public DTypeTrait<DType::INT64> {};
 template <>
 struct DTypeTraitByType<uint64_t> : public DTypeTrait<DType::UINT64> {};
 template <>
-struct DTypeTraitByType<float_16> : public DTypeTrait<DType::FLOAT16> {};
+struct DTypeTraitByType<double> : public DTypeTrait<DType::DOUBLE> {};
 template <>
 struct DTypeTraitByType<float> : public DTypeTrait<DType::FLOAT> {};
 template <>
-struct DTypeTraitByType<double> : public DTypeTrait<DType::DOUBLE> {};
+struct DTypeTraitByType<float_16> : public DTypeTrait<DType::FLOAT16> {};
+template <>
+struct DTypeTraitByType<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
 
 template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
@@ -279,19 +313,19 @@ struct dispatchFPOr {
   template <typename... Ts>
   static Out eval(DType dtype, Ts... xs) {
     switch (dtype) {
-      case DType::BFLOAT16: return ACT(BOOL);
-      case DType::FLOAT16 : return ACT(FLOAT16);
-      case DType::FLOAT   : return ACT(FLOAT);
       case DType::DOUBLE  : return ACT(DOUBLE);
+      case DType::FLOAT   : return ACT(FLOAT);
+      case DType::FLOAT16 : return ACT(FLOAT16);
+      case DType::BFLOAT16: return ACT(BFLOAT16);
       default: return Alt::eval(dtype, xs...);
     }
   }
   template <typename... Ts>
   static Out eval(mlir::Type type, Ts... xs) {
-    if (type.isBF16()) llvm_unreachable("BF16 is unsupported");
-    if (type.isF16()) return ACT(FLOAT16);
-    if (type.isF32()) return ACT(FLOAT);
-    if (type.isF64()) return ACT(DOUBLE);
+    if (type.isa<mlir::Float64Type>())  return ACT(DOUBLE);
+    if (type.isa<mlir::Float32Type>())  return ACT(FLOAT);
+    if (type.isa<mlir::Float16Type>())  return ACT(FLOAT16);
+    if (type.isa<mlir::BFloat16Type>()) return ACT(BFLOAT16);
     return Alt::eval(type, xs...);
   }
   // clang-format on
