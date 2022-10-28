@@ -24,13 +24,13 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "src/Support/DType.hpp"
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/ShapeHelper.hpp"
 #include "src/Pass/Passes.hpp"
 #include "src/Support/Common.hpp"
+#include "src/Support/DType.hpp"
 #include "src/Support/TypeUtilities.hpp"
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
 
@@ -92,9 +92,8 @@ struct CastIntsOrFPs {
     static void eval(ArrayRef<char> src, char *dst) {
       D *rs = reinterpret_cast<D *>(dst);
       ArrayRef<S> vs = castArrayRef<S>(src);
-      std::transform(vs.begin(), vs.end(), rs, [](S v) {
-        return DstDTy::pack(static_cast<typename DstDTy::unpacked_type>(v));
-      });
+      std::transform(
+          vs.begin(), vs.end(), rs, [](S v) { return static_cast<D>(v); });
     }
   };
 };
@@ -312,8 +311,8 @@ struct ElementwiseBinary {
     using S = typename DTy::type;
     using U = typename DTy::unpacked_type;
     static S fn(S x, S y) {
-      return DTy::pack(
-          ElementWiseBinaryOpImpl<OP, U>::impl(DTy::unpack(x), DTy::unpack(y)));
+      return static_cast<S>(ElementWiseBinaryOpImpl<OP, U>::impl(
+          static_cast<U>(x), static_cast<U>(y)));
     }
     static void eval(ArrayRef<int64_t> lhsShape, ArrayRef<char> lhs,
         ArrayRef<int64_t> rhsShape, ArrayRef<char> rhs,
@@ -430,8 +429,8 @@ struct ElementwiseUnary {
     static void eval(ArrayRef<char> src, MutableArrayRef<char> dst) {
       fillOrTransform(
           castArrayRef<S>(src), castMutableArrayRef<S>(dst), [](S v) {
-            return DTy::pack(
-                ElementWiseUnaryOpImpl<OP, U>::impl(DTy::unpack(v)));
+            return static_cast<S>(
+                ElementWiseUnaryOpImpl<OP, U>::impl(static_cast<U>(v)));
           });
     }
   };
@@ -767,10 +766,8 @@ struct SrcDstCast {
   struct DstCast {
     using D = typename DstDTy::type;
     static void eval(ArrayRef<S> src, MutableArrayRef<char> dst) {
-      fillOrTransform(src, castMutableArrayRef<D>(dst), [](S v) {
-        return DstDTy::pack(
-            static_cast<typename DstDTy::unpacked_type>(SrcDTy::unpack(v)));
-      });
+      fillOrTransform(src, castMutableArrayRef<D>(dst),
+          [](S v) { return static_cast<D>(v); });
     }
   };
 

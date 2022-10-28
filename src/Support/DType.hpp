@@ -12,39 +12,64 @@
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
-#include "llvm/Support/ErrorHandling.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/Support/ErrorHandling.h"
 
 namespace onnx_mlir {
 
 namespace detail {
 uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+llvm::APFloat toAPFloatFromInt(T i) {
+  // TODO: figure out if it's better to use llvm::APFloat::convertFromAPInt
+  return llvm::APFloat(static_cast<double>(i));
+}
+
+template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+auto toIntFromAPFloat(llvm::APFloat f) -> T {
+  // TODO: figure out if there is a better way to do this
+  return static_cast<T>(f.convertToDouble());
+}
+
 template <typename ConcreteT>
 struct float16Base {
-  explicit float16Base(float f) : u16(fromFloat(f).u16) {}
-  explicit operator float() const { return toFloat(*this); }
+public:
+  float16Base() = default;
+  explicit float16Base(ConcreteT f16) : u16(f16.u16) {}
+  explicit float16Base(float f) : u16(fromAPFloat(llvm::APFloat(f)).u16) {}
+  explicit float16Base(double d) : u16(fromAPFloat(llvm::APFloat(d)).u16) {}
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+  explicit float16Base(T i) : u16(fromAPFloat(toAPFloatFromInt(i)).u16) {}
+
+  explicit operator float() const {
+    return toAPFloat(*static_cast<const ConcreteT *>(this)).convertToFloat();
+  }
+  explicit operator double() const {
+    return toAPFloat(*static_cast<const ConcreteT *>(this)).convertToDouble();
+  }
+  template <typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
+  explicit operator T() const {
+    return toIntFromAPFloat<T>(
+        toAPFloat(*static_cast<const ConcreteT *>(this)));
+  }
 
   static llvm::APFloat toAPFloat(ConcreteT f16) {
     return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, f16.u16));
   }
   static ConcreteT fromAPFloat(llvm::APFloat a) {
     uint16_t u16 = bitcastAPFloat(a, ConcreteT::semantics());
-    return ConcreteT(u16);
+    return bitcastFromU16(u16);
   }
   // Same as static_cast<float>(f16).
   static float toFloat(ConcreteT f16) {
     return toAPFloat(f16).convertToFloat();
   }
   // Same as static_cast<ConcreteT>(f).
-  static ConcreteT fromFloat(float f) {
-    return fromAPFloat(llvm::APFloat(f));
-  }
+  static ConcreteT fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
   // Same as reinterpret_cast<uint16_t>(f16).
-  static uint16_t bitcastToU16(ConcreteT f16) {
-    return f16.u16;
-  }
+  static uint16_t bitcastToU16(ConcreteT f16) { return f16.u16; }
   // Same as reinterpret_cast<ConcreteT>(u).
   static ConcreteT bitcastFromU16(uint16_t u) {
     ConcreteT f16;
@@ -55,23 +80,47 @@ struct float16Base {
 private:
   uint16_t u16;
 };
-}
+} // namespace detail
+
+struct float_16;
+struct bfloat_16;
 
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct float_16 : public detail::float16Base<float_16> {
-  using detail::float16Base<float_16>::float16Base;
-  static const llvm::fltSemantics &semantics() { return llvm::APFloat::IEEEhalf(); }
+  using Base = detail::float16Base<float_16>;
+  using Base::Base;
+  // explicit float_16(bfloat_16 bf16) : Base(static_cast<float>(bf16)) {}
+  explicit float_16(bfloat_16 bf16);
+  explicit operator bfloat_16() const;
+  static const llvm::fltSemantics &semantics() {
+    return llvm::APFloat::IEEEhalf();
+  }
 };
 
 // Represents a BFLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct bfloat_16 : public detail::float16Base<bfloat_16> {
-  using detail::float16Base<bfloat_16>::float16Base;
-  static const llvm::fltSemantics &semantics() { return llvm::APFloat::BFloat(); }
+  // using detail::float16Base<bfloat_16>::float16Base;
+  using Base = detail::float16Base<bfloat_16>;
+  using Base::Base;
+  // explicit bfloat_16(float_16 f16) :
+  // detail::float16Base<bfloat_16>::float16Base(static_cast<float>(f16)) {}
+  explicit bfloat_16(float_16 f16);
+  explicit operator float_16() const;
+  static const llvm::fltSemantics &semantics() {
+    return llvm::APFloat::BFloat();
+  }
 };
+
+inline float_16::float_16(bfloat_16 bf16)
+    : float_16::Base(bfloat_16::toFloat(bf16)) {}
+inline float_16::operator bfloat_16() const { return bfloat_16(*this); }
+inline bfloat_16::bfloat_16(float_16 f16)
+    : bfloat_16::Base(float_16::toFloat(f16)) {}
+inline bfloat_16::operator float_16() const { return float_16(*this); }
 
 bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
 
@@ -85,8 +134,8 @@ bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
 // tagging mlir Type.
 //
 union IntOrFP {
-  double dbl;  // Floating point numbers with precision and range up to double.
-  int64_t i64; // Signed ints up to bitwidth 64.
+  double dbl;   // Floating point numbers with precision and range up to double.
+  int64_t i64;  // Signed ints up to bitwidth 64.
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
 };
 
@@ -106,7 +155,8 @@ inline T fromIntOrFP(mlir::Type tag, IntOrFP n) {
 }
 
 template <>
-inline auto fromIntOrFP<llvm::APFloat>(mlir::Type tag, IntOrFP n) -> llvm::APFloat {
+inline auto fromIntOrFP<llvm::APFloat>(mlir::Type tag, IntOrFP n)
+    -> llvm::APFloat {
   return toAPFloat(tag.cast<mlir::FloatType>(), n);
 }
 
@@ -115,31 +165,46 @@ inline auto fromIntOrFP<llvm::APInt>(mlir::Type tag, IntOrFP n) -> llvm::APInt {
   return toAPInt(tag.cast<mlir::IntegerType>(), n);
 }
 
+// template <typename X>
+// inline IntOrFP toInt(mlir::IntegerType itag, X x) {
+//   assert(itag.getWidth() <= maxWidth);
+//   if (itag.isSigned())
+//     return { .i64 = static_cast<int64_t>(x) };
+//   else
+//     return { .u64 = static_cast<uint64_t>(x) };
+// }
+
+// template <typename X>
+// inline IntOrFP toFP(mlir::Type tag, X x) {
+//   assert(tag.cast<mlir::FloatType>().getWidth() <= maxWidth); // TODO remove
+//   return { .dbl = static_cast<double>(x) };
+// }
+
 template <typename X>
 inline IntOrFP toIntOrFP(mlir::Type tag, X x) {
   assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
   if (auto itag = tag.dyn_cast<mlir::IntegerType>()) {
     if (itag.isSigned())
-      return { .i64 = static_cast<int64_t>(x) };
+      return {.i64 = static_cast<int64_t>(x)};
     else
-      return { .u64 = static_cast<uint64_t>(x) };
+      return {.u64 = static_cast<uint64_t>(x)};
   }
-  return { .dbl = static_cast<double>(x) };
+  return {.dbl = static_cast<double>(x)};
 }
 
 template <>
 inline IntOrFP toIntOrFP<llvm::APFloat>(mlir::Type tag, llvm::APFloat x) {
   assert(tag.isa<mlir::FloatType>());
-  return { .dbl = x.convertToDouble() };
+  return {.dbl = x.convertToDouble()};
 }
 
 template <>
 inline IntOrFP toIntOrFP<llvm::APInt>(mlir::Type tag, llvm::APInt x) {
   auto itag = tag.cast<mlir::IntegerType>();
   if (itag.isSigned())
-    return { .i64 = x.getSExtValue() };
+    return {.i64 = x.getSExtValue()};
   else
-    return { .u64 = x.getZExtValue() };
+    return {.u64 = x.getZExtValue()};
 }
 
 // Numerical representation of basic data types.
@@ -200,30 +265,16 @@ struct DTypeTraitBase {
       std::is_same_v<ty, bool> ? 1 : (8 * sizeof(ty));
   using type = ty;
   using unpacked_type = unpacked_ty;
-  static type pack(unpacked_type unpacked) { return unpacked; }
-  static unpacked_type unpack(type packed) { return packed; }
-  // static type fromIntOrFP(mlir::Type t, IntOrFP n) {
-  //   return pack(::onnx_mlir::fromIntOrFP(t, n));
-  // }
-  // static IntOrFP toIntOrFP(mlir::Type t, type x) {
-  //   return ::onnx_mlir::toIntOrFP(t, unpack(x));
-  // }
 };
 } // namespace detail
 
 template <>
 struct DTypeTrait<DType::FLOAT16>
-    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {
-  static float_16 pack(float unpacked) { return float_16::fromFloat(unpacked); }
-  static float unpack(float_16 packed) { return float_16::toFloat(packed); }
-};
+    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {};
 
 template <>
 struct DTypeTrait<DType::BFLOAT16>
-    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {
-  static bfloat_16 pack(float unpacked) { return bfloat_16::fromFloat(unpacked); }
-  static float unpack(bfloat_16 packed) { return bfloat_16::toFloat(packed); }
-};
+    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {};
 
 #define DEFINE_DTypeTrait(TY, CPPTY)                                           \
   template <>                                                                  \
@@ -372,7 +423,8 @@ void fillOrTransform(
 
 template <typename U>
 using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
-                                std::is_same_v<U, float_16>>;
+                                std::is_same_v<U, float_16> ||
+                                std::is_same_v<U, bfloat_16>>;
 
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;

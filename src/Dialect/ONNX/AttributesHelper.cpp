@@ -17,8 +17,8 @@
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
 
-#include "src/Support/DType.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
+#include "src/Support/DType.hpp"
 
 using namespace mlir;
 
@@ -75,7 +75,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     ShapedType type, FillDenseRawBufferFn fill) {
   size_t size = type.getNumElements() *
                 byteWidth(type.getElementType().getIntOrFloatBitWidth());
-#if 1
+#if 0
   std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
       llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
   fill(buffer->getBuffer());
@@ -121,8 +121,8 @@ struct ReadIntsOrFPs {
   struct Read {
     using S = typename DTy::type;
     static void eval(ArrayRef<char> src, MutableArrayRef<D> dst) {
-      fillOrTransform(castArrayRef<S>(src), dst,
-          [](S v) { return static_cast<D>(DTy::unpack(v)); });
+      fillOrTransform(
+          castArrayRef<S>(src), dst, [](S v) { return static_cast<D>(v); });
     }
   };
 };

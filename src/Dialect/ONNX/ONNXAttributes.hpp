@@ -166,12 +166,13 @@ struct ReadIntOrFP {
   using X = typename DTyTrait::type;
   static onnx_mlir::IntOrFP eval(Type t, StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
-    return onnx_mlir::toIntOrFP(t, DTyTrait::unpack(x));
+    return onnx_mlir::toIntOrFP(t, x);
   }
 };
 inline ElementsTransform readIntOrFP(Type t) {
   return [t](StringRef s, size_t pos) -> onnx_mlir::IntOrFP {
-    return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(t, t, s, pos);
+    return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(
+        t, t, s, pos);
   };
 }
 
@@ -297,9 +298,9 @@ public:
     Type elementType = type.getElementType();
     SmallVector<int64_t, 4> strides =
         detail::getDefaultStrides(type.getShape());
-    onnx_mlir::DType dtype =
-        onnx_mlir::fromIntOrFPMlirTypeToDType(elementType);
-    return get(type, strides, dtype, std::move(buffer), readIntOrFP(elementType));
+    onnx_mlir::DType dtype = onnx_mlir::fromIntOrFPMlirTypeToDType(elementType);
+    return get(
+        type, strides, dtype, std::move(buffer), readIntOrFP(elementType));
   }
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
