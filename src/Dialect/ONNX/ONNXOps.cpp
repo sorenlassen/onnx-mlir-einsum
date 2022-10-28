@@ -115,21 +115,6 @@ NOT_IMPLEMENTED_INFER_SHAPE(ONNXZipMapOp)
 // ONNXDialect initialization
 //===----------------------------------------------------------------------===//
 
-namespace {
-struct ONNXOpAsmDialectInterface : public OpAsmDialectInterface {
-  ONNXOpAsmDialectInterface(Dialect *dialect)
-      : OpAsmDialectInterface(dialect) {}
-
-  AliasResult getAlias(Attribute attr, raw_ostream &os) const override {
-    if (attr.isa<DisposableElementsAttr>()) {
-      os << "DisposableElementsAttr";
-      return AliasResult::FinalAlias;
-    }
-    return AliasResult::NoAlias;
-  }
-};
-} // namespace
-
 /// Dialect creation, the instance will be owned by the context. This is the
 /// point of registration of custom types and operations for the dialect.
 void ONNXDialect::initialize() {
@@ -148,8 +133,6 @@ void ONNXDialect::initialize() {
 #define GET_OP_LIST
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
       >();
-
-  addInterface<ONNXOpAsmDialectInterface>();
 }
 
 /// Parse an attribute registered to this dialect.
