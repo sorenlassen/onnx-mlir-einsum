@@ -309,7 +309,7 @@ struct ElementwiseBinary {
   template <typename DTy, typename... Ts>
   struct Compute {
     using S = typename DTy::type;
-    using U = typename DTy::unpacked_type;
+    using U = toArithmetic<S>;
     static S fn(S x, S y) {
       return static_cast<S>(ElementWiseBinaryOpImpl<OP, U>::impl(
           static_cast<U>(x), static_cast<U>(y)));
@@ -425,7 +425,7 @@ struct ElementwiseUnary {
   template <typename DTy, typename... Ts>
   struct Compute {
     using S = typename DTy::type;
-    using U = typename DTy::unpacked_type;
+    using U = toArithmetic<S>;
     static void eval(ArrayRef<char> src, MutableArrayRef<char> dst) {
       fillOrTransform(
           castArrayRef<S>(src), castMutableArrayRef<S>(dst), [](S v) {

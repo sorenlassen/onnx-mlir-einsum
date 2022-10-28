@@ -103,6 +103,9 @@ inline bfloat_16::bfloat_16(float_16 f16)
     : bfloat_16::Base(float_16::toFloat(f16)) {}
 inline bfloat_16::operator float_16() const { return float_16(*this); }
 
+template <typename T>
+using toArithmetic = std::conditional_t<std::is_arithmetic_v<T>, T, float>;
+
 // Numerical representation of basic data types.
 //
 // DType faithfully copies onnx::TensorProto::DataType from
@@ -152,7 +155,7 @@ struct DTypeTrait {
 };
 
 namespace detail {
-template <DType DTYPE, typename ty, typename unpacked_ty = ty>
+template <DType DTYPE, typename ty>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
   static constexpr bool is_int = std::is_integral_v<ty>;
@@ -160,19 +163,18 @@ struct DTypeTraitBase {
   static constexpr unsigned width =
       std::is_same_v<ty, bool> ? 1 : (8 * sizeof(ty));
   using type = ty;
-  using unpacked_type = unpacked_ty;
 };
 } // namespace detail
 
 template <>
 struct DTypeTrait<DType::FLOAT16>
-    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {
+    : public detail::DTypeTraitBase<DType::FLOAT16, float_16> {
   static constexpr bool is_float = true;
 };
 
 template <>
 struct DTypeTrait<DType::BFLOAT16>
-    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {
+    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16> {
   static constexpr bool is_float = true;
 };
 
