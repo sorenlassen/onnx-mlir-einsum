@@ -23,20 +23,37 @@ uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 
 template <typename ConcreteT>
 struct float16Base {
-  uint16_t u16;
+  explicit float16Base(float f) : u16(fromFloat(f).u16) {}
+  explicit operator float() const { return toFloat(*this); }
+
   static llvm::APFloat toAPFloat(ConcreteT f16) {
     return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, f16.u16));
   }
   static ConcreteT fromAPFloat(llvm::APFloat a) {
     uint16_t u16 = bitcastAPFloat(a, ConcreteT::semantics());
-    return {u16};
+    return ConcreteT(u16);
   }
+  // Same as static_cast<float>(f16).
   static float toFloat(ConcreteT f16) {
     return toAPFloat(f16).convertToFloat();
   }
+  // Same as static_cast<ConcreteT>(f).
   static ConcreteT fromFloat(float f) {
     return fromAPFloat(llvm::APFloat(f));
   }
+  // Same as reinterpret_cast<uint16_t>(f16).
+  static uint16_t bitcastToU16(ConcreteT f16) {
+    return f16.u16;
+  }
+  // Same as reinterpret_cast<ConcreteT>(u).
+  static ConcreteT bitcastFromU16(uint16_t u) {
+    ConcreteT f16;
+    f16.u16 = u;
+    return f16;
+  }
+
+private:
+  uint16_t u16;
 };
 }
 
@@ -44,6 +61,7 @@ struct float16Base {
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct float_16 : public detail::float16Base<float_16> {
+  using detail::float16Base<float_16>::float16Base;
   static const llvm::fltSemantics &semantics() { return llvm::APFloat::IEEEhalf(); }
 };
 
@@ -51,6 +69,7 @@ struct float_16 : public detail::float16Base<float_16> {
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct bfloat_16 : public detail::float16Base<bfloat_16> {
+  using detail::float16Base<bfloat_16>::float16Base;
   static const llvm::fltSemantics &semantics() { return llvm::APFloat::BFloat(); }
 };
 

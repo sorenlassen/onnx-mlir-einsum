@@ -36,12 +36,13 @@ bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
 llvm::APFloat toAPFloat(mlir::FloatType ftag, IntOrFP n) {
   if (ftag.isa<mlir::Float64Type>())
     return llvm::APFloat(n.dbl);
+  float f = static_cast<float>(n.dbl);
   if (ftag.isa<mlir::Float32Type>())
-    return llvm::APFloat(static_cast<float>(n.dbl));
+    return llvm::APFloat(f);
   if (ftag.isa<mlir::Float16Type>())
-    return float_16::toAPFloat(float_16::fromFloat(n.dbl));
+    return float_16::toAPFloat(float_16(f));
   if (ftag.isa<mlir::BFloat16Type>())
-    return bfloat_16::toAPFloat(bfloat_16::fromFloat(n.dbl));
+    return bfloat_16::toAPFloat(bfloat_16(f));
   llvm_unreachable("unsupported floating point width");
 }
 
