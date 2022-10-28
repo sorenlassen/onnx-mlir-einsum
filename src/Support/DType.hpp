@@ -147,11 +147,11 @@ inline T fromIntOrFP(mlir::Type tag, IntOrFP n) {
   assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
   if (auto itag = tag.dyn_cast<mlir::IntegerType>()) {
     if (itag.isSigned())
-      return n.i64;
+      return static_cast<T>(n.i64);
     else
-      return n.u64;
+      return static_cast<T>(n.u64);
   }
-  return n.dbl;
+  return static_cast<T>(n.dbl);
 }
 
 template <>
@@ -270,11 +270,15 @@ struct DTypeTraitBase {
 
 template <>
 struct DTypeTrait<DType::FLOAT16>
-    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {};
+    : public detail::DTypeTraitBase<DType::FLOAT16, float_16, float> {
+  static constexpr bool is_float = true;
+};
 
 template <>
 struct DTypeTrait<DType::BFLOAT16>
-    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {};
+    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16, float> {
+  static constexpr bool is_float = true;
+};
 
 #define DEFINE_DTypeTrait(TY, CPPTY)                                           \
   template <>                                                                  \
