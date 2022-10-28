@@ -350,11 +350,7 @@ public:
 
   // TODO: figure out how to register this so that it prints correctly
   //       when accessed from ElementsAttr or Attribute base types...
-  void print(AsmPrinter &printer) const {
-    llvm::errs() << "DisposableElementsAttr::print invoked\n";
-    print(printer.getStream());
-  }
-  void print(raw_ostream &os) const { toDenseElementsAttr().print(os); }
+  void printAsDense(raw_ostream &os) const { toDenseElementsAttr().print(os); }
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
       return toDenseElementsAttrByType<APInt>();
@@ -395,7 +391,7 @@ private: // TODO: Figure out if any of the following would be useful publicly.
 }; // class DisposableElementsAttr
 
 inline raw_ostream &operator<<(raw_ostream &os, DisposableElementsAttr attr) {
-  attr.print(os);
+  attr.printAsDense(os);
   return os;
 }
 

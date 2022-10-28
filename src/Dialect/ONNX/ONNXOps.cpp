@@ -41,6 +41,66 @@ using namespace mlir::OpTrait::util;
 using namespace onnx_mlir;
 
 //===----------------------------------------------------------------------===//
+// Unsupported Operations
+//===---------------------------------------------------------------------===//
+
+// Operations for which shape inference has not been implemented yet
+// If you add the implementation for one op, move it out of this section
+// Also please add test case in test/mlir/onnx/onnx_shape_inference.mlir
+// Followed by the implementation of lowering to Krnl and
+// Enable the corresponding node test in check-onnx-backend
+
+#define NOT_IMPLEMENTED_INFER_SHAPE(T)                                         \
+  LogicalResult T::inferShapes(                                                \
+      std::function<void(mlir::Region &)> doShapeInference) {                  \
+    return emitError(NOT_IMPLEMENTED_MESSAGE);                                 \
+  }
+
+// Listed alphabetically.
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXAdagradOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXAdamOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXArrayFeatureExtractorOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXBatchNormalizationOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXBinarizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXCastMapOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV11Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV12Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV6Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXDetOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXDictVectorizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXFeatureVectorizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXGradientOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXGridSampleOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXImputerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXIsInfOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXLabelEncoderOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXLinearClassifierOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXLinearRegressorOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXLpPoolOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXMaxPoolOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXMaxUnpoolOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXMomentumOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXMultinomialOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXNegativeLogLikelihoodLossOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXNormalizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXPadV11Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXPadV2Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXRandomUniformLikeOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXRandomUniformOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXResizeV10Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXResizeV11Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXSVMClassifierOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXSVMRegressorOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXSoftmaxCrossEntropyLossOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXStringNormalizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXTfIdfVectorizerOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXTreeEnsembleClassifierOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXTreeEnsembleRegressorOp)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV7Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV9Op)
+NOT_IMPLEMENTED_INFER_SHAPE(ONNXZipMapOp)
+
+//===----------------------------------------------------------------------===//
 // Tablegen Type Definitions
 //===----------------------------------------------------------------------===//
 // Explanation: the type implementation is used in dialect initialization.
@@ -48,9 +108,28 @@ using namespace onnx_mlir;
 #define GET_TYPEDEF_CLASSES
 #include "src/Dialect/ONNX/ONNXTypes.cpp.inc"
 
+#define GET_ATTRDEF_CLASSES
+#include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
+
 //===----------------------------------------------------------------------===//
 // ONNXDialect initialization
 //===----------------------------------------------------------------------===//
+
+namespace {
+struct ONNXOpAsmDialectInterface : public OpAsmDialectInterface {
+  ONNXOpAsmDialectInterface(Dialect *dialect)
+      : OpAsmDialectInterface(dialect) {}
+
+  AliasResult getAlias(Attribute attr, raw_ostream &os) const override {
+    llvm::errs() << "ONNX getAlias called\n";
+    if (attr.isa<DisposableElementsAttr>()) {
+      os << "dense";
+      return AliasResult::FinalAlias;
+    }
+    return AliasResult::NoAlias;
+  }
+};
+} // namespace
 
 /// Dialect creation, the instance will be owned by the context. This is the
 /// point of registration of custom types and operations for the dialect.
@@ -70,6 +149,51 @@ void ONNXDialect::initialize() {
 #define GET_OP_LIST
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
       >();
+
+  addInterface<ONNXOpAsmDialectInterface>();
+}
+
+/// Parse an attribute registered to this dialect.
+Attribute ONNXDialect::parseAttribute(DialectAsmParser &parser,
+                                      Type type) const {
+  // generatedAttributeParser is generated in ONNXAttributes.cpp.inc
+  StringRef attrTag;
+  if (Attribute attr; generatedAttributeParser(parser, &attrTag, type, attr).has_value())
+    return attr;
+  parser.emitError(parser.getCurrentLocation()) << "unknown attribute `"
+      << attrTag << "` in dialect `ONNX`";
+  return {};
+}
+/// Print an attribute registered to this dialect.
+void ONNXDialect::printAttribute(Attribute attr,
+                        DialectAsmPrinter &printer) const {
+  // generatedAttributePrinter is generated in ONNXAttributes.cpp.inc
+  if (succeeded(generatedAttributePrinter(attr, printer)))
+    return;
+  if (auto elements = attr.dyn_cast<DisposableElementsAttr>())
+    elements.printAsDense(printer.getStream());
+}
+
+//===----------------------------------------------------------------------===//
+// ONNX Type: SeqType
+//===---------------------------------------------------------------------===//
+
+mlir::Type SeqType::parse(mlir::AsmParser &parser) {
+  Type elementType;
+  if (parser.parseLess() || parser.parseType(elementType) ||
+      parser.parseGreater()) {
+    parser.emitError(parser.getCurrentLocation())
+        << "failed to parse !onnx.Seq type";
+    return Type();
+  }
+
+  return get(elementType, -1);
+}
+
+void SeqType::print(mlir::AsmPrinter &printer) const {
+  // Previous implementation did not print/parse the length field
+  // May add the field in future
+  printer << "<" << getElementType() << ">";
 }
 
 //===----------------------------------------------------------------------===//
@@ -144,93 +268,8 @@ void ONNXTensorEncodingAttr::print(AsmPrinter &printer) const {
 }
 
 //===----------------------------------------------------------------------===//
-// ONNX Type: SeqType
-//===---------------------------------------------------------------------===//
-
-mlir::Type SeqType::parse(mlir::AsmParser &parser) {
-  Type elementType;
-  if (parser.parseLess() || parser.parseType(elementType) ||
-      parser.parseGreater()) {
-    parser.emitError(parser.getCurrentLocation())
-        << "failed to parse !onnx.Seq type";
-    return Type();
-  }
-
-  return get(elementType, -1);
-}
-
-void SeqType::print(mlir::AsmPrinter &printer) const {
-  // Previous implementation did not print/parse the length field
-  // May add the field in future
-  printer << "<" << getElementType() << ">";
-}
-
-//===----------------------------------------------------------------------===//
-// Unsupported Operations
-//===---------------------------------------------------------------------===//
-
-// Operations for which shape inference has not been implemented yet
-// If you add the implementation for one op, move it out of this section
-// Also please add test case in test/mlir/onnx/onnx_shape_inference.mlir
-// Followed by the implementation of lowering to Krnl and
-// Enable the corresponding node test in check-onnx-backend
-
-#define NOT_IMPLEMENTED_INFER_SHAPE(T)                                         \
-  LogicalResult T::inferShapes(                                                \
-      std::function<void(mlir::Region &)> doShapeInference) {                  \
-    return emitError(NOT_IMPLEMENTED_MESSAGE);                                 \
-  }
-
-// Listed alphabetically.
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXAdagradOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXAdamOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXArrayFeatureExtractorOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXBatchNormalizationOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXBinarizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXCastMapOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV11Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV12Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXClipV6Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXDetOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXDictVectorizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXFeatureVectorizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXGradientOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXGridSampleOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXImputerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXIsInfOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXLabelEncoderOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXLinearClassifierOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXLinearRegressorOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXLpPoolOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXMaxPoolOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXMaxUnpoolOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXMomentumOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXMultinomialOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXNegativeLogLikelihoodLossOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXNormalizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXPadV11Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXPadV2Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXRandomUniformLikeOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXRandomUniformOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXResizeV10Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXResizeV11Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXSVMClassifierOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXSVMRegressorOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXSoftmaxCrossEntropyLossOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXStringNormalizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXTfIdfVectorizerOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXTreeEnsembleClassifierOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXTreeEnsembleRegressorOp)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV7Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV9Op)
-NOT_IMPLEMENTED_INFER_SHAPE(ONNXZipMapOp)
-
-//===----------------------------------------------------------------------===//
 // TableGen'd op method definitions
 //===----------------------------------------------------------------------===//
 
 #define GET_OP_CLASSES
 #include "src/Dialect/ONNX/ONNXOps.cpp.inc"
-
-#define GET_ATTRDEF_CLASSES
-#include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
