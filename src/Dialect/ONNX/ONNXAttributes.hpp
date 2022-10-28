@@ -348,9 +348,11 @@ public:
     return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
-  // TODO: figure out how to register this so that it prints correctly
-  //       when accessed from ElementsAttr or Attribute base types...
-  void printAsDense(raw_ostream &os) const { toDenseElementsAttr().print(os); }
+  void printAsDense(raw_ostream &os) const {
+    // TODO: print directly without creating a throw-away attribute
+    toDenseElementsAttr().print(os);
+  }
+
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
       return toDenseElementsAttrByType<APInt>();
