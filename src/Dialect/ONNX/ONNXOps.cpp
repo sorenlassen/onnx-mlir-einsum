@@ -125,6 +125,7 @@ void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
   //
   // we print every elements attribute as a DenseElementsAttr.
   printIntOrFPElementsAttrAsDense(valueAttr(), odsPrinter.getStream());
+  odsPrinter << " : " << getResult().getType();
 }
 
 //===----------------------------------------------------------------------===//
