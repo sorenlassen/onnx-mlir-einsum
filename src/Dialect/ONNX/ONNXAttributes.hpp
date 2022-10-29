@@ -96,20 +96,19 @@ inline SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {
 // this expensive function
 inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
     SmallVectorImpl<int64_t> &indices) {
-  indices.clear();
-  int64_t axis = shape.size();
-  if (axis == 0)
+  int64_t rank = shape.size();
+  indices.resize_for_overwrite(rank);
+  if (rank == 0)
     return;
-  while (axis > 1) {
-    --axis;
+  for (int64_t axis = rank - 1; axis >= 1; --axis) {
     int64_t dimSize = shape[axis];
     assert(dimSize > 0 && "cannot unflatten shape with zeros");
     int64_t rem = flatIndex % dimSize;
     flatIndex /= dimSize;
-    indices.push_back(rem);
+    indices[axis] = rem;
   }
   assert(flatIndex < shape[0]);
-  indices.push_back(flatIndex);
+  indices[0] = flatIndex;
 }
 
 inline llvm::iota_range<size_t> seq(size_t numElements) {
@@ -131,16 +130,19 @@ auto end(int64_t numElements, const std::function<T(size_t)> &fun) {
 } // namespace detail
 
 // TODO: remove after testing :
-// inline raw_ostream &operator<<(raw_ostream &os, const ArrayRef<int64_t> &v) {
-//   os << "(";
-//   for (auto i : v)
-//     os << i << ",";
-//   os << ")";
-//   return os;
-// }
-// inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
-//   return os << "APFloat(" << af.convertToDouble() << ")";
-// }
+inline raw_ostream &operator<<(raw_ostream &os, const ArrayRef<int64_t> &v) {
+  os << "(";
+  for (auto i : v)
+    os << i << ",";
+  os << ")";
+  return os;
+}
+inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
+  return os << "APFloat(" << af.convertToDouble() << ")";
+}
+inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
+  return os << "IntOrFP(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
+}
 // TODO: remove after testing ^
 
 using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
@@ -150,7 +152,8 @@ struct ReadIntOrFP {
   using X = typename DTyTrait::type;
   static onnx_mlir::IntOrFP eval(Type t, StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
-    return onnx_mlir::IntOrFP::from(t, x);
+    auto n = onnx_mlir::IntOrFP::from(t, x);
+    return n;
   }
 };
 inline ElementsTransform readIntOrFP(Type t) {
