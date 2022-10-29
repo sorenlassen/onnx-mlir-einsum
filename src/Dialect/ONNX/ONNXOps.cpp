@@ -100,6 +100,23 @@ NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV7Op)
 NOT_IMPLEMENTED_INFER_SHAPE(ONNXUpsampleV9Op)
 NOT_IMPLEMENTED_INFER_SHAPE(ONNXZipMapOp)
 
+ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
+  Attribute attr;
+  Type type;
+  if (parser.parseAttribute(attr, type))
+    return failure();
+  result.addAttribute("value", attr);
+  result.addTypes({attr.cast<DenseElementsAttr>().getType()});
+  return success();
+}
+
+void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
+  // TODO: check that only the value (or sparse_value?) attribute is set
+  // TODO: check that the attribute has the same type as the op result
+  odsPrinter << ' ';
+  odsPrinter.printAttribute(valueAttr());
+}
+
 //===----------------------------------------------------------------------===//
 // Tablegen Type Definitions
 //===----------------------------------------------------------------------===//
@@ -152,8 +169,10 @@ void ONNXDialect::printAttribute(Attribute attr,
   // generatedAttributePrinter is generated in ONNXAttributes.cpp.inc
   if (succeeded(generatedAttributePrinter(attr, printer)))
     return;
-  if (auto elements = attr.dyn_cast<DisposableElementsAttr>())
-    elements.printAsDense(printer.getStream());
+  if (auto elements = attr.dyn_cast<DisposableElementsAttr>()) {
+    auto dense = elements.toDenseElementsAttr();
+    printer.printAttributeWithoutType(dense);
+  }
 }
 
 //===----------------------------------------------------------------------===//
