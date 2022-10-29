@@ -33,9 +33,6 @@ namespace detail {
 // to defeat the storage uniquer.
 size_t uniqueNumber();
 
-// Prints elements the same way as DenseElementsAttr.
-void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os);
-
 inline bool isSplat(ArrayRef<int64_t> strides) {
   return llvm::all_of(strides, [](int64_t s) { return s == 0; });
 }
@@ -380,9 +377,7 @@ public:
     return detail::end<X>(getNumElements(), nullptr);
   }
 
-  void printAsDense(raw_ostream &os) const {
-    detail::printIntOrFPElementsAttrAsDense(*this, os);
-  }
+  void print(raw_ostream &os) const;
 
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
@@ -425,7 +420,7 @@ private: // TODO: Figure out if any of the following would be useful publicly.
 }; // class DisposableElementsAttr
 
 inline raw_ostream &operator<<(raw_ostream &os, DisposableElementsAttr attr) {
-  attr.printAsDense(os);
+  attr.print(os);
   return os;
 }
 

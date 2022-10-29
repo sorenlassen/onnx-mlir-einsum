@@ -26,6 +26,8 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/FormatVariadic.h"
 
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXLayoutHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
@@ -122,7 +124,7 @@ void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
   //   odsPrinter.printAttribute(valueAttr())
   //
   // we print every elements attribute as a DenseElementsAttr.
-  detail::printIntOrFPElementsAttrAsDense(valueAttr(), odsPrinter.getStream());
+  printIntOrFPElementsAttrAsDense(valueAttr(), odsPrinter.getStream());
 }
 
 //===----------------------------------------------------------------------===//

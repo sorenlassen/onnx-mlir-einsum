@@ -12,6 +12,10 @@
 
 #include "mlir/IR/BuiltinAttributes.h"
 
+namespace llvm {
+class raw_ostream;
+}
+
 namespace onnx_mlir {
 
 mlir::ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
@@ -40,5 +44,8 @@ void readDenseFPs(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
 mlir::DenseElementsAttr toDenseElementsAttribute(mlir::ElementsAttr elements);
+
+// Prints elements the same way as DenseElementsAttr.
+void printIntOrFPElementsAttrAsDense(mlir::ElementsAttr attr, llvm::raw_ostream &os);
 
 } // namespace onnx_mlir
