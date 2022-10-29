@@ -113,8 +113,16 @@ ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
 void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
   // TODO: check that only the value (or sparse_value?) attribute is set
   // TODO: check that the attribute has the same type as the op result
+  assert(valueAttr().isa<ElementsAttr>());
+
   odsPrinter << ' ';
-  odsPrinter.printAttribute(valueAttr());
+
+  // NOTE: instead of
+  //
+  //   odsPrinter.printAttribute(valueAttr())
+  //
+  // we print every elements attribute as a DenseElementsAttr.
+  detail::printIntOrFPElementsAttrAsDense(valueAttr(), odsPrinter.getStream());
 }
 
 //===----------------------------------------------------------------------===//

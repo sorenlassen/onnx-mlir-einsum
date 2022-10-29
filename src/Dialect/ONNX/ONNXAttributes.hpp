@@ -33,6 +33,9 @@ namespace detail {
 // to defeat the storage uniquer.
 size_t uniqueNumber();
 
+// Prints elements the same way as DenseElementsAttr.
+void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os);
+
 inline bool isSplat(ArrayRef<int64_t> strides) {
   return llvm::all_of(strides, [](int64_t s) { return s == 0; });
 }
@@ -378,8 +381,7 @@ public:
   }
 
   void printAsDense(raw_ostream &os) const {
-    // TODO: print directly without creating a throw-away attribute
-    toDenseElementsAttr().print(os);
+    detail::printIntOrFPElementsAttrAsDense(*this, os);
   }
 
   DenseElementsAttr toDenseElementsAttr() const {
