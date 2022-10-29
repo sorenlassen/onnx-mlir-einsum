@@ -414,7 +414,7 @@ public:
     return detail::end<X>(getNumElements(), nullptr);
   }
 
-  void print(raw_ostream &os) const;
+  void printWithoutType(raw_ostream &os) const;
 
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
@@ -489,11 +489,6 @@ private: // TODO: Figure out if any of the following would be useful publicly.
   }
 
 }; // class DisposableElementsAttr
-
-inline raw_ostream &operator<<(raw_ostream &os, DisposableElementsAttr attr) {
-  attr.print(os);
-  return os;
-}
 
 } // namespace mlir
 

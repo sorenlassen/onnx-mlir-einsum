@@ -23,7 +23,7 @@ size_t detail::uniqueNumber() {
   return ++counter;
 }
 
-void DisposableElementsAttr::print(raw_ostream &os) const {
+void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
   printIntOrFPElementsAttrAsDense(*this, os);
 }
 

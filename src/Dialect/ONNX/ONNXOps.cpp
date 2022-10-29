@@ -180,8 +180,7 @@ void ONNXDialect::printAttribute(Attribute attr,
   if (succeeded(generatedAttributePrinter(attr, printer)))
     return;
   if (auto elements = attr.dyn_cast<DisposableElementsAttr>()) {
-    auto dense = elements.toDenseElementsAttr();
-    printer.printAttributeWithoutType(dense);
+    elements.printWithoutType(printer.getStream());
   }
 }
 
