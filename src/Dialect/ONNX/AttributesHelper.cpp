@@ -219,6 +219,26 @@ printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
   while (openBrackets-- > 0)
     os << ']';
 }
+
+template <typename Iterator>
+bool checkIfSplat(ElementsAttr attr, Iterator valueIt) {
+  if (attr.isSplat())
+    return true;
+  if (attr.isa<DenseElementsAttr>()) {
+    // DenseElementsAttr always reports accurate isSplat() so no need to check
+    // contents when isSplat() returned false.
+    return false;
+  }
+  int64_t numElements = attr.getNumElements();
+  if (numElements == 0)
+    return false;
+  auto first = *valueIt;
+  for (int64_t i = 1; i < numElements; ++i) {
+    if (first != *++valueIt)
+      return false;
+  }
+  return true;
+}
 }
 
 // adapted from AsmPrinter::Impl::printDenseIntOrFPElementsAttr:
@@ -228,13 +248,15 @@ void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
   os << "dense<";
   if (elementType.isIntOrIndex()) {
     auto valueIt = attr.value_begin<APInt>();
-    printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+    bool isSplat = checkIfSplat(attr, valueIt);
+    printDenseElementsAttrImpl(isSplat, type, os, [&](unsigned index) {
       printDenseIntElement(*(valueIt + index), os, elementType);
     });
   } else {
     assert(elementType.isa<FloatType>() && "unexpected element type");
     auto valueIt = attr.value_begin<APFloat>();
-    printDenseElementsAttrImpl(attr.isSplat(), type, os, [&](unsigned index) {
+    bool isSplat = checkIfSplat(attr, valueIt);
+    printDenseElementsAttrImpl(isSplat, type, os, [&](unsigned index) {
       printDenseFloatElement(*(valueIt + index), os, elementType);
     });
   }
