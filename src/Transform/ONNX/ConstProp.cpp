@@ -98,7 +98,7 @@ struct CastIntsOrFPs {
   };
 };
 
-ArrayRef<char> getDenseIntOrFPRawDataFromConstOp(
+RawBuffer getDenseIntOrFPRawDataFromConstOp(
     ONNXConstantOp constOp, ShapedType type) {
   Attribute bufferIDAttr =
       constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
@@ -128,7 +128,7 @@ ArrayRef<char> getDenseIntOrFPRawDataFromConstOp(
   return getDenseIntOrFPRawData(elements);
 }
 
-ArrayRef<char> getDenseIntOrFPRawDataFromConstValue(Value constValue) {
+RawBuffer getDenseIntOrFPRawDataFromConstValue(Value constValue) {
   ONNXConstantOp constOp = getONNXConstantOp(constValue);
   return getDenseIntOrFPRawDataFromConstOp(constOp, constValue.getType());
 }
@@ -370,11 +370,11 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
   ArrayRef<int64_t> rhsShape = rhsType.getShape();
 
   ArrayRef<int64_t> splatShape = {};
-  ArrayRef<char> lhs = getDenseIntOrFPRawDataFromConstValue(lhsValue);
+  RawBuffer lhs = getDenseIntOrFPRawDataFromConstValue(lhsValue);
   if (lhs.size() == eltSizeInBytes) {
     lhsShape = splatShape;
   }
-  ArrayRef<char> rhs = getDenseIntOrFPRawDataFromConstValue(rhsValue);
+  RawBuffer rhs = getDenseIntOrFPRawDataFromConstValue(rhsValue);
   if (rhs.size() == eltSizeInBytes) {
     rhsShape = splatShape;
   }
@@ -385,7 +385,7 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
       type, [&](MutableArrayRef<char> dst) {
         dispatchFPOrInt<
             ElementwiseBinary<ElementwiseBinaryOp>::template Compute,
-            void>::eval(elementType, lhsShape, lhs, rhsShape, rhs,
+            void>::eval(elementType, lhsShape, lhs.get(), rhsShape, rhs.get(),
             type.getShape(), dst);
       });
 
@@ -448,14 +448,14 @@ Value ConstPropElementwiseUnary(
 
   Type elementType = replacingType.getElementType();
 
-  ArrayRef<char> src = getDenseIntOrFPRawDataFromConstValue(constValue);
+  RawBuffer src = getDenseIntOrFPRawDataFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       replacingType, [&](MutableArrayRef<char> dst) {
         dispatchFPOrInt<ElementwiseUnary<ElementwiseUnaryOp>::template Compute,
-            void>::eval(elementType, src, dst);
+            void>::eval(elementType, src.get(), dst);
       });
 
   // Construct a new ONNXConstantOp.
@@ -787,14 +787,14 @@ Value ConstPropCast(
   Type srcElemType = srcType.getElementType();
   Type dstElemType = dstType.getElementType();
 
-  ArrayRef<char> src = getDenseIntOrFPRawDataFromConstValue(constValue);
+  RawBuffer src = getDenseIntOrFPRawDataFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       dstType, [&](MutableArrayRef<char> dst) {
         dispatchFPOrInt<SrcDstCast, void>::eval(
-            srcElemType, dstElemType, src, dst);
+            srcElemType, dstElemType, src.get(), dst);
       });
 
   // Construct a new ONNXConstantOp.

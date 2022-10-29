@@ -28,10 +28,13 @@ public:
 
   explicit float16Base(ConcreteT f16) : u16(f16.u16) {}
 
-  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
-  explicit float16Base(T x) : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
+  template <typename T,
+      typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
+  explicit float16Base(T x)
+      : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
 
-  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
+  template <typename T,
+      typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
   explicit operator T() const {
     return static_cast<float>(toFloat(*static_cast<const ConcreteT *>(this)));
   }
@@ -331,7 +334,9 @@ using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
-unsigned widthOfIntOrFPType(mlir::Type t);
+inline unsigned bytewidthOfIntOrFPType(mlir::Type t) {
+  return (t.getIntOrFloatBitWidth() + 7) / 8;
+}
 
 template <typename T>
 constexpr bool isIntOrFP(unsigned maxWidth) {
@@ -348,8 +353,6 @@ template <>
 constexpr bool isIntOrFP<llvm::APInt>(unsigned maxWidth) {
   return true;
 }
-
-bool isIntOrFPType(mlir::Type t, unsigned maxWidth);
 
 // Union of 64-bit integers and double precision floating point numbers.
 // It is tagless and should always be used in a conjunction
@@ -377,21 +380,21 @@ union IntOrFP {
   }
 
   template <typename T>
-  std::enable_if_t<!std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
+  std::enable_if_t<
+      !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
   to(mlir::Type tag) const {
-    assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
+    assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
     if (auto itag = tag.dyn_cast<mlir::IntegerType>())
       return toInt<T>(itag);
     return toFP<T>(tag);
   }
   template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APInt>, T>
-  to(mlir::Type tag) const {
+  std::enable_if_t<std::is_same_v<T, llvm::APInt>, T> to(mlir::Type tag) const {
     return toAPInt(tag.cast<mlir::IntegerType>());
   }
   template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T>
-  to(mlir::Type tag) const {
+  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(
+      mlir::Type tag) const {
     return toAPFloat(tag.cast<mlir::FloatType>());
   }
 
@@ -399,38 +402,40 @@ union IntOrFP {
   static IntOrFP fromInt(mlir::IntegerType itag, X x) {
     assert(itag.getWidth() <= 64);
     if (itag.isSigned())
-      return { .i64 = static_cast<int64_t>(x) };
+      return {.i64 = static_cast<int64_t>(x)};
     else
-      return { .u64 = static_cast<uint64_t>(x) };
+      return {.u64 = static_cast<uint64_t>(x)};
   }
 
   template <typename X>
   static IntOrFP fromFP(mlir::Type tag, X x) {
     assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return { .dbl = static_cast<double>(x) };
+    return {.dbl = static_cast<double>(x)};
   }
 
   template <typename X>
-  static std::enable_if_t<!std::is_same_v<X, llvm::APInt> && !std::is_same_v<X, llvm::APFloat>, IntOrFP>
+  static std::enable_if_t<!std::is_same_v<X, llvm::APInt> &&
+                              !std::is_same_v<X, llvm::APFloat>,
+      IntOrFP>
   from(mlir::Type tag, X x) {
-    assert(isIntOrFPType(tag, 64)); // TODO remove after testing, too expensive
+    assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
     if (auto itag = tag.dyn_cast<mlir::IntegerType>())
       return fromInt<X>(itag, x);
     return fromFP<X>(tag, x);
   }
   template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP>
-  from(mlir::Type tag, X x) {
+  static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP> from(
+      mlir::Type tag, X x) {
     if (tag.cast<mlir::IntegerType>().isSigned())
-      return { .i64 = x.getSExtValue() };
+      return {.i64 = x.getSExtValue()};
     else
-      return { .i64 = x.getZExtValue() };
+      return {.i64 = x.getZExtValue()};
   }
   template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APFloat>, IntOrFP>
-  from(mlir::Type tag, X x) {
+  static std::enable_if_t<std::is_same_v<X, llvm::APFloat>, IntOrFP> from(
+      mlir::Type tag, X x) {
     assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return { .f64 = x.convertToDouble() };
+    return {.f64 = x.convertToDouble()};
   }
 };
 

@@ -10,12 +10,12 @@
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 
-#include "llvm/Support/raw_os_ostream.h"
 #include "mlir/IR/AsmState.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinDialect.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
+#include "llvm/Support/raw_os_ostream.h"
 
 #include "src/Dialect/Mlir/ResourcePool.hpp"
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
@@ -29,15 +29,6 @@ namespace {
 // Always align to the largest possible element type.
 // TODO: Consider aligning for SIMD ops.
 constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
-
-size_t byteWidth(size_t bitWidth) {
-  if (bitWidth == 1)
-    return 1;
-  constexpr size_t BYTE_BITWIDTH = 8;
-  assert(
-      bitWidth % BYTE_BITWIDTH == 0 && "non-boolean types must fill out bytes");
-  return bitWidth / BYTE_BITWIDTH;
-}
 
 bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   bool isSplat;
@@ -55,9 +46,10 @@ bool splatterBlob(ShapedType type, AsmResourceBlob &blob) {
 
 ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     ShapedType type, ArrayRef<char> bytes) {
+  // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type <<
+  // "\n";
   assert(static_cast<size_t>(type.getNumElements()) ==
-             bytes.size() /
-                 byteWidth(type.getElementType().getIntOrFloatBitWidth()) &&
+             bytes.size() / bytewidthOfIntOrFPType(type.getElementType()) &&
          "data size must match type");
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
@@ -74,9 +66,11 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
 
 ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     ShapedType type, FillDenseRawBufferFn fill) {
-  size_t size = type.getNumElements() *
-                byteWidth(type.getElementType().getIntOrFloatBitWidth());
-#if 0
+  size_t size =
+      type.getNumElements() * bytewidthOfIntOrFPType(type.getElementType());
+  // llvm::errs() << "makeDenseIntOrFPElementsAttrWithRawBuffer " << type << ","
+  // << size << "\n";
+#if 1
   std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
       llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
   fill(buffer->getBuffer());
@@ -98,12 +92,13 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
 #endif
 }
 
-ArrayRef<char> getDenseIntOrFPRawData(ElementsAttr elements) {
+RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
+  // llvm::errs() << "getDenseIntOrFPRawData " << elements.getType() << "\n";
   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
     ArrayRef<char> raw = dense.getRawData();
     // raw is either a single splat value or a whole array.
     ShapedType type = elements.getType();
-    size_t w = byteWidth(type.getElementType().getIntOrFloatBitWidth());
+    size_t w = bytewidthOfIntOrFPType(type.getElementType());
     if (dense.isSplat()) {
       assert(raw.size() == w);
     } else {
@@ -111,8 +106,11 @@ ArrayRef<char> getDenseIntOrFPRawData(ElementsAttr elements) {
     }
     return raw;
   }
-  if (auto x = elements.dyn_cast<DenseResourceElementsAttr>())
-    return x.getRawHandle().getResource()->getBlob()->getData();
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    return disposable.getRawBuffer();
+  }
+  if (auto resrc = elements.dyn_cast<DenseResourceElementsAttr>())
+    return resrc.getRawHandle().getResource()->getBlob()->getData();
   llvm_unreachable("unexpected ElementsAttr instance");
 }
 
@@ -129,18 +127,21 @@ struct ReadIntsOrFPs {
 };
 
 void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
-  ArrayRef<char> src = getDenseIntOrFPRawData(elements);
+  // llvm::errs() << "readDenseInts " << elements.getType() << "\n";
+  RawBuffer src = getDenseIntOrFPRawData(elements);
   dispatchInt<ReadIntsOrFPs<int64_t>::template Read, void>::eval(
-      elements.getElementType(), src, ints);
+      elements.getElementType(), src.get(), ints);
 }
 
 void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
-  ArrayRef<char> src = getDenseIntOrFPRawData(elements);
+  // llvm::errs() << "readDenseFPs " << elements.getType() << "\n";
+  RawBuffer src = getDenseIntOrFPRawData(elements);
   dispatchFP<ReadIntsOrFPs<double>::template Read, void>::eval(
-      elements.getElementType(), src, fps);
+      elements.getElementType(), src.get(), fps);
 }
 
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
+  llvm::errs() << "toDenseElementsAttribute " << elements.getType() << "\n";
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
   if (auto resource = elements.dyn_cast<DenseResourceElementsAttr>()) {
@@ -155,14 +156,12 @@ DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
 }
 
 namespace {
-void printDenseFloatElement(const APFloat &value, raw_ostream &os,
-                                 Type type) {
+void printDenseFloatElement(const APFloat &value, raw_ostream &os, Type type) {
   FloatAttr::get(type, value).print(os, /*elideType=*/true);
 }
 
 // Copied from mlir/lib/IR/AsmPrinter.cpp:
-void printDenseIntElement(const APInt &value, raw_ostream &os,
-                                 Type type) {
+void printDenseIntElement(const APInt &value, raw_ostream &os, Type type) {
   if (type.isInteger(1))
     os << (value.getBoolValue() ? "true" : "false");
   else
@@ -170,9 +169,8 @@ void printDenseIntElement(const APInt &value, raw_ostream &os,
 }
 
 // Copied from mlir/lib/IR/AsmPrinter.cpp:
-void
-printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
-                           function_ref<void(unsigned)> printEltFn) {
+void printDenseElementsAttrImpl(bool isSplat, ShapedType type, raw_ostream &os,
+    function_ref<void(unsigned)> printEltFn) {
   // Special case for 0-d and splat tensors.
   if (isSplat)
     return printEltFn(0);
@@ -239,7 +237,7 @@ bool checkIfSplat(ElementsAttr attr, Iterator valueIt) {
   }
   return true;
 }
-}
+} // namespace
 
 // adapted from AsmPrinter::Impl::printDenseIntOrFPElementsAttr:
 void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {

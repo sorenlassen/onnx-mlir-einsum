@@ -18,7 +18,8 @@ using llvm::APInt;
 
 namespace onnx_mlir {
 
-uint64_t detail::bitcastAPFloat(llvm::APFloat f, const llvm::fltSemantics &semantics) {
+uint64_t detail::bitcastAPFloat(
+    llvm::APFloat f, const llvm::fltSemantics &semantics) {
   bool ignored;
   f.convert(semantics, APFloat::rmNearestTiesToEven, &ignored);
   APInt i = f.bitcastToAPInt();
@@ -41,21 +42,6 @@ DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
   }
   llvm_unreachable("unsupported int or float type");
   // clang-format on
-}
-
-unsigned widthOfIntOrFPType(mlir::Type t) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>())
-    return i.getWidth();
-  auto f = t.cast<mlir::FloatType>();
-  return f.getWidth();
-}
-
-bool isIntOrFPType(mlir::Type t, unsigned maxWidth) {
-  if (auto i = t.dyn_cast<mlir::IntegerType>())
-    return i.getWidth() <= maxWidth;
-  if (auto f = t.dyn_cast<mlir::FloatType>())
-    return f.getWidth() <= maxWidth;
-  return false;
 }
 
 llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {

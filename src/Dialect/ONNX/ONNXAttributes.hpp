@@ -19,6 +19,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/Support/MemoryBuffer.h"
 
+#include "src/Dialect/ONNX/AttributesHelper.hpp" // RawBuffer
 #include "src/Support/DType.hpp"
 
 #include <memory>
@@ -117,7 +118,8 @@ inline llvm::iota_range<size_t> seq(size_t numElements) {
 
 template <typename T>
 using MappedIndexIterator =
-    llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator, std::function<T(size_t)>>;
+    llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
+        std::function<T(size_t)>>;
 template <typename T>
 auto begin(int64_t numElements, const std::function<T(size_t)> &fun) {
   return llvm::map_iterator(seq(numElements).begin(), fun);
@@ -147,6 +149,23 @@ inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
 
 using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
+namespace detail {
+template <typename DTyTrait, typename... Args>
+struct CopyIntOrFP {
+  using X = typename DTyTrait::type;
+  static void eval(Type t, StringRef s, size_t pos, char *dst,
+      const ElementsTransform &transform) {
+    *reinterpret_cast<X *>(dst) =
+        transform ? transform(s, pos).to<X>(t)
+                  : reinterpret_cast<const X *>(s.data())[pos];
+  }
+};
+inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
+    const ElementsTransform &transform) {
+  return onnx_mlir::dispatchFPOrInt<CopyIntOrFP, void>::eval(
+      t, t, s, pos, dst, transform);
+}
+
 template <typename DTyTrait, typename... Args>
 struct ReadIntOrFP {
   using X = typename DTyTrait::type;
@@ -156,12 +175,15 @@ struct ReadIntOrFP {
     return n;
   }
 };
-inline ElementsTransform readIntOrFP(Type t) {
-  return [t](StringRef s, size_t pos) -> onnx_mlir::IntOrFP {
-    return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(
-        t, t, s, pos);
-  };
+inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
+  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(
+      t, t, s, pos);
 }
+inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
+    const ElementsTransform &transform) {
+  return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
+}
+} // namespace detail
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
@@ -231,6 +253,8 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   //
   // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
+  //
+  // nullptr means no transform.
   ElementsTransform transform;
 }; // struct DisposableElementsAttributeStorage
 
@@ -286,16 +310,14 @@ public:
     SmallVector<int64_t, 4> strides =
         detail::getDefaultStrides(type.getShape());
     onnx_mlir::DType dtype = onnx_mlir::fromIntOrFPMlirTypeToDType(elementType);
-    return get(
-        type, strides, dtype, std::move(buffer), readIntOrFP(elementType));
+    return get(type, strides, dtype, std::move(buffer));
   }
   static DisposableElementsAttr get(ShapedType type, Strides strides,
-      onnx_mlir::DType dtype, Buffer buffer, ElementsTransform transform) {
-    assert(onnx_mlir::isIntOrFPType(type.getElementType(), 64));
-    unsigned bytewidth =
-        (onnx_mlir::widthOfIntOrFPType(type.getElementType()) + 7) / 8;
-    assert(buffer->getBufferSize() % bytewidth == 0);
-    int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
+      onnx_mlir::DType dtype, Buffer buffer,
+      ElementsTransform transform = nullptr) {
+    unsigned w = onnx_mlir::bytewidthOfIntOrFPType(type.getElementType());
+    assert(buffer->getBufferSize() % w == 0);
+    int64_t numBufferElements = buffer->getBufferSize() / w;
     assert(!detail::isSplat(strides) || numBufferElements == 1);
     assert(numBufferElements == 1 ||
            numBufferElements ==
@@ -332,11 +354,21 @@ public:
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
-  bool isSplat() const { return detail::isSplat(getStrides()); }
+  bool isSplat() const {
+    return detail::isSplat(getStrides()) && getNumElements() > 0;
+  }
+  template <typename X>
+  llvm::Optional<X> tryGetSplatValue() const {
+    if (!isSplat())
+      return llvm::None;
+    Type elementType = getElementType();
+    onnx_mlir::IntOrFP n = detail::readIntOrFP(
+        elementType, getBuffer()->getBuffer(), 0, getTransform());
+    return n.to<X>(elementType);
+  }
   template <typename X>
   X getSplatValue() const {
-    onnx_mlir::IntOrFP n = getTransform()(getBuffer()->getBuffer(), 0);
-    return n.to<X>(getElementType());
+    return *tryGetSplatValue<X>();
   }
 
   template <typename X>
@@ -361,8 +393,10 @@ public:
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
-      onnx_mlir::IntOrFP n = s->transform(s->buffer->getBuffer(), pos);
-      X x = n.to<X>(s->type.getElementType());
+      Type elementType = s->type.getElementType();
+      onnx_mlir::IntOrFP n = detail::readIntOrFP(
+          elementType, s->buffer->getBuffer(), pos, s->transform);
+      X x = n.to<X>(elementType);
       return x;
     });
   }
@@ -387,6 +421,40 @@ public:
       return toDenseElementsAttrByType<APInt>();
     else
       return toDenseElementsAttrByType<APFloat>();
+  }
+
+  onnx_mlir::RawBuffer getRawBuffer() const {
+    Type elementType = getElementType();
+    unsigned bytewidth = onnx_mlir::bytewidthOfIntOrFPType(elementType);
+    if (isSplat()) {
+      llvm::errs() << "getRawBuffer isSplat\n";
+      onnx_mlir::RawBuffer::Vector vec;
+      vec.resize_for_overwrite(bytewidth);
+      detail::copyIntOrFP(
+          elementType, getBuffer()->getBuffer(), 0, vec.data(), getTransform());
+      return onnx_mlir::RawBuffer(std::move(vec));
+    }
+    StringRef s = getBuffer()->getBuffer();
+    const auto &transform = getTransform();
+    ShapedType type = getType();
+    int64_t numElements = type.getNumElements();
+    int64_t numBufferElements = s.size() / bytewidth;
+    if (transform || numBufferElements != numElements) {
+      llvm::errs() << "getRawBuffer indirect\n";
+      onnx_mlir::RawBuffer::Vector vec;
+      vec.resize_for_overwrite(numElements * bytewidth);
+      // TODO: run over every pos and flatIndex, using shape and strides
+      {
+        size_t pos = 0;
+        size_t flatIndex = 0;
+        detail::copyIntOrFP(elementType, s, pos,
+            vec.data() + flatIndex * bytewidth, getTransform());
+      }
+      return onnx_mlir::RawBuffer(std::move(vec));
+    } else {
+      llvm::errs() << "getRawBuffer direct\n";
+      return llvm::makeArrayRef(s.data(), s.size());
+    }
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
