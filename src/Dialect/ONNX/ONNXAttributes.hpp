@@ -16,6 +16,7 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/Sequence.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include "src/Support/DType.hpp"
@@ -111,37 +112,20 @@ inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
   indices.push_back(flatIndex);
 }
 
-class IndexIterator : public llvm::iterator_facade_base<IndexIterator,
-                          std::random_access_iterator_tag, size_t> {
-public:
-  IndexIterator(size_t index = 0) : index(index) {}
-  difference_type operator-(const IndexIterator &rhs) const {
-    return index - rhs.index;
-  }
-  bool operator==(const IndexIterator &rhs) const { return index == rhs.index; }
-  bool operator<(const IndexIterator &rhs) const { return index < rhs.index; }
-  IndexIterator &operator+=(difference_type offset) {
-    index += offset;
-    return *this;
-  }
-  IndexIterator &operator-=(difference_type offset) {
-    index -= offset;
-    return *this;
-  }
-  size_t operator*() const { return index; }
-
-private:
-  size_t index;
-};
+inline llvm::iota_range<size_t> seq(size_t numElements) {
+  return llvm::seq(size_t(0), numElements);
+}
 
 template <typename T>
 using MappedIndexIterator =
-    llvm::mapped_iterator<IndexIterator, std::function<T(size_t)>>;
-
+    llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator, std::function<T(size_t)>>;
 template <typename T>
-inline auto makeMappedIndexIterator(
-    size_t index, const std::function<T(size_t)> &fun) {
-  return MappedIndexIterator<T>(IndexIterator(index), fun);
+auto begin(int64_t numElements, const std::function<T(size_t)> &fun) {
+  return llvm::map_iterator(seq(numElements).begin(), fun);
+}
+template <typename T>
+auto end(int64_t numElements, const std::function<T(size_t)> &fun) {
+  return llvm::map_iterator(seq(numElements).end(), fun);
 }
 
 } // namespace detail
@@ -370,7 +354,7 @@ public:
   std::enable_if_t<onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
     DisposableElementsAttributeStorage *s = this->getImpl();
-    return detail::makeMappedIndexIterator<X>(0, [s](size_t flatIndex) -> X {
+    return detail::begin<X>(getNumElements(), [s](size_t flatIndex) -> X {
       SmallVector<int64_t, 4> indices;
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
@@ -380,7 +364,7 @@ public:
     });
   }
 
-  // TODO: support iteration over APInt, APFloat, Attribute
+  // TODO: support iteration over Attribute
   template <typename X>
   std::enable_if_t<!onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
@@ -390,7 +374,7 @@ public:
   // equivalent to getValues<X>().end(), which is probably slower?
   template <typename X>
   iterator<X> value_end() const {
-    return detail::makeMappedIndexIterator<X>(getNumElements(), nullptr);
+    return detail::end<X>(getNumElements(), nullptr);
   }
 
   void printAsDense(raw_ostream &os) const {
@@ -435,6 +419,7 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     assert(n % buffer->getBufferSize() == 0);
     return n / buffer->getBufferSize();
   }
+
 }; // class DisposableElementsAttr
 
 inline raw_ostream &operator<<(raw_ostream &os, DisposableElementsAttr attr) {
