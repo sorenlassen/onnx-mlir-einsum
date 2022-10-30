@@ -34,7 +34,7 @@
 #include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
-#include "src/Compiler/raw_line_ostream.hpp"
+#include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"

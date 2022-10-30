@@ -2,14 +2,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===------------------------ raw_line_ostream.cpp ------------------------===//
+//===-------------------- LineForwardingRawOstream.cpp --------------------===//
 //
 // Output stream that forwards the data line by line to a sink.
 // This can be used to process the output of the mlir assembly printer.
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Compiler/raw_line_ostream.hpp"
+#include "src/Compiler/LineForwardingRawOstream.hpp"
 
 #include <algorithm>
 
