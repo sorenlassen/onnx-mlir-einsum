@@ -18,19 +18,23 @@
 
 namespace onnx_mlir {
 
-class raw_line_ostream : public llvm::raw_ostream {
+class LineForwardingRawOstream : public llvm::raw_ostream {
 public:
-  using LineSink = std::function<void(llvm::StringRef)>;
+  using LineForwarder =
+      std::function<void(llvm::StringRef, llvm::raw_ostream &)>;
 
-  explicit raw_line_ostream(LineSink sink);
-  ~raw_line_ostream() override;
+  explicit LineForwardingRawOstream(llvm::raw_ostream &out, LineForwarder fwd);
+  ~LineForwardingRawOstream() override;
+
+  llvm::raw_ostream &os() { return fwd ? *this : out; }
 
 private:
   void write_impl(const char *ptr, size_t size) override;
 
   uint64_t current_pos() const override { return pos; }
 
-  LineSink sink;
+  llvm::raw_ostream &out;
+  LineForwarder fwd;
   std::string buffer;
   uint64_t pos = 0;
 };

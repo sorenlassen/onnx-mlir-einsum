@@ -15,26 +15,28 @@
 
 namespace onnx_mlir {
 
-raw_line_ostream::raw_line_ostream(LineSink sink) : sink(std::move(sink)) {
+LineForwardingRawOstream::LineForwardingRawOstream(
+    llvm::raw_ostream &out, LineForwarder fwd)
+    : out(out), fwd(std::move(fwd)) {
   SetUnbuffered();
 }
 
-raw_line_ostream::~raw_line_ostream() {
+LineForwardingRawOstream::~LineForwardingRawOstream() {
   if (!buffer.empty())
-    sink(buffer);
+    fwd(buffer, out);
 }
 
-void raw_line_ostream::write_impl(const char *ptr, size_t size) {
+void LineForwardingRawOstream::write_impl(const char *ptr, size_t size) {
   pos += size;
   const char *end = ptr + size;
   const char *eol = std::find(ptr, end, '\n');
   if (eol != end) {
     buffer.append(ptr, eol + 1);
-    sink(buffer);
+    fwd(buffer, out);
     buffer.clear();
     ptr = eol + 1;
     while ((eol = std::find(ptr, end, '\n')) != end) {
-      sink(llvm::StringRef(ptr, end - (eol + 1)));
+      fwd(llvm::StringRef(ptr, end - (eol + 1)), out);
       ptr = eol + 1;
     }
   }

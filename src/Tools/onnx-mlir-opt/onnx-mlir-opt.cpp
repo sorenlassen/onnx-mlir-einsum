@@ -249,15 +249,10 @@ int main(int argc, char **argv) {
     };
     return passPipeline.addToPipeline(pm, errorHandler);
   };
+  LineForwardingRawOstream fwd(output->os(),
+      output_legacy_onnx_constants ? translateLegacyOnnxConstant : nullptr);
   // TODO(imaihal): Change preloadDialectsInContext to false.
-
-  raw_line_ostream sink([&output](StringRef line) {
-    translateLegacyOnnxConstant(line, output->os());
-  });
-  raw_ostream &os = output_legacy_onnx_constants
-                        ? static_cast<raw_ostream &>(sink)
-                        : static_cast<raw_ostream &>(output->os());
-  return failed(mlir::MlirOptMain(os, std::move(file), passManagerSetupFn,
+  return failed(mlir::MlirOptMain(fwd.os(), std::move(file), passManagerSetupFn,
       registry, split_input_file, verify_diagnostics, verify_passes,
       allowUnregisteredDialects, /*preloadDialectsInContext=*/true,
       /*emitBytecode=*/false, /*implicitModule=*/true));
