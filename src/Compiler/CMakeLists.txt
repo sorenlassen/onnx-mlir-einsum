@@ -125,6 +125,7 @@ set_property(SOURCE CompilerUtils.cpp APPEND PROPERTY COMPILE_DEFINITIONS ${DEFI
 
 add_onnx_mlir_library(CompilerUtils
   CompilerUtils.cpp
+  raw_line_ostream.cpp
 
   EXCLUDE_FROM_OM_LIBS
 
