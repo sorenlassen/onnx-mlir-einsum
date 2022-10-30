@@ -712,6 +712,9 @@ void translateLegacyOnnxConstant(StringRef line, raw_ostream &os) {
     os << " {sparse_value = " << attr << " : " << type << "}";
   } else if (attr.empty()) {
     // There is no attribute when we elide constants.
+  } else if (attr.startswith("{")) {
+    // Attributes were already a dictionary, no translation needed.
+    os << ' ' << attr;
   } else {
     llvm_unreachable("unrecognized onnx.Constant attribute");
   }

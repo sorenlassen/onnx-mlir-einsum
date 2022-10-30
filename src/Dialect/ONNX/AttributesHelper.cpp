@@ -237,10 +237,10 @@ bool checkIfSplat(ElementsAttr attr, Iterator valueIt) {
   }
   return true;
 }
-} // namespace
 
 // adapted from AsmPrinter::Impl::printDenseIntOrFPElementsAttr:
-void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
+void printIntOrFPElementsAttrAsDenseWithoutType(
+    ElementsAttr attr, raw_ostream &os) {
   auto type = attr.getType();
   auto elementType = type.getElementType();
   os << "dense<";
@@ -259,6 +259,12 @@ void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
     });
   }
   os << '>';
+}
+} // namespace
+
+void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
+  printIntOrFPElementsAttrAsDenseWithoutType(attr, os);
+  os << " : " << attr.getType();
 }
 
 } // namespace onnx_mlir

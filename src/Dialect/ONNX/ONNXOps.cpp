@@ -105,27 +105,44 @@ NOT_IMPLEMENTED_INFER_SHAPE(ONNXZipMapOp)
 ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
   Attribute attr;
   Type type;
-  if (parser.parseAttribute(attr, type))
-    return failure();
-  result.addAttribute("value", attr);
-  result.addTypes({attr.cast<DenseElementsAttr>().getType()});
+  if (!parser.parseOptionalAttrDict(result.attributes)) {
+    if (parser.parseColon())
+      return failure();
+    Type type;
+    if (parser.parseType(type))
+      return failure();
+    result.addTypes({type});
+  } else {
+    if (parser.parseAttribute(attr, type))
+      return failure();
+    result.addAttribute("value", attr);
+    result.addTypes({attr.cast<DenseElementsAttr>().getType()});
+  }
   return success();
 }
 
 void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
-  // TODO: check that the attribute has the same type as the op result
-  if (auto val = value()) {
-    assert(val->isa<ElementsAttr>());
-    // NOTE: we print every elements attribute as a DenseElementsAttr.
-    odsPrinter << ' ';
-    printIntOrFPElementsAttrAsDense(*val, odsPrinter.getStream());
-  } else if (auto sparse = sparse_value()) {
-    odsPrinter << ' ';
-    odsPrinter.printAttributeWithoutType(*sparse);
-  } else {
-    // There is no attribute when we elide constants.
+  Type type = getResult().getType();
+  if (auto attr = value()) {
+    auto elements = attr->cast<ElementsAttr>();
+    assert(!elements.isa<SparseElementsAttr>());
+    if (elements.getType() == type) {
+      // NOTE: we print every elements attribute as a DenseElementsAttr.
+      odsPrinter << ' ';
+      printIntOrFPElementsAttrAsDense(elements, odsPrinter.getStream());
+      return;
+    }
   }
-  odsPrinter << " : " << getResult().getType();
+  if (auto attr = sparse_value()) {
+    auto elements = attr->cast<SparseElementsAttr>();
+    if (elements.getType() == type) {
+      odsPrinter << ' ';
+      odsPrinter.printAttribute(elements);
+      return;
+    }
+  }
+  odsPrinter.printOptionalAttrDict((*this)->getAttrs(), /*elidedAttrs=*/{});
+  odsPrinter << " : " << type;
 }
 
 //===----------------------------------------------------------------------===//
