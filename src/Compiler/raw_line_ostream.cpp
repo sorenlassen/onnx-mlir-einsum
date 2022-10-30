@@ -11,6 +11,8 @@
 
 #include "src/Compiler/raw_line_ostream.hpp"
 
+#include <algorithm>
+
 namespace onnx_mlir {
 
 raw_line_ostream::raw_line_ostream(LineSink sink) : sink(std::move(sink)) {
@@ -18,19 +20,25 @@ raw_line_ostream::raw_line_ostream(LineSink sink) : sink(std::move(sink)) {
 }
 
 raw_line_ostream::~raw_line_ostream() {
-  if (!deq.empty())
-    sink(std::string(deq.begin(), deq.end()));
+  if (!buffer.empty())
+    sink(buffer);
 }
 
 void raw_line_ostream::write_impl(const char *ptr, size_t size) {
   pos += size;
-  deq.insert(deq.end(), ptr, ptr + size);
-  auto eol = std::find(deq.end() - size, deq.end(), '\n');
-  while (eol != deq.end()) {
-    sink(std::string(deq.begin(), eol + 1));
-    deq.erase(deq.begin(), eol + 1);
-    eol = std::find(deq.begin(), deq.end(), '\n');
+  const char *end = ptr + size;
+  const char *eol = std::find(ptr, end, '\n');
+  if (eol != end) {
+    buffer.append(ptr, eol + 1);
+    sink(buffer);
+    buffer.clear();
+    ptr = eol + 1;
+    while ((eol = std::find(ptr, end, '\n')) != end) {
+      sink(llvm::StringRef(ptr, end - (eol + 1)));
+      ptr = eol + 1;
+    }
   }
+  buffer.append(ptr, end);
 }
 
 } // namespace onnx_mlir

@@ -13,9 +13,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/Support/LineIterator.h"
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/InitLLVM.h>
+#include <llvm/Support/LineIterator.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/ToolOutputFile.h>
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
@@ -34,6 +34,7 @@
 #include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
+#include "src/Compiler/raw_line_ostream.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
@@ -119,16 +120,17 @@ void scanAndSetMAccel(int argc, char **argv) {
   }
 }
 
-static void legacifyOnnxConstant(StringRef line, llvm::raw_ostream &os) {
+static void translateLegacyOnnxConstant(StringRef line, raw_ostream &os) {
+  const char *eol = line.end() - line.endswith("\n");
+
   std::regex pattern("(.*)onnx\\.Constant (.*) ?: (.*)");
   std::cmatch match;
-  if (!std::regex_match(line.begin(), line.end(), match, pattern)) {
+  if (!std::regex_match(line.begin(), eol, match, pattern)) {
     // No match.
-    os << line << '\n';
+    os << line;
     return;
   }
-
-  assert(match.size() == 4 && "1: whole line, 2: prefix, 3: attr, 4: type");
+  assert(match.size() == 4 && "0: whole line, 1: prefix, 2: attr, 3: type");
 
   std::csub_match prefixGroup = match[1];
   StringRef prefix(prefixGroup.first, prefixGroup.length());
@@ -151,7 +153,9 @@ static void legacifyOnnxConstant(StringRef line, llvm::raw_ostream &os) {
   } else {
     llvm_unreachable("unrecognized onnx.Constant attribute");
   }
-  os << " : () -> " << type << '\n';
+  os << " : () -> " << type;
+
+  os << line.take_back(line.end() - eol); // any trailing '\n'
 }
 
 int main(int argc, char **argv) {
@@ -247,26 +251,14 @@ int main(int argc, char **argv) {
   };
   // TODO(imaihal): Change preloadDialectsInContext to false.
 
-  if (output_legacy_onnx_constants) {
-    std::string collectedOutput;
-    llvm::raw_string_ostream outputCollector(collectedOutput);
-    if (failed(mlir::MlirOptMain(outputCollector, std::move(file),
-            passManagerSetupFn, registry, split_input_file, verify_diagnostics,
-            verify_passes, allowUnregisteredDialects,
-            /*preloadDialectsInContext=*/true,
-            /*emitBytecode=*/false, /*implicitModule=*/true)))
-      return 1;
-    auto buf = llvm::MemoryBuffer::getMemBuffer(collectedOutput, "",
-        /*RequiresNullTerminator=*/false);
-    for (llvm::line_iterator line(*buf, /*SkipBlanks=*/false), end; line != end;
-         ++line) {
-      legacifyOnnxConstant(*line, output->os());
-    }
-  } else {
-    return failed(
-        mlir::MlirOptMain(output->os(), std::move(file), passManagerSetupFn,
-            registry, split_input_file, verify_diagnostics, verify_passes,
-            allowUnregisteredDialects, /*preloadDialectsInContext=*/true,
-            /*emitBytecode=*/false, /*implicitModule=*/true));
-  }
+  raw_line_ostream sink([&output](StringRef line) {
+    translateLegacyOnnxConstant(line, output->os());
+  });
+  raw_ostream &os = output_legacy_onnx_constants
+                        ? static_cast<raw_ostream &>(sink)
+                        : static_cast<raw_ostream &>(output->os());
+  return failed(mlir::MlirOptMain(os, std::move(file), passManagerSetupFn,
+      registry, split_input_file, verify_diagnostics, verify_passes,
+      allowUnregisteredDialects, /*preloadDialectsInContext=*/true,
+      /*emitBytecode=*/false, /*implicitModule=*/true));
 }

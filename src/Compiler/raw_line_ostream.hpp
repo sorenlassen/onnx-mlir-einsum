@@ -13,7 +13,6 @@
 
 #include "llvm/Support/raw_ostream.h"
 
-#include <deque>
 #include <functional>
 #include <string>
 
@@ -21,7 +20,7 @@ namespace onnx_mlir {
 
 class raw_line_ostream : public llvm::raw_ostream {
 public:
-  using LineSink = std::function<void(std::string)>;
+  using LineSink = std::function<void(llvm::StringRef)>;
 
   explicit raw_line_ostream(LineSink sink);
   ~raw_line_ostream() override;
@@ -32,7 +31,7 @@ private:
   uint64_t current_pos() const override { return pos; }
 
   LineSink sink;
-  std::deque<char> deq;
+  std::string buffer;
   uint64_t pos = 0;
 };
 
