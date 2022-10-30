@@ -11,6 +11,7 @@
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/ONNXOps.hpp" // ONNXConstantOp
 
 #include "mlir/IR/BuiltinDialect.h"
 
@@ -52,7 +53,23 @@ void DisposablePool::insert(DisposableElementsAttr d) {
 }
 
 void DisposablePool::garbageCollectUnreachable(ModuleOp moduleOp) {
-  llvm_unreachable("TODO: implement DisposablePool::garbageCollectUnreachable");
+  Pool reachable;
+  moduleOp.walk([&reachable, this](ONNXConstantOp constOp) {
+    if (auto attr = constOp.value())
+      if (auto d = attr->dyn_cast<DisposableElementsAttr>()) {
+        assert(this->pool.count(d.getImpl()) == 1 &&
+               "reachable disposables must be in the pool");
+        reachable.insert(d.getImpl());
+      }
+  });
+  for (Pool::iterator it = pool.begin(); it != pool.end();) {
+    if (pool.count(*it) == 0) {
+      (*it)->buffer.reset(); // Decrement reference count.
+      it = pool.erase(it);
+    } else {
+      ++it;
+    }
+  }
 }
 
 void DisposablePool::scrub(ModuleOp moduleOp) {

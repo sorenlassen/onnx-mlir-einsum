@@ -530,7 +530,9 @@ public:
 private:
   void insert(DisposableElementsAttr d);
 
-  std::unordered_set<DisposableElementsAttributeStorage *> pool;
+  using Pool = std::unordered_set<DisposableElementsAttributeStorage *>;
+
+  Pool pool;
   bool active = true;
 };
 
