@@ -37,31 +37,46 @@ bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   return isSplat;
 }
 
-bool splatterBlob(ShapedType type, AsmResourceBlob &blob) {
-  // TODO: change blob to splat if true
+bool splatterBlob(ShapedType type, AsmResourceBlob &blob, bool dataIsMutable) {
+  // TODO: change blob to splat if returns true and dataIsMutable
   return splatterBuffer(type, blob.getData());
 }
 
 } // namespace
 
 ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
-    ShapedType type, ArrayRef<char> bytes) {
-  // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type <<
-  // "\n";
-  assert(static_cast<size_t>(type.getNumElements()) ==
-             bytes.size() / bytewidthOfIntOrFPType(type.getElementType()) &&
+    ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
+  // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type << ","
+  // << bytes.size() << "\n";
+  unsigned bytewidth = bytewidthOfIntOrFPType(type.getElementType());
+  assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
+#if 1
+  std::unique_ptr<llvm::MemoryBuffer> buffer;
+  bool isSplat = splatterBuffer(type, bytes);
+  if (mustCopy) {
+    StringRef s(bytes.data(), isSplat ? bytewidth : bytes.size());
+    buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
+  } else {
+    StringRef s(bytes.data(), bytes.size());
+    buffer = llvm::MemoryBuffer::getMemBuffer(s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
+  }
+  return DisposableElementsAttr::get(type, std::move(buffer));
+#else
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob =
-        HeapAsmResourceBlob::allocateAndCopy(bytes, ALIGN, false);
-    splatterBlob(type, blob);
+      mustCopy
+      ? HeapAsmResourceBlob::allocateAndCopy(bytes, ALIGN, /*dataIsMutable=*/true)
+      : AsmResourceBlob(bytes, ALIGN, /*deleter=*/nullptr, /*dataIsMutable=*/false);
+    splatterBlob(type, blob, /*dataIsMutable=*/mustCopy);
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
   } else {
     return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
+#endif
 }
 
 ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
