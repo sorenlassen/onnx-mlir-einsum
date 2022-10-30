@@ -15,7 +15,6 @@
 
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/InitLLVM.h>
-#include <llvm/Support/LineIterator.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/ToolOutputFile.h>
 #include <mlir/Dialect/Bufferization/Transforms/Passes.h>
@@ -43,8 +42,6 @@
 #include "src/Pass/Passes.hpp"
 #include "src/Transform/ResourceGarbageCollector.hpp"
 
-#include <regex>
-
 using namespace mlir;
 using namespace onnx_mlir;
 
@@ -59,11 +56,6 @@ static llvm::cl::opt<std::string> input_filename(llvm::cl::Positional,
 static llvm::cl::opt<std::string> output_filename("o",
     llvm::cl::desc("Output filename"), llvm::cl::value_desc("filename"),
     llvm::cl::init("-"), llvm::cl::cat(OnnxMlirOptOptions));
-
-static llvm::cl::opt<bool> output_legacy_onnx_constants(
-    "output-legacy-onnx-constants",
-    llvm::cl::desc("Output onnx.Constant in legacy format"),
-    llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptOptions));
 
 static llvm::cl::opt<bool> split_input_file("split-input-file",
     llvm::cl::desc("Split the input file into pieces and process each "
@@ -118,44 +110,6 @@ void scanAndSetMAccel(int argc, char **argv) {
       break;
     }
   }
-}
-
-static void translateLegacyOnnxConstant(StringRef line, raw_ostream &os) {
-  const char *eol = line.end() - line.endswith("\n");
-
-  std::regex pattern("(.*)onnx\\.Constant (.*) ?: (.*)");
-  std::cmatch match;
-  if (!std::regex_match(line.begin(), eol, match, pattern)) {
-    // No match.
-    os << line;
-    return;
-  }
-  assert(match.size() == 4 && "0: whole line, 1: prefix, 2: attr, 3: type");
-
-  std::csub_match prefixGroup = match[1];
-  StringRef prefix(prefixGroup.first, prefixGroup.length());
-  assert(!prefix.empty() && "onnx.Constant cannot start at line begin");
-
-  std::csub_match attrGroup = match[2];
-  StringRef attr(attrGroup.first, attrGroup.length());
-
-  std::csub_match typeGroup = match[3];
-  StringRef type(typeGroup.first, typeGroup.length());
-  assert(!type.empty() && "onnx.Constant must have a type");
-
-  os << prefix << "\"onnx.Constant\"()";
-  if (attr.startswith("dense")) {
-    os << " {value = " << attr << " : " << type << "}";
-  } else if (attr.startswith("sparse")) {
-    os << " {sparse_value = " << attr << " : " << type << "}";
-  } else if (attr.empty()) {
-    // There is no attribute when we elide constants.
-  } else {
-    llvm_unreachable("unrecognized onnx.Constant attribute");
-  }
-  os << " : () -> " << type;
-
-  os << line.take_back(line.end() - eol); // any trailing '\n'
 }
 
 int main(int argc, char **argv) {
@@ -250,7 +204,7 @@ int main(int argc, char **argv) {
     return passPipeline.addToPipeline(pm, errorHandler);
   };
   LineForwardingRawOstream fwd(output->os(),
-      output_legacy_onnx_constants ? translateLegacyOnnxConstant : nullptr);
+      printVerboseONNXConstants ? translateLegacyOnnxConstant : nullptr);
   // TODO(imaihal): Change preloadDialectsInContext to false.
   return failed(mlir::MlirOptMain(fwd.os(), std::move(file), passManagerSetupFn,
       registry, split_input_file, verify_diagnostics, verify_passes,

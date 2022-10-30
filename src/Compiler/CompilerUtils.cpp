@@ -32,10 +32,13 @@
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
+#include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Transform/ResourceGarbageCollector.hpp"
 #include "src/Version/Version.hpp"
+
+#include <regex>
 
 #define DEBUG_TYPE "compiler_utils"
 
@@ -679,24 +682,66 @@ int processInputArray(const void *onnxBuffer, int bufferSize,
       onnxBuffer, bufferSize, context, module, errorMessage, options);
 }
 
-// Return 0 on success, error code on error.
-int outputCode(mlir::OwningOpRef<ModuleOp> &module, std::string filenameWithExt,
-    int64_t largeElementLimit) {
+void translateLegacyOnnxConstant(StringRef line, raw_ostream &os) {
+  const char *eol = line.end() - line.endswith("\n");
+
+  std::regex pattern("(.*)onnx\\.Constant (.*) ?: (.*)");
+  std::cmatch match;
+  if (!std::regex_match(line.begin(), eol, match, pattern)) {
+    // No match.
+    os << line;
+    return;
+  }
+  assert(match.size() == 4 && "0: whole line, 1: prefix, 2: attr, 3: type");
+
+  std::csub_match prefixGroup = match[1];
+  StringRef prefix(prefixGroup.first, prefixGroup.length());
+  assert(!prefix.empty() && "onnx.Constant cannot start at line begin");
+
+  std::csub_match attrGroup = match[2];
+  StringRef attr(attrGroup.first, attrGroup.length());
+
+  std::csub_match typeGroup = match[3];
+  StringRef type(typeGroup.first, typeGroup.length());
+  assert(!type.empty() && "onnx.Constant must have a type");
+
+  os << prefix << "\"onnx.Constant\"()";
+  if (attr.startswith("dense")) {
+    os << " {value = " << attr << " : " << type << "}";
+  } else if (attr.startswith("sparse")) {
+    os << " {sparse_value = " << attr << " : " << type << "}";
+  } else if (attr.empty()) {
+    // There is no attribute when we elide constants.
+  } else {
+    llvm_unreachable("unrecognized onnx.Constant attribute");
+  }
+  os << " : () -> " << type;
+
+  os << line.take_back(line.end() - eol); // any trailing '\n'
+}
+
+static void outputModule(mlir::OwningOpRef<ModuleOp> &module, raw_ostream &os,
+    int64_t largeElementLimit = -1) {
   mlir::OpPrintingFlags flags;
   if (preserveLocations)
     flags.enableDebugInfo();
-
   if (largeElementLimit >= 0)
     flags.elideLargeElementsAttrs(largeElementLimit);
+  LineForwardingRawOstream fwd(
+      os, printVerboseONNXConstants ? translateLegacyOnnxConstant : nullptr);
+  module->print(fwd.os(), flags);
+}
 
+// Return 0 on success, error code on error.
+int outputCode(mlir::OwningOpRef<ModuleOp> &module, std::string filenameWithExt,
+    int64_t largeElementLimit) {
   std::string errorMessage;
   auto output = openOutputFile(filenameWithExt, &errorMessage);
   if (!output) {
     llvm::errs() << errorMessage << "\n";
     return InvalidOutputFileAccess;
   }
-
-  module->print(output->os(), flags);
+  outputModule(module, output->os(), largeElementLimit);
   output->keep();
   return CompilerSuccess;
 }
@@ -883,10 +928,7 @@ static int emitOutput(mlir::OwningOpRef<ModuleOp> &module,
     mlir::MLIRContext &context, std::string outputNameNoExt,
     mlir::PassManager &pm, EmissionTargetType emissionTarget) {
   if (printIR) {
-    mlir::OpPrintingFlags flags;
-    if (preserveLocations)
-      flags.enableDebugInfo();
-    module->print(llvm::outs(), flags);
+    outputModule(module, llvm::outs());
     return CompilerSuccess;
   }
   return emitOutputFiles(outputNameNoExt, emissionTarget, context, module);
