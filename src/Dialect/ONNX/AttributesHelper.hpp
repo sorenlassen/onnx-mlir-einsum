@@ -71,4 +71,7 @@ mlir::DenseElementsAttr toDenseElementsAttribute(mlir::ElementsAttr elements);
 void printIntOrFPElementsAttrAsDense(
     mlir::ElementsAttr attr, llvm::raw_ostream &os);
 
+void printIntOrFPElementsAttrAsDenseWithoutType(
+    mlir::ElementsAttr attr, llvm::raw_ostream &os);
+
 } // namespace onnx_mlir

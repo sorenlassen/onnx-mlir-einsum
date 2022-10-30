@@ -14,7 +14,9 @@
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinOps.h" // ModuleOp
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/DialectInterface.h"
 #include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/Sequence.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -23,6 +25,7 @@
 #include "src/Support/DType.hpp"
 
 #include <memory>
+#include <unordered_set>
 
 namespace mlir {
 
@@ -298,6 +301,7 @@ class DisposableElementsAttr
           DisposableElementsAttributeStorage, ElementsAttr::Trait,
           TypedAttr::Trait> {
 public:
+  friend class DisposablePool;
   using Storage = DisposableElementsAttributeStorage;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
@@ -305,6 +309,7 @@ public:
       DisposableElementsAttributeStorage, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
+  // TODO: make all the get() methods private, only called from DisposablePool
   static DisposableElementsAttr get(ShapedType type, Buffer buffer) {
     Type elementType = type.getElementType();
     SmallVector<int64_t, 4> strides =
@@ -491,6 +496,43 @@ private: // TODO: Figure out if any of the following would be useful publicly.
   }
 
 }; // class DisposableElementsAttr
+
+class DisposablePool : public mlir::DialectInterface::Base<DisposablePool> {
+public:
+  using Strides = typename DisposableElementsAttr::Strides;
+  using Buffer = typename DisposableElementsAttr::Buffer;
+
+  static DisposablePool &create(mlir::MLIRContext *context);
+
+  static DisposablePool *get(mlir::MLIRContext *context);
+
+  DisposablePool(mlir::Dialect *dialect, mlir::MLIRContext *context);
+  ~DisposablePool();
+
+  template <typename... Args>
+  DisposableElementsAttr createElementsAttr(Args &&...args) {
+    auto d = DisposableElementsAttr::get(std::forward<Args>(args)...);
+    insert(d);
+    return d;
+  }
+
+  void garbageCollectUnreachable(ModuleOp moduleOp);
+
+  void scrub(ModuleOp moduleOp);
+
+  void close() {
+    assert(pool.empty() && "pool must be scrubbed before close ");
+    active = false;
+  }
+
+  bool isActive() const { return active; }
+
+private:
+  void insert(DisposableElementsAttr d);
+
+  std::unordered_set<DisposableElementsAttributeStorage *> pool;
+  bool active = true;
+};
 
 } // namespace mlir
 

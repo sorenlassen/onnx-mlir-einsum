@@ -255,6 +255,7 @@ bool checkIfSplat(ElementsAttr attr, Iterator valueIt) {
   }
   return true;
 }
+} // namespace
 
 // adapted from AsmPrinter::Impl::printDenseIntOrFPElementsAttr:
 void printIntOrFPElementsAttrAsDenseWithoutType(
@@ -278,7 +279,6 @@ void printIntOrFPElementsAttrAsDenseWithoutType(
   }
   os << '>';
 }
-} // namespace
 
 void printIntOrFPElementsAttrAsDense(ElementsAttr attr, raw_ostream &os) {
   printIntOrFPElementsAttrAsDenseWithoutType(attr, os);

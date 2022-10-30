@@ -162,6 +162,15 @@ public:
     return 0;
   }
 
+  int test_DisposablePool() {
+    llvm::errs() << "test_DisposablePool:\n";
+    auto &pool = DisposablePool::create(ctx.get());
+    ShapedType type = RankedTensorType::get({1}, getUInt(1));
+    auto dispo = pool.createElementsAttr(type, buffer<bool>({true}));
+    assert(dispo.isSplat());
+    return 0;
+  }
+
   int test_attributes() {
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
@@ -239,6 +248,7 @@ int main(int argc, char *argv[]) {
   failures += test.test_splat();
   failures += test.test_f16();
   failures += test.test_bool();
+  failures += test.test_DisposablePool();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
