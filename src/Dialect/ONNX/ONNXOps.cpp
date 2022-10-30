@@ -113,18 +113,18 @@ ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
-  // TODO: check that only the value (or sparse_value?) attribute is set
   // TODO: check that the attribute has the same type as the op result
-  assert(valueAttr().isa<ElementsAttr>());
-
-  odsPrinter << ' ';
-
-  // NOTE: instead of
-  //
-  //   odsPrinter.printAttribute(valueAttr())
-  //
-  // we print every elements attribute as a DenseElementsAttr.
-  printIntOrFPElementsAttrAsDense(valueAttr(), odsPrinter.getStream());
+  if (auto val = value()) {
+    assert(val->isa<ElementsAttr>());
+    // NOTE: we print every elements attribute as a DenseElementsAttr.
+    odsPrinter << ' ';
+    printIntOrFPElementsAttrAsDense(*val, odsPrinter.getStream());
+  } else if (auto sparse = sparse_value()) {
+    odsPrinter << ' ';
+    odsPrinter.printAttributeWithoutType(*sparse);
+  } else {
+    // There is no attribute when we elide constants.
+  }
   odsPrinter << " : " << getResult().getType();
 }
 
@@ -164,19 +164,20 @@ void ONNXDialect::initialize() {
 }
 
 /// Parse an attribute registered to this dialect.
-Attribute ONNXDialect::parseAttribute(DialectAsmParser &parser,
-                                      Type type) const {
+Attribute ONNXDialect::parseAttribute(
+    DialectAsmParser &parser, Type type) const {
   // generatedAttributeParser is generated in ONNXAttributes.cpp.inc
   StringRef attrTag;
-  if (Attribute attr; generatedAttributeParser(parser, &attrTag, type, attr).has_value())
+  if (Attribute attr;
+      generatedAttributeParser(parser, &attrTag, type, attr).has_value())
     return attr;
-  parser.emitError(parser.getCurrentLocation()) << "unknown attribute `"
-      << attrTag << "` in dialect `ONNX`";
+  parser.emitError(parser.getCurrentLocation())
+      << "unknown attribute `" << attrTag << "` in dialect `ONNX`";
   return {};
 }
 /// Print an attribute registered to this dialect.
-void ONNXDialect::printAttribute(Attribute attr,
-                        DialectAsmPrinter &printer) const {
+void ONNXDialect::printAttribute(
+    Attribute attr, DialectAsmPrinter &printer) const {
   // generatedAttributePrinter is generated in ONNXAttributes.cpp.inc
   if (succeeded(generatedAttributePrinter(attr, printer)))
     return;
