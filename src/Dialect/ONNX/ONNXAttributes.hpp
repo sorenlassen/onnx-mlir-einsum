@@ -416,6 +416,8 @@ public:
 
   void printWithoutType(raw_ostream &os) const;
 
+  // TODO: remove this or reimplement using getRawBuffer
+  // or
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
       return toDenseElementsAttrByType<APInt>();

@@ -48,7 +48,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
   // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type << ","
   // << bytes.size() << "\n";
-  unsigned bytewidth = bytewidthOfIntOrFPType(type.getElementType());
+  size_t bytewidth = bytewidthOfIntOrFPType(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
 #if 1
@@ -59,16 +59,18 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
   } else {
     StringRef s(bytes.data(), bytes.size());
-    buffer = llvm::MemoryBuffer::getMemBuffer(s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
+    buffer = llvm::MemoryBuffer::getMemBuffer(
+        s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
   }
   return DisposableElementsAttr::get(type, std::move(buffer));
 #else
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob =
-      mustCopy
-      ? HeapAsmResourceBlob::allocateAndCopy(bytes, ALIGN, /*dataIsMutable=*/true)
-      : AsmResourceBlob(bytes, ALIGN, /*deleter=*/nullptr, /*dataIsMutable=*/false);
+        mustCopy ? HeapAsmResourceBlob::allocateAndCopy(
+                       bytes, ALIGN, /*dataIsMutable=*/true)
+                 : AsmResourceBlob(bytes, ALIGN, /*deleter=*/nullptr,
+                       /*dataIsMutable=*/false);
     splatterBlob(type, blob, /*dataIsMutable=*/mustCopy);
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
@@ -124,8 +126,8 @@ RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
     return disposable.getRawBuffer();
   }
-  if (auto resrc = elements.dyn_cast<DenseResourceElementsAttr>())
-    return resrc.getRawHandle().getResource()->getBlob()->getData();
+  if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>())
+    return denseResrc.getRawHandle().getResource()->getBlob()->getData();
   llvm_unreachable("unexpected ElementsAttr instance");
 }
 
@@ -159,15 +161,15 @@ DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
   llvm::errs() << "toDenseElementsAttribute " << elements.getType() << "\n";
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
-  if (auto resource = elements.dyn_cast<DenseResourceElementsAttr>()) {
+  if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>()) {
     ArrayRef<char> bytes =
-        resource.getRawHandle().getResource()->getBlob()->getData();
-    return DenseElementsAttr::getFromRawBuffer(resource.getType(), bytes);
+        denseResrc.getRawHandle().getResource()->getBlob()->getData();
+    return DenseElementsAttr::getFromRawBuffer(denseResrc.getType(), bytes);
   }
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
     return disposable.toDenseElementsAttr();
-  llvm_unreachable("unexpected ElementsAttr instance"); // TODO: read data from
-                                                        // elements.getValues()
+  // TODO: read data from elements.getValues() instead of giving up
+  llvm_unreachable("unexpected ElementsAttr instance");
 }
 
 namespace {
