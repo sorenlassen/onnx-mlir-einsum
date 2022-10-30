@@ -26,10 +26,6 @@ using namespace mlir;
 namespace onnx_mlir {
 
 namespace {
-// Always align to the largest possible element type.
-// TODO: Consider aligning for SIMD ops.
-constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
-
 bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   bool isSplat;
   if (!DenseElementsAttr::isValidRawBuffer(type, buffer, isSplat))
@@ -37,11 +33,16 @@ bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   return isSplat;
 }
 
+#if 0
 bool splatterBlob(ShapedType type, AsmResourceBlob &blob, bool dataIsMutable) {
   // TODO: change blob to splat if returns true and dataIsMutable
   return splatterBuffer(type, blob.getData());
 }
 
+// Always align to the largest possible element type.
+// TODO: Consider aligning for SIMD ops.
+constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
+#endif
 } // namespace
 
 ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
