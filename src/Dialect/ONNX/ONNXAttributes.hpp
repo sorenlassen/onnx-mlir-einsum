@@ -429,7 +429,7 @@ public:
     Type elementType = getElementType();
     unsigned bytewidth = onnx_mlir::bytewidthOfIntOrFPType(elementType);
     if (isSplat()) {
-      llvm::errs() << "getRawBuffer isSplat\n";
+      // llvm::errs() << "getRawBuffer isSplat\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(bytewidth);
       detail::copyIntOrFP(
@@ -442,7 +442,7 @@ public:
     int64_t numElements = type.getNumElements();
     int64_t numBufferElements = s.size() / bytewidth;
     if (transform || numBufferElements != numElements) {
-      llvm::errs() << "getRawBuffer indirect\n";
+      // llvm::errs() << "getRawBuffer indirect\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(numElements * bytewidth);
       // TODO: run over every pos and flatIndex, using shape and strides
@@ -454,7 +454,7 @@ public:
       }
       return onnx_mlir::RawBuffer(std::move(vec));
     } else {
-      llvm::errs() << "getRawBuffer direct\n";
+      // llvm::errs() << "getRawBuffer direct\n";
       return llvm::makeArrayRef(s.data(), s.size());
     }
   }
