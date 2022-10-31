@@ -163,6 +163,7 @@ struct DTypeTraitBase {
       std::is_integral_v<TY> && !std::is_signed_v<TY>;
   static constexpr unsigned width =
       std::is_same_v<TY, bool> ? 1 : (8 * sizeof(TY));
+  static constexpr unsigned bytewidth = (width + 1) / 8;
   using type = TY;
   using widetype = std::conditional_t<is_float, double,
       std::conditional_t<is_signed_int, int64_t, uint64_t>>;
@@ -186,7 +187,7 @@ struct DTypeTrait<DType::BFLOAT16>
 #define DEFINE_DTypeTrait(DT, TY)                                              \
   template <>                                                                  \
   struct DTypeTrait<DType::DT>                                                 \
-      : public detail::DTypeTraitBase<DType::DT, TY> {};
+      : public detail::DTypeTraitBase<DType::DT, TY> {}
 
 DEFINE_DTypeTrait(BOOL, bool);
 DEFINE_DTypeTrait(INT8, int8_t);
@@ -200,8 +201,10 @@ DEFINE_DTypeTrait(UINT64, uint64_t);
 DEFINE_DTypeTrait(DOUBLE, double);
 DEFINE_DTypeTrait(FLOAT, float);
 
+#undef DEFINE_DTypeTrait
+
 template <typename>
-struct CppTypeTrait {};
+struct CppTypeTrait { static constexpr unsigned width = UINT_MAX; };
 template <>
 struct CppTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
 template <>
@@ -382,38 +385,20 @@ union IntOrFP { // TODO rename to WideIntOrFP
     return u64;
   }
 
-#if 0
-  template <typename T, typename = CheckFloat<T>>
-  static constexpr IntOrFP cast(T d) { return {.dbl = static_cast<T>(d)}; }
-  template <typename T, typename = CheckSignedInt<T>>
-  static constexpr IntOrFP cast(T i) { return {.i64 = static_cast<T>(i)}; }
-  template <typename T, typename = CheckUnsignedInt<T>>
-  static constexpr IntOrFP cast(T u) { return {.u64 = static_cast<T>(u)}; }
-#else
-  static constexpr IntOrFP from(double d) { return {.dbl = d}; }
-  static constexpr IntOrFP from(int64_t i) { return {.i64 = i}; }
-  static constexpr IntOrFP from(uint64_t u) { return {.u64 = u}; }
-#endif
-
-  llvm::APInt toAPInt(mlir::IntegerType itag) const;
-  llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
-
-  template <DType DTYPE>
-  constexpr typename DTypeTrait<DTYPE>::widetype as() const {
-    using Trait = DTypeTrait<DTYPE>;
-    if (Trait::is_float)
-      return dbl;
-    if (Trait::is_signed_int)
-      return i64;
-    if (Trait::is_unsigned_int)
-      return u64;
-    llvm_unreachable("unsupported dtype");
-  }
+  // template <DType DTYPE>
+  // constexpr typename DTypeTrait<DTYPE>::widetype unpack() const {
+  //   using Trait = DTypeTrait<DTYPE>;
+  //   if (Trait::is_float)
+  //     return dbl;
+  //   if (Trait::is_signed_int)
+  //     return i64;
+  //   if (Trait::is_unsigned_int)
+  //     return u64;
+  //   llvm_unreachable("unsupported dtype");
+  // }
 
   template <typename T>
-  constexpr std::enable_if_t<
-      !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
-  to(DType dtag) const {
+  constexpr T to(DType dtag) const {
     switch (dtag) {
     case DType::BOOL:
     case DType::UINT8:
@@ -425,14 +410,14 @@ union IntOrFP { // TODO rename to WideIntOrFP
     case DType::INT16:
     case DType::INT32:
     case DType::INT64:
-      return static_cast<T>(u64);
+      return static_cast<T>(i64);
     case DType::DOUBLE:
     case DType::FLOAT:
     case DType::FLOAT16:
     case DType::BFLOAT16:
       return static_cast<T>(dbl);
     default:
-      llvm_unreachable("unsupported dtype");
+      llvm_unreachable("to unsupported dtype");
     }
   }
 
@@ -448,50 +433,54 @@ union IntOrFP { // TODO rename to WideIntOrFP
     return toAPInt(tag.cast<mlir::IntegerType>());
   }
   template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(
-      mlir::Type tag) const {
+  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(mlir::Type tag) const {
     return toAPFloat(tag.cast<mlir::FloatType>());
   }
 
-  template <typename X>
-  static IntOrFP fromInt(mlir::IntegerType itag, X x) {
-    assert(itag.getWidth() <= 64);
-    if (itag.isSigned())
-      return {.i64 = static_cast<int64_t>(x)};
-    else
+  // template <DType DTYPE>
+  // static constexpr IntOrFP pack(typename DTypeTrait<DTYPE>::widetype x) {
+  //   using Trait = DTypeTrait<DTYPE>;
+  //   if (Trait::is_float)
+  //     return {.dbl = x};
+  //   if (Trait::is_signed_int)
+  //     return {.i64 = x};
+  //   if (Trait::is_unsigned_int)
+  //     return {.u64 = x};
+  //   llvm_unreachable("to unsupported dtype");
+  // }
+
+  template <typename T>
+  static constexpr IntOrFP from(DType dtag, T x) {
+    switch (dtag) {
+    case DType::BOOL:
+    case DType::UINT8:
+    case DType::UINT16:
+    case DType::UINT32:
+    case DType::UINT64:
       return {.u64 = static_cast<uint64_t>(x)};
+    case DType::INT8:
+    case DType::INT16:
+    case DType::INT32:
+    case DType::INT64:
+      return {.i64 = static_cast<int64_t>(x)};
+    case DType::DOUBLE:
+    case DType::FLOAT:
+    case DType::FLOAT16:
+    case DType::BFLOAT16:
+      return {.dbl = static_cast<double>(x)};
+    default:
+      llvm_unreachable("from unsupported dtype");
+    }
   }
 
-  template <typename X>
-  static IntOrFP fromFP(mlir::Type tag, X x) {
-    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return {.dbl = static_cast<double>(x)};
-  }
-
-  template <typename X>
-  static std::enable_if_t<!std::is_same_v<X, llvm::APInt> &&
-                              !std::is_same_v<X, llvm::APFloat>,
-      IntOrFP>
-  from(mlir::Type tag, X x) {
+  template <typename T>
+  static IntOrFP from(mlir::Type tag, T x) {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    if (auto itag = tag.dyn_cast<mlir::IntegerType>())
-      return fromInt<X>(itag, x);
-    return fromFP<X>(tag, x);
+    return from<T>(dtypeOfMlirType(tag), x);
   }
-  template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP> from(
-      mlir::Type tag, X x) {
-    if (tag.cast<mlir::IntegerType>().isSigned())
-      return {.i64 = x.getSExtValue()};
-    else
-      return {.i64 = x.getZExtValue()};
-  }
-  template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APFloat>, IntOrFP> from(
-      mlir::Type tag, X x) {
-    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return {.f64 = x.convertToDouble()};
-  }
+
+  llvm::APInt toAPInt(mlir::IntegerType itag) const;
+  llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
 };
 
 template <typename T>
@@ -499,14 +488,77 @@ constexpr bool isIntOrFPConvertible() {
   return CppTypeTrait<T>::width <= 64;
 }
 
-template <>
-constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
-  return true;
+#if 0
+// template <>
+// constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
+//   return true;
+// }
+
+// template <>
+// constexpr bool isIntOrFPConvertible<llvm::APInt>() {
+//   return true;
+// }
+
+template <DType DTYPE>
+llvm::APInt fromCppToAPInt(typename DTypeTrait<DTYPE>::type src) {
+  using Trait = DTypeTrait<DTYPE>;
+  if (Trait::is_signed_int)
+    return llvm::APInt(Trait::width, src, /*isSigned=*/true);
+  if (Trait::is_unsigned_int)
+    return llvm::APInt(Trait::width, src);
+  llvm_unreachable("invalid converstion from floating point to APInt");
 }
 
-template <>
-constexpr bool isIntOrFPConvertible<llvm::APInt>() {
-  return true;
+// template <DType DTYPE>
+// constexpr auto fromCppToAPFloat(auto src) -> llvm::APFloat {
+//   switch (DTYPE) {
+//     case DType::FLOAT: return llvm::APFloat(static_cast<float>(src));
+//     case DType::FLOAT16: return float_16::toAPFloat(float_16(src));
+//     case DType::BFLOAT16: return bfloat_16::toAPFloat(bfloat_16(src));
+//     default: return llvm::APFloat(static_cast<double>(src));
+//   }
+// }
+
+template <typename Dst, typename T>
+constexpr std::enable_if_t<!std::is_same_v<Dst, IntOrFP> && !std::is_same_v<Dst, llvm::APFloat> && !std::is_same_v<Dst, llvm::APInt>, Dst> fromCppTo(DType srctag, T src) {
+  return static_cast<Dst>(src);
 }
+template <typename Dst, typename T>
+constexpr std::enable_if_t<std::is_same_v<Dst, IntOrFP>, IntOrFP> fromCppTo(DType srctag, T src) {
+  return IntOrFP::from(srctag, src);
+}
+template <typename Dst, typename T>
+std::enable_if_t<std::is_same_v<Dst, llvm::APFloat>, llvm::APFloat> fromCppTo(DType srctag, T src) {
+  switch (srctag) {
+    case DType::DOUBLE: return llvm::APFloat(static_cast<double>(src));
+    case DType::FLOAT: return llvm::APFloat(static_cast<float>(src));
+    case DType::FLOAT16: return float_16::toAPFloat(float_16(src));
+    case DType::BFLOAT16: return bfloat_16::toAPFloat(bfloat_16(src));
+    default:
+      llvm_unreachable("invalid converstion from integer to APFloat");
+  }
+}
+template <typename Dst, typename T>
+std::enable_if_t<std::is_same_v<Dst, llvm::APInt>, llvm::APInt> fromCppTo(DType srctag, T src) {
+  switch (srctag) {
+#define DEFINE_fromCppTo_case(DT)                                          \
+  case DType::DT: return fromCppToAPInt<DType::DT>(src)
+
+  DEFINE_fromCppTo_case(BOOL);
+  DEFINE_fromCppTo_case(INT8);
+  DEFINE_fromCppTo_case(UINT8);
+  DEFINE_fromCppTo_case(INT16);
+  DEFINE_fromCppTo_case(UINT16);
+  DEFINE_fromCppTo_case(INT32);
+  DEFINE_fromCppTo_case(UINT32);
+  DEFINE_fromCppTo_case(INT64);
+  DEFINE_fromCppTo_case(UINT64);
+
+#undef DEFINE_fromCppTo_case
+    default:
+      llvm_unreachable("invalid converstion from integer to APFloat");
+  }
+}
+#endif
 
 } // namespace onnx_mlir
