@@ -528,9 +528,10 @@ public:
   bool isActive() const { return active; }
 
 private:
-  void insert(DisposableElementsAttr d);
-
   using Pool = std::unordered_set<DisposableElementsAttributeStorage *>;
+
+  void insert(DisposableElementsAttr d);
+  void eraseUnreachable(const Pool &reachable);
 
   Pool pool;
   bool active = true;

@@ -56,24 +56,42 @@ void DisposablePool::garbageCollectUnreachable(ModuleOp moduleOp) {
   Pool reachable;
   moduleOp.walk([&reachable, this](ONNXConstantOp constOp) {
     if (auto attr = constOp.value())
-      if (auto d = attr->dyn_cast<DisposableElementsAttr>()) {
-        assert(this->pool.count(d.getImpl()) == 1 &&
+      if (auto elements = attr->dyn_cast<DisposableElementsAttr>()) {
+        assert(this->pool.count(elements.getImpl()) == 1 &&
                "reachable disposables must be in the pool");
-        reachable.insert(d.getImpl());
+        reachable.insert(elements.getImpl());
       }
   });
+  eraseUnreachable(reachable);
+}
+
+void DisposablePool::scrub(ModuleOp moduleOp) {
+  moduleOp.walk([&](ONNXConstantOp constOp) {
+    if (auto attr = constOp.value())
+      if (auto elements = attr->dyn_cast<DisposableElementsAttr>()) {
+        assert(this->pool.count(elements.getImpl()) == 1 &&
+               "reachable disposables must be in the pool");
+        RawBuffer rawBuffer = getDenseIntOrFPRawData(elements);
+        constOp.valueAttr(DenseElementsAttr::getFromRawBuffer(
+            elements.getType(), rawBuffer.get()));
+      }
+  });
+  eraseUnreachable({});
+}
+
+void DisposablePool::eraseUnreachable(const Pool &reachable) {
   for (Pool::iterator it = pool.begin(); it != pool.end();) {
-    if (pool.count(*it) == 0) {
-      (*it)->buffer.reset(); // Decrement reference count.
+    DisposableElementsAttributeStorage *p = *it;
+    if (pool.count(p) == 0) {
+      // p is unreachable, so we reset the buffer payload shared_ptr
+      // which decreases the reference count and, if it reached zero,
+      // frees or closes the underlying MemoryBuffer's heap allocation or file.
+      p->buffer.reset(); // Decrement reference count.
       it = pool.erase(it);
     } else {
       ++it;
     }
   }
-}
-
-void DisposablePool::scrub(ModuleOp moduleOp) {
-  llvm_unreachable("TODO: implement DisposablePool::scrub");
 }
 
 } // namespace mlir
