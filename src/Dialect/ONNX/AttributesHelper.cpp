@@ -26,6 +26,7 @@ using namespace mlir;
 namespace onnx_mlir {
 
 namespace {
+
 bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   bool isSplat;
   if (!DenseElementsAttr::isValidRawBuffer(type, buffer, isSplat))
@@ -33,7 +34,6 @@ bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   return isSplat;
 }
 
-#if 0
 bool splatterBlob(ShapedType type, AsmResourceBlob &blob, bool dataIsMutable) {
   // TODO: change blob to splat if returns true and dataIsMutable
   return splatterBuffer(type, blob.getData());
@@ -42,17 +42,16 @@ bool splatterBlob(ShapedType type, AsmResourceBlob &blob, bool dataIsMutable) {
 // Always align to the largest possible element type.
 // TODO: Consider aligning for SIMD ops.
 constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
-#endif
+
 } // namespace
 
 ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
   // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type << ","
-  // << bytes.size() << "\n";
+  //     << bytes.size() << "\n";
   size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
-#if 1
   if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
       disposablePool && disposablePool->isActive()) {
     std::unique_ptr<llvm::MemoryBuffer> buffer;
@@ -66,7 +65,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
           s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
     }
     return disposablePool->createElementsAttr(type, std::move(buffer));
-#else
+  }
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob =
@@ -78,10 +77,8 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
-#endif
-  } else {
-    return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
+  return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
 ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
@@ -89,29 +86,26 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
   size_t size =
       type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
   // llvm::errs() << "makeDenseIntOrFPElementsAttrWithRawBuffer " << type << ","
-  // << size << "\n";
-#if 1
+  //     << size << "\n";
   if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
       disposablePool && disposablePool->isActive()) {
     std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
         llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
     fill(buffer->getBuffer());
     return disposablePool->createElementsAttr(type, std::move(buffer));
-#else
+  }
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob = HeapAsmResourceBlob::allocate(size, ALIGN);
     fill(blob.getMutableData());
-    splatterBlob(type, blob);
+    splatterBlob(type, blob, /*dataIsMutable=*/true);
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
-#endif
-  } else {
-    std::vector<char> bytes(size, 0);
-    fill(bytes);
-    return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
+  std::vector<char> bytes(size, 0);
+  fill(bytes);
+  return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
 RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
