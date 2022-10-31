@@ -42,7 +42,7 @@ void ResourceGarbageCollector::runAfterPass(Pass *pass, Operation *op) {
         if (!insertion.second)
           llvm::errs() << "ResourceGarbageCollector::runAfterPass encountered "
                           "the same dense resource twice "
-                      << elements << "\n";
+                       << elements << "\n";
       }
   });
   resourcePool.garbageCollect(reachableResources);

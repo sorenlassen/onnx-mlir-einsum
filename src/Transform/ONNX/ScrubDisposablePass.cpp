@@ -24,7 +24,8 @@ struct ScrubDisposablePass
     : public PassWrapper<ScrubDisposablePass, OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ScrubDisposablePass)
 
-  ScrubDisposablePass(DisposablePool *disposablePool) : disposablePool(disposablePool) {}
+  ScrubDisposablePass(DisposablePool *disposablePool)
+      : disposablePool(disposablePool) {}
 
   StringRef getArgument() const override { return "scrub-disposable"; }
 
