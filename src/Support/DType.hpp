@@ -161,8 +161,11 @@ namespace detail {
 template <DType DTYPE, typename ty>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
-  static constexpr bool is_int = std::is_integral_v<ty>;
   static constexpr bool is_float = std::is_floating_point_v<ty>;
+  static constexpr bool is_signed_int =
+      std::is_integral_v<ty> && std::is_signed_v<ty>;
+  static constexpr bool is_unsigned_int =
+      std::is_integral_v<ty> && !std::is_integral_v<ty>;
   static constexpr unsigned width =
       std::is_same_v<ty, bool> ? 1 : (8 * sizeof(ty));
   using type = ty;
@@ -341,7 +344,7 @@ inline unsigned bytewidthOfIntOrFPType(mlir::Type t) {
 template <typename T>
 constexpr bool isIntOrFP(unsigned maxWidth) {
   using Trait = DTypeTraitByType<T>;
-  return (Trait::is_int || Trait::is_float) && Trait::width <= maxWidth;
+  return Trait::width <= maxWidth;
 }
 
 template <>
