@@ -27,13 +27,6 @@ void ResourceGarbageCollector::runAfterPass(Pass *pass, Operation *op) {
   if (!moduleOp)
     return;
   ResourcePool::ResourceSet reachableResources;
-
-  // // TODO: remove after testing
-  // llvm::errs() << "ResourceGarbageCollector::runAfterPass ";
-  // pass->printAsTextualPipeline(llvm::errs());
-  // llvm::errs() << '\n';
-  // op->dump();
-
   moduleOp.walk([&](ONNXConstantOp constOp) {
     if (auto attr = constOp.value())
       if (auto elements = attr->dyn_cast<DenseResourceElementsAttr>()) {
