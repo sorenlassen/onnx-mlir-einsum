@@ -22,6 +22,10 @@ void initOMPasses(int optLevel) {
   // function to make themselves available as a command-line option.
 
   mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
+    return createScrubDisposablePass();
+  });
+
+  mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
     return createScrubResourcesPass();
   });
 
