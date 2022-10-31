@@ -56,6 +56,11 @@ ArrayRef<Dst> asArrayRef(StringRef s) {
       reinterpret_cast<const Dst *>(s.data()), s.size() / sizeof(Dst));
 }
 
+template <typename Dst = char>
+ArrayRef<Dst> asArrayRef(const llvm::MemoryBuffer &b) {
+  return asArrayRef<Dst>(b.getBuffer());
+}
+
 template <typename T>
 std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
   StringRef s(
@@ -65,20 +70,53 @@ std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
 }
 
 class Test {
-  std::unique_ptr<MLIRContext> ctx;
+  MLIRContext *ctx;
   Location loc;
   OpBuilder builder;
+  DisposablePool &disposablePool;
   Type F32;
   Type I32;
 
 public:
-  Test() : ctx(createCtx()), loc(UnknownLoc::get(&*ctx)), builder(&*ctx) {
+  Test()
+      : ctx(createCtx()), loc(UnknownLoc::get(ctx)), builder(ctx),
+        disposablePool(DisposablePool::create(ctx)) {
     F32 = builder.getF32Type();
     I32 = builder.getI32Type();
   }
+  ~Test() { delete ctx; }
 
   Type getUInt(unsigned width) const {
-    return IntegerType::get(ctx.get(), width, IntegerType::Unsigned);
+    return IntegerType::get(ctx, width, IntegerType::Unsigned);
+  }
+
+  int test_DisposablePool() {
+    llvm::errs() << "test_DisposablePool:\n";
+    ShapedType type = RankedTensorType::get({1}, getUInt(1));
+    auto dispo = disposablePool.createElementsAttr(type, buffer<bool>({true}));
+    assert(dispo.isSplat());
+    return 0;
+  }
+
+  int test_makeDense() {
+    llvm::errs() << "test_makeDense:\n";
+    ShapedType type = RankedTensorType::get({2}, builder.getF32Type());
+    auto b = buffer<float>({42.0f, 42.0f});
+
+    auto eCopy = makeDenseIntOrFPElementsAttrFromRawBuffer(
+        type, asArrayRef(*b), /*mustCopy=*/true);
+    llvm::errs() << "eCopy " << eCopy << "\n";
+    assert(eCopy.isa<DisposableElementsAttr>());
+    auto dCopy = eCopy.cast<DisposableElementsAttr>();
+    assert(dCopy.getBuffer()->getBuffer().data() != b->getBuffer().data());
+
+    auto e = makeDenseIntOrFPElementsAttrFromRawBuffer(
+        type, asArrayRef(*b), /*mustCopy=*/false);
+    assert(e.isa<DisposableElementsAttr>());
+    auto d = e.cast<DisposableElementsAttr>();
+    assert(d.getBuffer()->getBuffer().data() == b->getBuffer().data());
+
+    return 0;
   }
 
   int test_splat() {
@@ -162,15 +200,6 @@ public:
     return 0;
   }
 
-  int test_DisposablePool() {
-    llvm::errs() << "test_DisposablePool:\n";
-    auto &pool = DisposablePool::create(ctx.get());
-    ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    auto dispo = pool.createElementsAttr(type, buffer<bool>({true}));
-    assert(dispo.isSplat());
-    return 0;
-  }
-
   int test_attributes() {
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
@@ -245,10 +274,11 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_DisposablePool();
+  failures += test.test_makeDense();
   failures += test.test_splat();
   failures += test.test_f16();
   failures += test.test_bool();
-  failures += test.test_DisposablePool();
   failures += test.test_attributes();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
