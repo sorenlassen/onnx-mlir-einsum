@@ -229,7 +229,7 @@ template <DType DTYPE>
 using CTypeOf = typename DTypeTrait<DTYPE>::type;
 
 template <typename TY>
-DType dtypeOf() {
+constexpr DType dtypeOf() {
   return CTypeTrait<TY>::dtype;
 }
 
