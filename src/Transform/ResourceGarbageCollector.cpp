@@ -13,11 +13,9 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/DialectResourceBlobManager.h"
 #include "mlir/Transforms/Passes.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include "src/Dialect/Mlir/ResourcePool.hpp"
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 
 using namespace mlir;
@@ -73,7 +71,6 @@ struct ScrubResourcesPass
     // Every DenseResourceElementsAttr has been replaced in moduleOp. Free
     // all their blobs by closing ResourcePool.
     getResourcePool()->close();
-    // TODO: similarly free every DisposableElementsAttr
   }
 
   ResourcePool *getResourcePool() {
