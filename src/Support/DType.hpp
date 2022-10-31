@@ -204,7 +204,9 @@ DEFINE_DTypeTrait(FLOAT, float);
 #undef DEFINE_DTypeTrait
 
 template <typename>
-struct CppTypeTrait { static constexpr unsigned width = UINT_MAX; };
+struct CppTypeTrait {
+  static constexpr unsigned width = UINT_MAX;
+};
 template <>
 struct CppTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
 template <>
@@ -433,7 +435,8 @@ union IntOrFP { // TODO rename to WideIntOrFP
     return toAPInt(tag.cast<mlir::IntegerType>());
   }
   template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(mlir::Type tag) const {
+  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(
+      mlir::Type tag) const {
     return toAPFloat(tag.cast<mlir::FloatType>());
   }
 
@@ -541,8 +544,9 @@ std::enable_if_t<std::is_same_v<Dst, llvm::APFloat>, llvm::APFloat> fromCppTo(DT
 template <typename Dst, typename T>
 std::enable_if_t<std::is_same_v<Dst, llvm::APInt>, llvm::APInt> fromCppTo(DType srctag, T src) {
   switch (srctag) {
-#define DEFINE_fromCppTo_case(DT)                                          \
-  case DType::DT: return fromCppToAPInt<DType::DT>(src)
+#define DEFINE_fromCppTo_case(DT)                                              \
+  case DType::DT:                                                              \
+    return fromCppToAPInt<DType::DT>(src)
 
   DEFINE_fromCppTo_case(BOOL);
   DEFINE_fromCppTo_case(INT8);

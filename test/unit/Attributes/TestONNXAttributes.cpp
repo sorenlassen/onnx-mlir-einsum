@@ -92,6 +92,11 @@ public:
 
   int test_DType() {
     llvm::errs() << "test_DType:\n";
+    uint64_t u;
+    int8_t i = -128;
+    u = i;
+    llvm::errs() << "-128i8 as u64 " << u << "\n";
+    llvm::errs() << "static_cast<u64>(-128i8) " << static_cast<uint64_t>(i) << "\n";
     assert(CppTypeTrait<float>::is_float);
     return 0;
   }

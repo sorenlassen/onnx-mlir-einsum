@@ -83,6 +83,7 @@ llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
 
 llvm::APInt IntOrFP::toAPInt(mlir::IntegerType itag) const {
   if (itag.isSigned())
+    // Actually, isSigned flag is ignored becuase width <= 64.
     return llvm::APInt(itag.getWidth(), i64, /*isSigned=*/true);
   else
     return llvm::APInt(itag.getWidth(), u64);
