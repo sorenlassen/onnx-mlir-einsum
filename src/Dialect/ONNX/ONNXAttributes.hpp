@@ -156,8 +156,8 @@ namespace detail {
 template <typename DTyTrait, typename... Args>
 struct CopyIntOrFP {
   using X = typename DTyTrait::type;
-  static void eval(StringRef s, size_t pos, char *dst,
-      const ElementsTransform &transform) {
+  static void eval(
+      StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
     *reinterpret_cast<X *>(dst) =
         transform ? transform(s, pos).to<X>(DTyTrait::dtype)
                   : reinterpret_cast<const X *>(s.data())[pos];
@@ -447,15 +447,14 @@ public:
     int64_t numBufferElements = s.size() / bytewidth;
     if (transform || numBufferElements != numElements) {
       // llvm::errs() << "getRawBuffer indirect\n";
+      const auto &transform = getTransform();
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(numElements * bytewidth);
       // TODO: run over every pos and flatIndex, using shape and strides
-      {
-        size_t pos = 0;
-        size_t flatIndex = 0;
-        detail::copyIntOrFP(elementType, s, pos,
-            vec.data() + flatIndex * bytewidth, getTransform());
-      }
+      traverse(type, getStrides(), [&](size_t pos, size_t flatIndex) {
+        detail::copyIntOrFP(
+            elementType, s, pos, vec.data() + flatIndex * bytewidth, transform);
+      });
       return onnx_mlir::RawBuffer(std::move(vec));
     } else {
       // llvm::errs() << "getRawBuffer direct\n";
@@ -464,6 +463,24 @@ public:
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
+  template <typename Act>
+  size_t traverse(ShapedType type, ArrayRef<int64_t> strides, const Act &act,
+      int64_t axis = 0, size_t offset = 0, size_t flatIndex = 0) const {
+    ArrayRef<int64_t> shape = type.getShape();
+    int64_t rank = shape.size();
+    if (axis == rank) {
+      act(offset, flatIndex);
+      return flatIndex + 1;
+    }
+    int64_t skip = rank - strides.size();
+    size_t stride = axis < skip ? 0 : strides[axis - skip];
+    size_t dimSize = shape[axis];
+    for (size_t pos = offset, idx = 0; idx < dimSize; ++idx, pos += stride) {
+      flatIndex = traverse(type, strides, act, axis + 1, pos, flatIndex);
+    }
+    return flatIndex;
+  }
+
   template <typename X>
   DenseElementsAttr toDenseElementsAttrByType() const {
     if (isSplat())
