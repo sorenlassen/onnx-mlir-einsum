@@ -39,14 +39,14 @@ private:
 };
 
 mlir::ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
-    mlir::ShapedType type, llvm::ArrayRef<char> bytes);
+    mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
 
 template <typename NumericType>
 mlir::ElementsAttr makeDenseIntOrFPElementsAttr(
-    mlir::ShapedType type, llvm::ArrayRef<NumericType> numbers) {
+    mlir::ShapedType type, llvm::ArrayRef<NumericType> numbers, bool mustCopy) {
   llvm::ArrayRef<char> bytes(reinterpret_cast<const char *>(numbers.data()),
       numbers.size() * sizeof(NumericType));
-  return makeDenseIntOrFPElementsAttrFromRawBuffer(type, bytes);
+  return makeDenseIntOrFPElementsAttrFromRawBuffer(type, bytes, mustCopy);
 }
 
 typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)>
