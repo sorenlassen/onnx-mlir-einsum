@@ -37,27 +37,15 @@ void ResourceGarbageCollector::runAfterPass(Pass *pass, Operation *op) {
   // op->dump();
 
   moduleOp.walk([&](ONNXConstantOp constOp) {
-    assert(constOp->getAttrs().size() == 1);
-    if (constOp.sparse_value())
-      return;
-    auto elements = constOp.valueAttr().cast<ElementsAttr>();
-    if (elements.isa<DenseElementsAttr>())
-      return;
-    if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>()) {
-      DenseResourceElementsHandle r = denseResrc.getRawHandle();
-      auto insertion = reachableResources.insert(r);
-      if (!insertion.second)
-        llvm::errs() << "ResourceGarbageCollector::runAfterPass encountered "
-                        "the same dense resource twice "
-                     << denseResrc << "\n";
-      return;
-    }
-    if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
-      // llvm::errs() << "ResourceGarbageCollector::runAfterPass "
-      //     "TODO: dispose DisposableAttributeResource " << disposable << "\n";
-      return;
-    }
-    llvm_unreachable("unexpectected ElementsAttr");
+    if (auto attr = constOp.value())
+      if (auto elements = attr->dyn_cast<DenseResourceElementsAttr>()) {
+        DenseResourceElementsHandle r = elements.getRawHandle();
+        auto insertion = reachableResources.insert(r);
+        if (!insertion.second)
+          llvm::errs() << "ResourceGarbageCollector::runAfterPass encountered "
+                          "the same dense resource twice "
+                      << elements << "\n";
+      }
   });
   resourcePool.garbageCollect(reachableResources);
 }
@@ -75,17 +63,12 @@ struct ScrubResourcesPass
   void runOnOperation() final {
     ModuleOp moduleOp = getOperation();
     moduleOp.walk([&](ONNXConstantOp constOp) {
-      assert(constOp->getAttrs().size() == 1);
-      if (constOp.sparse_value())
-        return;
-      auto elements = constOp.valueAttr().cast<ElementsAttr>();
-      if (elements.isa<DenseElementsAttr>())
-        return;
-      assert(
-          (elements.isa<DenseResourceElementsAttr, DisposableElementsAttr>()));
-      RawBuffer rawBuffer = getDenseIntOrFPRawData(elements);
-      constOp.valueAttr(DenseElementsAttr::getFromRawBuffer(
-          elements.getType(), rawBuffer.get()));
+      if (auto attr = constOp.value())
+        if (auto elements = attr->dyn_cast<DenseResourceElementsAttr>()) {
+          RawBuffer rawBuffer = getDenseIntOrFPRawData(elements);
+          constOp.valueAttr(DenseElementsAttr::getFromRawBuffer(
+              elements.getType(), rawBuffer.get()));
+        }
     });
     // Every DenseResourceElementsAttr has been replaced in moduleOp. Free
     // all their blobs by closing ResourcePool.
