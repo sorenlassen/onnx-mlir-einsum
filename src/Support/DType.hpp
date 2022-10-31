@@ -249,15 +249,15 @@ struct dispatchInt {
   template <typename... Ts>
   static Out eval(DType dtype, Ts... xs) {
     switch (dtype) {
-      case DType::BOOL  : return ACT(BOOL);
-      case DType::INT8  : return ACT(INT8);
-      case DType::UINT8 : return ACT(UINT8);
-      case DType::INT16 : return ACT(INT16);
-      case DType::UINT16: return ACT(UINT16);
-      case DType::INT32 : return ACT(INT32);
-      case DType::UINT32: return ACT(UINT32);
-      case DType::INT64 : return ACT(INT64);
-      case DType::UINT64: return ACT(UINT64);
+      case DType::BOOL   : return ACT(BOOL);
+      case DType::INT8   : return ACT(INT8);
+      case DType::UINT8  : return ACT(UINT8);
+      case DType::INT16  : return ACT(INT16);
+      case DType::UINT16 : return ACT(UINT16);
+      case DType::INT32  : return ACT(INT32);
+      case DType::UINT32 : return ACT(UINT32);
+      case DType::INT64  : return ACT(INT64);
+      case DType::UINT64 : return ACT(UINT64);
       default: llvm_unreachable("not a supported integer type");
     }
   }
@@ -285,10 +285,10 @@ struct dispatchFPOr {
   template <typename... Ts>
   static Out eval(DType dtype, Ts... xs) {
     switch (dtype) {
-      case DType::DOUBLE  : return ACT(DOUBLE);
-      case DType::FLOAT   : return ACT(FLOAT);
-      case DType::FLOAT16 : return ACT(FLOAT16);
-      case DType::BFLOAT16: return ACT(BFLOAT16);
+      case DType::DOUBLE   : return ACT(DOUBLE);
+      case DType::FLOAT    : return ACT(FLOAT);
+      case DType::FLOAT16  : return ACT(FLOAT16);
+      case DType::BFLOAT16 : return ACT(BFLOAT16);
       default: return Alt::eval(dtype, xs...);
     }
   }
