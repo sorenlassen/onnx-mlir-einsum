@@ -337,7 +337,7 @@ using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
-inline unsigned bytewidthOfIntOrFPType(mlir::Type t) {
+inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 

@@ -320,7 +320,7 @@ public:
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       onnx_mlir::DType dtype, Buffer buffer,
       ElementsTransform transform = nullptr) {
-    unsigned w = onnx_mlir::bytewidthOfIntOrFPType(type.getElementType());
+    unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
     assert(buffer->getBufferSize() % w == 0);
     int64_t numBufferElements = buffer->getBufferSize() / w;
     assert(!detail::isSplat(strides) || numBufferElements == 1);
@@ -433,7 +433,7 @@ public:
 
   onnx_mlir::RawBuffer getRawBuffer() const {
     Type elementType = getElementType();
-    unsigned bytewidth = onnx_mlir::bytewidthOfIntOrFPType(elementType);
+    unsigned bytewidth = onnx_mlir::getIntOrFloatByteWidth(elementType);
     StringRef s = getBuffer()->getBuffer();
     const auto &transform = getTransform();
     if (isSplat()) {

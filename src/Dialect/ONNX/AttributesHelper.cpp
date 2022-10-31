@@ -49,7 +49,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
   // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type << ","
   // << bytes.size() << "\n";
-  size_t bytewidth = bytewidthOfIntOrFPType(type.getElementType());
+  size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
 #if 1
@@ -87,7 +87,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
 ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     ShapedType type, FillDenseRawBufferFn fill) {
   size_t size =
-      type.getNumElements() * bytewidthOfIntOrFPType(type.getElementType());
+      type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
   // llvm::errs() << "makeDenseIntOrFPElementsAttrWithRawBuffer " << type << ","
   // << size << "\n";
 #if 1
@@ -120,7 +120,7 @@ RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
     ArrayRef<char> raw = dense.getRawData();
     // raw is either a single splat value or a whole array.
     ShapedType type = elements.getType();
-    size_t w = bytewidthOfIntOrFPType(type.getElementType());
+    size_t w = getIntOrFloatByteWidth(type.getElementType());
     if (dense.isSplat()) {
       assert(raw.size() == w);
     } else {
