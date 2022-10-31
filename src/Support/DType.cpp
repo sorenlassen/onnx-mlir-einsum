@@ -10,6 +10,7 @@
 
 #include "src/Support/DType.hpp"
 
+#include "mlir/IR/Builders.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
@@ -26,7 +27,7 @@ uint64_t detail::bitcastAPFloat(
   return i.getZExtValue();
 }
 
-DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
+DType dtypeOfMlirType(mlir::Type type) {
   // clang-format off
   if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
   if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
@@ -41,6 +42,29 @@ DType fromIntOrFPMlirTypeToDType(mlir::Type type) {
     case 64: return itype.isUnsigned() ? DType::UINT64 : DType::INT64;
   }
   llvm_unreachable("unsupported int or float type");
+  // clang-format on
+}
+
+mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx) {
+  bool isSigned = true, isUnsigned = false;
+  mlir::Builder b(ctx);
+  // clang-format off
+  switch (dtype) {
+    case DType::BOOL     : return b.getI1Type();
+    case DType::INT8     : return b.getIntegerType(8, isSigned);
+    case DType::UINT8    : return b.getIntegerType(8, isUnsigned);
+    case DType::INT16    : return b.getIntegerType(16, isSigned);
+    case DType::UINT16   : return b.getIntegerType(16, isUnsigned);
+    case DType::INT32    : return b.getIntegerType(32, isSigned);
+    case DType::UINT32   : return b.getIntegerType(32, isUnsigned);
+    case DType::INT64    : return b.getIntegerType(64, isSigned);
+    case DType::UINT64   : return b.getIntegerType(64, isUnsigned);
+    case DType::DOUBLE   : return b.getF64Type();
+    case DType::FLOAT    : return b.getF32Type();
+    case DType::FLOAT16  : return b.getF16Type();
+    case DType::BFLOAT16 : return b.getBF16Type();
+    default: llvm_unreachable("unsupported data type");
+  }
   // clang-format on
 }
 

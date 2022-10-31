@@ -147,11 +147,6 @@ enum class DType : int {
   // clang-format on
 };
 
-using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
-    int32_t, uint32_t, int64_t, uint64_t, double, float, float_16, bfloat_16>;
-
-DType fromIntOrFPMlirTypeToDType(mlir::Type type);
-
 template <DType DTYPE>
 struct DTypeTrait {
   static constexpr DType dtype = DTYPE;
@@ -202,33 +197,50 @@ DEFINE_DTypeTrait(DOUBLE, double);
 DEFINE_DTypeTrait(FLOAT, float);
 
 template <typename>
-struct CppTypeTrait {};
+struct CTypeTrait {};
 template <>
-struct CppTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
+struct CTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
 template <>
-struct CppTypeTrait<int8_t> : public DTypeTrait<DType::INT8> {};
+struct CTypeTrait<int8_t> : public DTypeTrait<DType::INT8> {};
 template <>
-struct CppTypeTrait<uint8_t> : public DTypeTrait<DType::UINT8> {};
+struct CTypeTrait<uint8_t> : public DTypeTrait<DType::UINT8> {};
 template <>
-struct CppTypeTrait<int16_t> : public DTypeTrait<DType::INT16> {};
+struct CTypeTrait<int16_t> : public DTypeTrait<DType::INT16> {};
 template <>
-struct CppTypeTrait<uint16_t> : public DTypeTrait<DType::UINT16> {};
+struct CTypeTrait<uint16_t> : public DTypeTrait<DType::UINT16> {};
 template <>
-struct CppTypeTrait<int32_t> : public DTypeTrait<DType::INT32> {};
+struct CTypeTrait<int32_t> : public DTypeTrait<DType::INT32> {};
 template <>
-struct CppTypeTrait<uint32_t> : public DTypeTrait<DType::UINT32> {};
+struct CTypeTrait<uint32_t> : public DTypeTrait<DType::UINT32> {};
 template <>
-struct CppTypeTrait<int64_t> : public DTypeTrait<DType::INT64> {};
+struct CTypeTrait<int64_t> : public DTypeTrait<DType::INT64> {};
 template <>
-struct CppTypeTrait<uint64_t> : public DTypeTrait<DType::UINT64> {};
+struct CTypeTrait<uint64_t> : public DTypeTrait<DType::UINT64> {};
 template <>
-struct CppTypeTrait<double> : public DTypeTrait<DType::DOUBLE> {};
+struct CTypeTrait<double> : public DTypeTrait<DType::DOUBLE> {};
 template <>
-struct CppTypeTrait<float> : public DTypeTrait<DType::FLOAT> {};
+struct CTypeTrait<float> : public DTypeTrait<DType::FLOAT> {};
 template <>
-struct CppTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
+struct CTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
 template <>
-struct CppTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
+struct CTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
+
+template <DType DTYPE>
+using CTypeOf = typename DTypeTrait<DTYPE>::type;
+
+template <typename TY>
+DType dtypeOf() {
+  return CTypeTrait<TY>::dtype;
+}
+
+DType dtypeOfMlirType(mlir::Type type);
+
+mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
+
+template <typename TY>
+mlir::Type mlirTypeOfCType(mlir::MLIRContext *ctx) {
+  return mlirTypeOfDType(dtypeOf<TY>(), ctx);
+}
 
 template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
@@ -330,7 +342,7 @@ void fillOrTransform(
 }
 
 template <typename U>
-using onlyFP = std::enable_if_t<CppTypeTrait<U>::is_float>;
+using onlyFP = std::enable_if_t<CTypeTrait<U>::is_float>;
 
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
@@ -426,7 +438,7 @@ union IntOrFP {
 
 template <typename T>
 constexpr bool isIntOrFPConvertible() {
-  return CppTypeTrait<T>::width <= 64;
+  return CTypeTrait<T>::width <= 64;
 }
 
 template <>
