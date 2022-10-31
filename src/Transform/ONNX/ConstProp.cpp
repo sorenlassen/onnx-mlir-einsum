@@ -273,22 +273,22 @@ struct ElementWiseBinaryOpImpl {
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXAddOp, U, notBool<U>> {
+struct ElementWiseBinaryOpImpl<ONNXAddOp, U, CheckNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs + rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXSubOp, U, notBool<U>> {
+struct ElementWiseBinaryOpImpl<ONNXSubOp, U, CheckNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs - rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXMulOp, U, notBool<U>> {
+struct ElementWiseBinaryOpImpl<ONNXMulOp, U, CheckNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs * rhs; }
 };
 
 template <typename U>
-struct ElementWiseBinaryOpImpl<ONNXDivOp, U, notBool<U>> {
+struct ElementWiseBinaryOpImpl<ONNXDivOp, U, CheckNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs / rhs; }
 };
 
@@ -405,17 +405,17 @@ struct ElementWiseUnaryOpImpl {
 };
 
 template <typename U>
-struct ElementWiseUnaryOpImpl<ONNXSqrtOp, U, onlyFP<U>> {
+struct ElementWiseUnaryOpImpl<ONNXSqrtOp, U, CheckFloat<U>> {
   static U impl(U val) { return sqrt(val); }
 };
 
 template <typename U>
-struct ElementWiseUnaryOpImpl<ONNXNegOp, U, notBool<U>> {
+struct ElementWiseUnaryOpImpl<ONNXNegOp, U, CheckNotBool<U>> {
   static U impl(U val) { return -val; }
 };
 
 template <typename U>
-struct ElementWiseUnaryOpImpl<ONNXReluOp, U, notBool<U>> {
+struct ElementWiseUnaryOpImpl<ONNXReluOp, U, CheckNotBool<U>> {
   static U impl(U val) { return val < 0 ? 0 : val; }
 };
 

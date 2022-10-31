@@ -116,7 +116,7 @@ using toArithmetic = std::conditional_t<std::is_arithmetic_v<T>, T, float>;
 // and DType and onnx::TensorProto::DataType can be used interchangeably.
 // In some places it is convenient to use DType to avoid compile time
 // dependencies on third_party/onnx.
-enum class DType : int {
+enum class DType : int8_t {
   // clang-format off
   UNDEFINED = 0,
   // Basic types.
@@ -160,10 +160,12 @@ struct DTypeTraitBase {
   static constexpr bool is_signed_int =
       std::is_integral_v<TY> && std::is_signed_v<TY>;
   static constexpr bool is_unsigned_int =
-      std::is_integral_v<TY> && !std::is_integral_v<TY>;
+      std::is_integral_v<TY> && !std::is_signed_v<TY>;
   static constexpr unsigned width =
       std::is_same_v<TY, bool> ? 1 : (8 * sizeof(TY));
   using type = TY;
+  using widetype = std::conditional_t<is_float, double,
+      std::conditional_t<is_signed_int, int64_t, uint64_t>>;
 };
 } // namespace detail
 
@@ -171,18 +173,20 @@ template <>
 struct DTypeTrait<DType::FLOAT16>
     : public detail::DTypeTraitBase<DType::FLOAT16, float_16> {
   static constexpr bool is_float = true;
+  using widetype = double;
 };
 
 template <>
 struct DTypeTrait<DType::BFLOAT16>
     : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16> {
   static constexpr bool is_float = true;
+  using widetype = double;
 };
 
-#define DEFINE_DTypeTrait(TY, CPPTY)                                           \
+#define DEFINE_DTypeTrait(DT, TY)                                              \
   template <>                                                                  \
-  struct DTypeTrait<DType::TY>                                                 \
-      : public detail::DTypeTraitBase<DType::TY, CPPTY> {};
+  struct DTypeTrait<DType::DT>                                                 \
+      : public detail::DTypeTraitBase<DType::DT, TY> {};
 
 DEFINE_DTypeTrait(BOOL, bool);
 DEFINE_DTypeTrait(INT8, int8_t);
@@ -240,6 +244,10 @@ mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
 template <typename TY>
 mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<TY>(), ctx);
+}
+
+inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
+  return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 
 template <template <typename, typename...> class Action>
@@ -340,38 +348,92 @@ void fillOrTransform(
 }
 
 template <typename U>
-using onlyFP = std::enable_if_t<CppTypeTrait<U>::is_float>;
+using CheckFloat = std::enable_if_t<CppTypeTrait<U>::is_float>;
 
 template <typename U>
-using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
+using CheckSignedInt = std::enable_if_t<CppTypeTrait<U>::is_signed_int>;
 
-inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
-  return (t.getIntOrFloatBitWidth() + 7) / 8;
-}
+template <typename U>
+using CheckUnsignedInt = std::enable_if_t<CppTypeTrait<U>::is_unsigned_int>;
+
+template <typename U>
+using CheckNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
 // Union of 64-bit integers and double precision floating point numbers.
 // It is tagless and should always be used in a conjunction
 // with an mlir Type which is either an IntegerType or FloatType.
 // The type tags which field of the union is populated:
 // dbl if FloatType, i64 or u64 if IntegerType and isSigned() or not.
-union IntOrFP {
+union IntOrFP { // TODO rename to WideIntOrFP
   double dbl;   // Floating point numbers with precision and range up to double.
   int64_t i64;  // Signed ints up to bitwidth 64.
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
 
+  template <typename T, typename = CheckFloat<T>>
+  constexpr double cast() const {
+    return static_cast<T>(dbl);
+  }
+  template <typename T, typename = CheckSignedInt<T>>
+  constexpr int64_t cast() const {
+    return i64;
+  }
+  template <typename T, typename = CheckUnsignedInt<T>>
+  constexpr uint64_t cast() const {
+    return u64;
+  }
+
+#if 0
+  template <typename T, typename = CheckFloat<T>>
+  static constexpr IntOrFP cast(T d) { return {.dbl = static_cast<T>(d)}; }
+  template <typename T, typename = CheckSignedInt<T>>
+  static constexpr IntOrFP cast(T i) { return {.i64 = static_cast<T>(i)}; }
+  template <typename T, typename = CheckUnsignedInt<T>>
+  static constexpr IntOrFP cast(T u) { return {.u64 = static_cast<T>(u)}; }
+#else
+  static constexpr IntOrFP from(double d) { return {.dbl = d}; }
+  static constexpr IntOrFP from(int64_t i) { return {.i64 = i}; }
+  static constexpr IntOrFP from(uint64_t u) { return {.u64 = u}; }
+#endif
+
   llvm::APInt toAPInt(mlir::IntegerType itag) const;
   llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
 
-  template <typename T>
-  T toInt(mlir::IntegerType itag) const {
-    assert(itag.getWidth() <= 64);
-    return itag.isSigned() ? static_cast<T>(i64) : static_cast<T>(u64);
+  template <DType DTYPE>
+  constexpr typename DTypeTrait<DTYPE>::widetype as() const {
+    using Trait = DTypeTrait<DTYPE>;
+    if (Trait::is_float)
+      return dbl;
+    if (Trait::is_signed_int)
+      return i64;
+    if (Trait::is_unsigned_int)
+      return u64;
+    llvm_unreachable("unsupported dtype");
   }
 
   template <typename T>
-  T toFP(mlir::Type tag) const {
-    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return static_cast<T>(dbl);
+  constexpr std::enable_if_t<
+      !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
+  to(DType dtag) const {
+    switch (dtag) {
+    case DType::BOOL:
+    case DType::UINT8:
+    case DType::UINT16:
+    case DType::UINT32:
+    case DType::UINT64:
+      return static_cast<T>(u64);
+    case DType::INT8:
+    case DType::INT16:
+    case DType::INT32:
+    case DType::INT64:
+      return static_cast<T>(u64);
+    case DType::DOUBLE:
+    case DType::FLOAT:
+    case DType::FLOAT16:
+    case DType::BFLOAT16:
+      return static_cast<T>(dbl);
+    default:
+      llvm_unreachable("unsupported dtype");
+    }
   }
 
   template <typename T>
@@ -379,9 +441,7 @@ union IntOrFP {
       !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
   to(mlir::Type tag) const {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    if (auto itag = tag.dyn_cast<mlir::IntegerType>())
-      return toInt<T>(itag);
-    return toFP<T>(tag);
+    return to<T>(dtypeOfMlirType(tag));
   }
   template <typename T>
   std::enable_if_t<std::is_same_v<T, llvm::APInt>, T> to(mlir::Type tag) const {

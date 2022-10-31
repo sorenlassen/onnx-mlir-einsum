@@ -90,6 +90,35 @@ public:
     return IntegerType::get(ctx, width, IntegerType::Unsigned);
   }
 
+  int test_DType() {
+    llvm::errs() << "test_DType:\n";
+    assert(CppTypeTrait<float>::is_float);
+    return 0;
+  }
+
+  int test_IntOrFP() {
+    llvm::errs() << "test_IntOrFP:\n";
+    constexpr IntOrFP nf = IntOrFP::from(42.0);
+    llvm::errs() << "nf " << nf.cast<double>() << "\n";
+    constexpr int64_t i = 42;
+    constexpr IntOrFP ni = IntOrFP::from(i);
+    llvm::errs() << "ni " << ni.cast<int64_t>() << "\n";
+    constexpr uint64_t u = 42;
+    constexpr IntOrFP nu = IntOrFP::from(u);
+    llvm::errs() << "nu " << nu.cast<uint64_t>() << "\n";
+    constexpr bool b = true;
+    constexpr IntOrFP nb = IntOrFP::from(static_cast<uint64_t>(b));
+    constexpr bool b1 = nb.cast<bool>();
+    constexpr bool b2 = nb.as<DType::BOOL>();
+    constexpr bool b3 = nb.to<bool>(DType::BOOL);
+    bool b4 = nb.to<bool>(getUInt(1));
+    llvm::errs() << "b1 " << b1 << "\n";
+    llvm::errs() << "b2 " << b2 << "\n";
+    llvm::errs() << "b3 " << b3 << "\n";
+    llvm::errs() << "b4 " << b4 << "\n";
+    return 0;
+  }
+
   int test_DisposablePool() {
     llvm::errs() << "test_DisposablePool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
@@ -274,6 +303,8 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_DType();
+  failures += test.test_IntOrFP();
   failures += test.test_DisposablePool();
   failures += test.test_makeDense();
   failures += test.test_splat();
