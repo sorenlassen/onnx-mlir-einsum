@@ -114,10 +114,10 @@ RawBuffer getDenseIntOrFPRawDataFromConstOp(
     bufferPtrs.push_back(res);
     Type elementType = type.getElementType();
     if (elementType.isa<FloatType>()) {
-      dispatchFP<CastIntsOrFPs<double>::template Cast, void>::eval(
+      dispatchFP<CastIntsOrFPs<double>::template Cast>::eval(
           elementType, src, res);
     } else if (elementType.isa<IntegerType>()) {
-      dispatchInt<CastIntsOrFPs<int64_t>::template Cast, void>::eval(
+      dispatchInt<CastIntsOrFPs<int64_t>::template Cast>::eval(
           elementType, src, res);
     } else {
       llvm_unreachable("Unknown data type");
@@ -383,10 +383,9 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       type, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<
-            ElementwiseBinary<ElementwiseBinaryOp>::template Compute,
-            void>::eval(elementType, lhsShape, lhs.get(), rhsShape, rhs.get(),
-            type.getShape(), dst);
+        dispatchFPOrInt<ElementwiseBinary<
+            ElementwiseBinaryOp>::template Compute>::eval(elementType, lhsShape,
+            lhs.get(), rhsShape, rhs.get(), type.getShape(), dst);
       });
 
   // Construct a new ONNXConstantOp.
@@ -454,8 +453,9 @@ Value ConstPropElementwiseUnary(
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       replacingType, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<ElementwiseUnary<ElementwiseUnaryOp>::template Compute,
-            void>::eval(elementType, src.get(), dst);
+        dispatchFPOrInt<ElementwiseUnary<
+            ElementwiseUnaryOp>::template Compute>::eval(elementType, src.get(),
+            dst);
       });
 
   // Construct a new ONNXConstantOp.
@@ -773,7 +773,7 @@ struct SrcDstCast {
 
   static void eval(
       Type dstType, ArrayRef<char> src, MutableArrayRef<char> dst) {
-    dispatchFPOrInt<DstCast, void>::eval(dstType, castArrayRef<S>(src), dst);
+    dispatchFPOrInt<DstCast>::eval(dstType, castArrayRef<S>(src), dst);
   }
 };
 
@@ -793,7 +793,7 @@ Value ConstPropCast(
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       dstType, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<SrcDstCast, void>::eval(
+        dispatchFPOrInt<SrcDstCast>::eval(
             srcElemType, dstElemType, src.get(), dst);
       });
 

@@ -165,7 +165,7 @@ struct CopyIntOrFP {
 };
 inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
-  return onnx_mlir::dispatchFPOrInt<CopyIntOrFP, void>::eval(
+  return onnx_mlir::dispatchFPOrInt<CopyIntOrFP>::eval(
       t, t, s, pos, dst, transform);
 }
 
@@ -179,8 +179,7 @@ struct ReadIntOrFP {
   }
 };
 inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
-  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP, onnx_mlir::IntOrFP>::eval(
-      t, t, s, pos);
+  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP>::eval(t, t, s, pos);
 }
 inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
     const ElementsTransform &transform) {

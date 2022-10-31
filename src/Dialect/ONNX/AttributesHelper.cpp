@@ -145,14 +145,14 @@ struct ReadIntsOrFPs {
 void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
   // llvm::errs() << "readDenseInts " << elements.getType() << "\n";
   RawBuffer src = getDenseIntOrFPRawData(elements);
-  dispatchInt<ReadIntsOrFPs<int64_t>::template Read, void>::eval(
+  dispatchInt<ReadIntsOrFPs<int64_t>::template Read>::eval(
       elements.getElementType(), src.get(), ints);
 }
 
 void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
   // llvm::errs() << "readDenseFPs " << elements.getType() << "\n";
   RawBuffer src = getDenseIntOrFPRawData(elements);
-  dispatchFP<ReadIntsOrFPs<double>::template Read, void>::eval(
+  dispatchFP<ReadIntsOrFPs<double>::template Read>::eval(
       elements.getElementType(), src.get(), fps);
 }
 

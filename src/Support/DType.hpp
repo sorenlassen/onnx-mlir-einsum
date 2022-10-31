@@ -242,12 +242,12 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<TY>(), ctx);
 }
 
-template <template <typename, typename...> class Action, typename Out>
+template <template <typename, typename...> class Action>
 struct dispatchInt {
 #define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
   // clang-format off
   template <typename... Ts>
-  static Out eval(DType dtype, Ts... xs) {
+  static auto eval(DType dtype, Ts... xs) {
     switch (dtype) {
       case DType::BOOL   : return ACT(BOOL);
       case DType::INT8   : return ACT(INT8);
@@ -262,7 +262,7 @@ struct dispatchInt {
     }
   }
   template <typename... Ts>
-  static Out eval(mlir::Type type, Ts... xs) {
+  static auto eval(mlir::Type type, Ts... xs) {
     auto itype = type.cast<mlir::IntegerType>();
     switch (itype.getWidth()) {
       case  1: return ACT(BOOL);
@@ -277,13 +277,12 @@ struct dispatchInt {
 #undef ACT
 };
 
-template <template <typename, typename...> class Action, typename Alt,
-    typename Out>
+template <template <typename, typename...> class Action, typename Alt>
 struct dispatchFPOr {
 #define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
   // clang-format off
   template <typename... Ts>
-  static Out eval(DType dtype, Ts... xs) {
+  static auto eval(DType dtype, Ts... xs) {
     switch (dtype) {
       case DType::DOUBLE   : return ACT(DOUBLE);
       case DType::FLOAT    : return ACT(FLOAT);
@@ -293,7 +292,7 @@ struct dispatchFPOr {
     }
   }
   template <typename... Ts>
-  static Out eval(mlir::Type type, Ts... xs) {
+  static auto eval(mlir::Type type, Ts... xs) {
     if (type.isa<mlir::Float64Type>())  return ACT(DOUBLE);
     if (type.isa<mlir::Float32Type>())  return ACT(FLOAT);
     if (type.isa<mlir::Float16Type>())  return ACT(FLOAT16);
@@ -304,19 +303,18 @@ struct dispatchFPOr {
 #undef ACT
 };
 
-template <typename Out>
 struct dispatchFail {
   template <typename T, typename... Ts>
-  static Out eval(T dtype, Ts... xs) {
+  static auto eval(T dtype, Ts... xs) {
     llvm_unreachable("unsupported type");
   }
 };
 
-template <template <typename, typename...> class Action, typename Out>
-using dispatchFP = dispatchFPOr<Action, dispatchFail<Out>, Out>;
+template <template <typename, typename...> class Action>
+using dispatchFP = dispatchFPOr<Action, dispatchFail>;
 
-template <template <typename, typename...> class Action, typename Out>
-using dispatchFPOrInt = dispatchFPOr<Action, dispatchInt<Action, Out>, Out>;
+template <template <typename, typename...> class Action>
+using dispatchFPOrInt = dispatchFPOr<Action, dispatchInt<Action>>;
 
 // Helper functions frequently used together with dispatch classes.
 
