@@ -152,23 +152,23 @@ using IntOrFPDTypes = std::tuple<bool, int8_t, uint8_t, int16_t, uint16_t,
 
 DType fromIntOrFPMlirTypeToDType(mlir::Type type);
 
-template <DType TY>
+template <DType DTYPE>
 struct DTypeTrait {
-  static constexpr DType dtype = TY;
+  static constexpr DType dtype = DTYPE;
 };
 
 namespace detail {
-template <DType DTYPE, typename ty>
+template <DType DTYPE, typename TY>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
-  static constexpr bool is_float = std::is_floating_point_v<ty>;
+  static constexpr bool is_float = std::is_floating_point_v<TY>;
   static constexpr bool is_signed_int =
-      std::is_integral_v<ty> && std::is_signed_v<ty>;
+      std::is_integral_v<TY> && std::is_signed_v<TY>;
   static constexpr bool is_unsigned_int =
-      std::is_integral_v<ty> && !std::is_integral_v<ty>;
+      std::is_integral_v<TY> && !std::is_integral_v<TY>;
   static constexpr unsigned width =
-      std::is_same_v<ty, bool> ? 1 : (8 * sizeof(ty));
-  using type = ty;
+      std::is_same_v<TY, bool> ? 1 : (8 * sizeof(TY));
+  using type = TY;
 };
 } // namespace detail
 
