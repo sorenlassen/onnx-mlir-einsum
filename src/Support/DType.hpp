@@ -488,17 +488,17 @@ constexpr bool isIntOrFPConvertible() {
   return CppTypeTrait<T>::width <= 64;
 }
 
+template <>
+constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
+  return true;
+}
+
+template <>
+constexpr bool isIntOrFPConvertible<llvm::APInt>() {
+  return true;
+}
+
 #if 0
-// template <>
-// constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
-//   return true;
-// }
-
-// template <>
-// constexpr bool isIntOrFPConvertible<llvm::APInt>() {
-//   return true;
-// }
-
 template <DType DTYPE>
 llvm::APInt fromCppToAPInt(typename DTypeTrait<DTYPE>::type src) {
   using Trait = DTypeTrait<DTYPE>;
