@@ -156,17 +156,17 @@ namespace detail {
 template <typename DTyTrait, typename... Args>
 struct CopyIntOrFP {
   using X = typename DTyTrait::type;
-  static void eval(Type t, StringRef s, size_t pos, char *dst,
+  static void eval(StringRef s, size_t pos, char *dst,
       const ElementsTransform &transform) {
     *reinterpret_cast<X *>(dst) =
-        transform ? transform(s, pos).to<X>(t)
+        transform ? transform(s, pos).to<X>(DTyTrait::dtype)
                   : reinterpret_cast<const X *>(s.data())[pos];
   }
 };
 inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
   return onnx_mlir::dispatchFPOrInt<CopyIntOrFP>::eval(
-      t, t, s, pos, dst, transform);
+      t, s, pos, dst, transform);
 }
 
 template <typename DTyTrait, typename... Args>
