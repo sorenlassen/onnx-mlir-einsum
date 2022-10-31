@@ -32,8 +32,10 @@
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
+#include "src/Compiler/DisposableGarbageCollector.hpp"
 #include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Transform/ResourceGarbageCollector.hpp"
 #include "src/Version/Version.hpp"
@@ -625,6 +627,9 @@ void registerDialects(mlir::MLIRContext &context) {
   context.getOrLoadDialect<mlir::ONNXDialect>();
   context.getOrLoadDialect<mlir::KrnlDialect>();
 
+#ifndef DISABLE_DISPOSABLE_POOL
+  DisposablePool::create(&context);
+#endif
 #ifndef DISABLE_RESOURCE_POOL
   ResourcePool::create(&context);
 #endif
@@ -950,8 +955,10 @@ int compileModule(mlir::OwningOpRef<ModuleOp> &module,
     return rc;
 
   mlir::PassManager pm(&context, mlir::OpPassManager::Nesting::Implicit);
-  ResourcePool *resourcePool = ResourcePool::get(&context);
-  if (resourcePool)
+  if (DisposablePool *disposablePool = DisposablePool::get(&context))
+    pm.addInstrumentation(
+        std::make_unique<DisposableGarbageCollector>(*disposablePool));
+  if (ResourcePool *resourcePool = ResourcePool::get(&context))
     pm.addInstrumentation(
         std::make_unique<ResourceGarbageCollector>(*resourcePool));
   // TODO(tung): Revise adding passes. The current mechanism does not work if

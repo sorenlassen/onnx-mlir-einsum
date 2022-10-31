@@ -33,9 +33,11 @@
 #include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
+#include "src/Compiler/DisposableGarbageCollector.hpp"
 #include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/InitMLIRPasses.hpp"
 #include "src/InitOMPasses.hpp"
@@ -192,6 +194,11 @@ int main(int argc, char **argv) {
   }
 
   auto passManagerSetupFn = [&](PassManager &pm) {
+#ifndef DISABLE_DISPOSABLE_POOL
+    DisposablePool &disposablePool = DisposablePool::create(pm.getContext());
+    pm.addInstrumentation(
+        std::make_unique<DisposableGarbageCollector>(disposablePool));
+#endif
 #ifndef DISABLE_RESOURCE_POOL
     ResourcePool &resourcePool = ResourcePool::create(pm.getContext());
     pm.addInstrumentation(

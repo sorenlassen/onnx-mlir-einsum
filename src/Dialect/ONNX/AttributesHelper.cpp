@@ -53,17 +53,19 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
   assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
 #if 1
-  std::unique_ptr<llvm::MemoryBuffer> buffer;
-  bool isSplat = splatterBuffer(type, bytes);
-  if (mustCopy) {
-    StringRef s(bytes.data(), isSplat ? bytewidth : bytes.size());
-    buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
-  } else {
-    StringRef s(bytes.data(), bytes.size());
-    buffer = llvm::MemoryBuffer::getMemBuffer(
-        s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
-  }
-  return DisposableElementsAttr::get(type, std::move(buffer));
+  if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
+      disposablePool && disposablePool->isActive()) {
+    std::unique_ptr<llvm::MemoryBuffer> buffer;
+    bool isSplat = splatterBuffer(type, bytes);
+    if (mustCopy) {
+      StringRef s(bytes.data(), isSplat ? bytewidth : bytes.size());
+      buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
+    } else {
+      StringRef s(bytes.data(), bytes.size());
+      buffer = llvm::MemoryBuffer::getMemBuffer(
+          s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
+    }
+    return disposablePool->createElementsAttr(type, std::move(buffer));
 #else
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
@@ -76,10 +78,10 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
+#endif
   } else {
     return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
-#endif
 }
 
 ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
@@ -89,10 +91,12 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
   // llvm::errs() << "makeDenseIntOrFPElementsAttrWithRawBuffer " << type << ","
   // << size << "\n";
 #if 1
-  std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
-      llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
-  fill(buffer->getBuffer());
-  return DisposableElementsAttr::get(type, std::move(buffer));
+  if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
+      disposablePool && disposablePool->isActive()) {
+    std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
+        llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
+    fill(buffer->getBuffer());
+    return disposablePool->createElementsAttr(type, std::move(buffer));
 #else
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
@@ -102,12 +106,12 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
+#endif
   } else {
     std::vector<char> bytes(size, 0);
     fill(bytes);
     return DenseElementsAttr::getFromRawBuffer(type, bytes);
   }
-#endif
 }
 
 RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
