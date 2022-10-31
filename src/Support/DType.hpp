@@ -330,9 +330,7 @@ void fillOrTransform(
 }
 
 template <typename U>
-using onlyFP = std::enable_if_t<std::is_floating_point_v<U> ||
-                                std::is_same_v<U, float_16> ||
-                                std::is_same_v<U, bfloat_16>>;
+using onlyFP = std::enable_if_t<CppTypeTrait<U>::is_float>;
 
 template <typename U>
 using notBool = std::enable_if_t<!std::is_same_v<U, bool>>;
