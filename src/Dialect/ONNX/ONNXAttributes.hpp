@@ -433,16 +433,15 @@ public:
   onnx_mlir::RawBuffer getRawBuffer() const {
     Type elementType = getElementType();
     unsigned bytewidth = onnx_mlir::bytewidthOfIntOrFPType(elementType);
+    StringRef s = getBuffer()->getBuffer();
+    const auto &transform = getTransform();
     if (isSplat()) {
       // llvm::errs() << "getRawBuffer isSplat\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(bytewidth);
-      detail::copyIntOrFP(
-          elementType, getBuffer()->getBuffer(), 0, vec.data(), getTransform());
+      detail::copyIntOrFP(elementType, s, 0, vec.data(), transform);
       return onnx_mlir::RawBuffer(std::move(vec));
     }
-    StringRef s = getBuffer()->getBuffer();
-    const auto &transform = getTransform();
     ShapedType type = getType();
     int64_t numElements = type.getNumElements();
     int64_t numBufferElements = s.size() / bytewidth;
