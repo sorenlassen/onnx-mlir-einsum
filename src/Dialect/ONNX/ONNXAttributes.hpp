@@ -172,14 +172,14 @@ inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
 template <typename DTyTrait, typename... Args>
 struct ReadIntOrFP {
   using X = typename DTyTrait::type;
-  static onnx_mlir::IntOrFP eval(Type t, StringRef s, size_t pos) {
+  static onnx_mlir::IntOrFP eval(StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
-    auto n = onnx_mlir::IntOrFP::from(t, x);
+    auto n = onnx_mlir::IntOrFP::from(DTyTrait::dtype, x);
     return n;
   }
 };
 inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
-  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP>::eval(t, t, s, pos);
+  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP>::eval(t, s, pos);
 }
 inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
     const ElementsTransform &transform) {
@@ -422,12 +422,12 @@ public:
   void printWithoutType(raw_ostream &os) const;
 
   // TODO: remove this or reimplement using getRawBuffer
-  // or
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
       return toDenseElementsAttrByType<APInt>();
     else
       return toDenseElementsAttrByType<APFloat>();
+    // llvm_unreachable("TODO implement toDenseElementsAttr\n");
   }
 
   onnx_mlir::RawBuffer getRawBuffer() const {
