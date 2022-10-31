@@ -37,6 +37,12 @@ std::ostream &operator<<(std::ostream &os, const ArrayRef<int64_t> &v) {
   os << ")";
   return os;
 }
+inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
+  return os << "APFloat(" << af.convertToDouble() << ")";
+}
+inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
+  return os << "IntOrFP(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
+}
 
 MLIRContext *createCtx() {
   MLIRContext *ctx = new MLIRContext();
@@ -96,7 +102,8 @@ public:
     int8_t i = -128;
     u = i;
     llvm::errs() << "-128i8 as u64 " << u << "\n";
-    llvm::errs() << "static_cast<u64>(-128i8) " << static_cast<uint64_t>(i) << "\n";
+    llvm::errs() << "static_cast<u64>(-128i8) " << static_cast<uint64_t>(i)
+                 << "\n";
     assert(CppTypeTrait<float>::is_float);
     return 0;
   }
@@ -104,21 +111,26 @@ public:
   int test_IntOrFP() {
     llvm::errs() << "test_IntOrFP:\n";
     constexpr IntOrFP nf = IntOrFP::from(DType::DOUBLE, 42.0);
-    llvm::errs() << "nf " << nf.cast<double>() << "\n";
-    constexpr int64_t i = 42;
+    llvm::errs() << "nf " << nf << "\n";
+    llvm::errs() << "nf as APFloat " << nf.to<APFloat>(builder.getF64Type())
+                 << "\n";
+    constexpr int64_t i = -42;
     constexpr IntOrFP ni = IntOrFP::from(DType::INT64, i);
-    llvm::errs() << "ni " << ni.cast<int64_t>() << "\n";
-    constexpr uint64_t u = 42;
+    llvm::errs() << "ni " << ni << "\n";
+    llvm::errs() << "ni as APInt " << ni.to<APInt>(builder.getI64Type())
+                 << "\n";
+    constexpr uint64_t u = 1ULL << 63;
     constexpr IntOrFP nu = IntOrFP::from(DType::UINT64, u);
-    llvm::errs() << "nu " << nu.cast<uint64_t>() << "\n";
+    llvm::errs() << "nu " << nu << "\n";
+    llvm::errs() << "nu as APInt " << nu.to<APInt>(getUInt(64)) << "\n";
     constexpr bool b = true;
     constexpr IntOrFP nb = IntOrFP::from(DType::UINT64, b);
-    constexpr bool b1 = nb.cast<bool>();
-    //constexpr bool b2 = nb.to<DType::BOOL>();
+    // constexpr bool b1 = nb.cast<bool>();
+    // constexpr bool b2 = nb.to<DType::BOOL>();
     constexpr bool b3 = nb.to<bool>(DType::BOOL);
     bool b4 = nb.to<bool>(getUInt(1));
-    llvm::errs() << "b1 " << b1 << "\n";
-    //llvm::errs() << "b2 " << b2 << "\n";
+    // llvm::errs() << "b1 " << b1 << "\n";
+    // llvm::errs() << "b2 " << b2 << "\n";
     llvm::errs() << "b3 " << b3 << "\n";
     llvm::errs() << "b4 " << b4 << "\n";
     return 0;
