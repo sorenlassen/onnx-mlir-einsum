@@ -341,21 +341,6 @@ inline unsigned bytewidthOfIntOrFPType(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 
-template <typename T>
-constexpr bool isIntOrFP(unsigned maxWidth) {
-  return CppTypeTrait<T>::width <= maxWidth;
-}
-
-template <>
-constexpr bool isIntOrFP<llvm::APFloat>(unsigned maxWidth) {
-  return true;
-}
-
-template <>
-constexpr bool isIntOrFP<llvm::APInt>(unsigned maxWidth) {
-  return true;
-}
-
 // Union of 64-bit integers and double precision floating point numbers.
 // It is tagless and should always be used in a conjunction
 // with an mlir Type which is either an IntegerType or FloatType.
@@ -440,5 +425,20 @@ union IntOrFP {
     return {.f64 = x.convertToDouble()};
   }
 };
+
+template <typename T>
+constexpr bool isIntOrFPConvertible() {
+  return CppTypeTrait<T>::width <= 64;
+}
+
+template <>
+constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
+  return true;
+}
+
+template <>
+constexpr bool isIntOrFPConvertible<llvm::APInt>() {
+  return true;
+}
 
 } // namespace onnx_mlir

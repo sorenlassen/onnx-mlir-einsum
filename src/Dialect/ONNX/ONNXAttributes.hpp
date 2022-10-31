@@ -391,7 +391,7 @@ public:
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
-  std::enable_if_t<onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
+  std::enable_if_t<onnx_mlir::isIntOrFPConvertible<X>(), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
     DisposableElementsAttributeStorage *s = this->getImpl();
     return detail::begin<X>(getNumElements(), [s](size_t flatIndex) -> X {
@@ -408,7 +408,8 @@ public:
 
   // TODO: support iteration over Attribute
   template <typename X>
-  std::enable_if_t<!onnx_mlir::isIntOrFP<X>(64), FailureOr<iterator<X>>>
+  std::enable_if_t<!onnx_mlir::isIntOrFPConvertible<X>(),
+      FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
     return failure();
   }
