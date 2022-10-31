@@ -353,16 +353,10 @@ void fillOrTransform(
 }
 
 template <typename U>
-using CheckFloat = std::enable_if_t<CppTypeTrait<U>::is_float>;
+using EnableFloat = std::enable_if_t<CppTypeTrait<U>::is_float>;
 
 template <typename U>
-using CheckSignedInt = std::enable_if_t<CppTypeTrait<U>::is_signed_int>;
-
-template <typename U>
-using CheckUnsignedInt = std::enable_if_t<CppTypeTrait<U>::is_unsigned_int>;
-
-template <typename U>
-using CheckNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
+using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
 // Union of 64-bit integers and double precision floating point numbers.
 // It is tagless and should always be used in a conjunction
