@@ -202,33 +202,33 @@ DEFINE_DTypeTrait(DOUBLE, double);
 DEFINE_DTypeTrait(FLOAT, float);
 
 template <typename>
-struct DTypeTraitByType {};
+struct CppTypeTrait {};
 template <>
-struct DTypeTraitByType<bool> : public DTypeTrait<DType::BOOL> {};
+struct CppTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
 template <>
-struct DTypeTraitByType<int8_t> : public DTypeTrait<DType::INT8> {};
+struct CppTypeTrait<int8_t> : public DTypeTrait<DType::INT8> {};
 template <>
-struct DTypeTraitByType<uint8_t> : public DTypeTrait<DType::UINT8> {};
+struct CppTypeTrait<uint8_t> : public DTypeTrait<DType::UINT8> {};
 template <>
-struct DTypeTraitByType<int16_t> : public DTypeTrait<DType::INT16> {};
+struct CppTypeTrait<int16_t> : public DTypeTrait<DType::INT16> {};
 template <>
-struct DTypeTraitByType<uint16_t> : public DTypeTrait<DType::UINT16> {};
+struct CppTypeTrait<uint16_t> : public DTypeTrait<DType::UINT16> {};
 template <>
-struct DTypeTraitByType<int32_t> : public DTypeTrait<DType::INT32> {};
+struct CppTypeTrait<int32_t> : public DTypeTrait<DType::INT32> {};
 template <>
-struct DTypeTraitByType<uint32_t> : public DTypeTrait<DType::UINT32> {};
+struct CppTypeTrait<uint32_t> : public DTypeTrait<DType::UINT32> {};
 template <>
-struct DTypeTraitByType<int64_t> : public DTypeTrait<DType::INT64> {};
+struct CppTypeTrait<int64_t> : public DTypeTrait<DType::INT64> {};
 template <>
-struct DTypeTraitByType<uint64_t> : public DTypeTrait<DType::UINT64> {};
+struct CppTypeTrait<uint64_t> : public DTypeTrait<DType::UINT64> {};
 template <>
-struct DTypeTraitByType<double> : public DTypeTrait<DType::DOUBLE> {};
+struct CppTypeTrait<double> : public DTypeTrait<DType::DOUBLE> {};
 template <>
-struct DTypeTraitByType<float> : public DTypeTrait<DType::FLOAT> {};
+struct CppTypeTrait<float> : public DTypeTrait<DType::FLOAT> {};
 template <>
-struct DTypeTraitByType<float_16> : public DTypeTrait<DType::FLOAT16> {};
+struct CppTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
 template <>
-struct DTypeTraitByType<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
+struct CppTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
 
 template <template <typename, typename...> class Action, typename Out>
 struct dispatchInt {
@@ -343,8 +343,7 @@ inline unsigned bytewidthOfIntOrFPType(mlir::Type t) {
 
 template <typename T>
 constexpr bool isIntOrFP(unsigned maxWidth) {
-  using Trait = DTypeTraitByType<T>;
-  return Trait::width <= maxWidth;
+  return CppTypeTrait<T>::width <= maxWidth;
 }
 
 template <>
