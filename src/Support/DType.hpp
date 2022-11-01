@@ -149,7 +149,7 @@ struct DTypeTraitBase {
   static constexpr unsigned width =
       std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
   static constexpr unsigned bytewidth = (width + 1) / 8;
-  using type = CPPTY;
+  using cpptype = CPPTY;
   using widetype = std::conditional_t<is_float, double,
       std::conditional_t<is_signed_int, int64_t, uint64_t>>;
 };
@@ -204,7 +204,7 @@ struct CppTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
 #endif
 
 template <DType DTYPE>
-using CppTypeOf = typename DTypeTrait<DTYPE>::type;
+using CppTypeOf = typename DTypeTrait<DTYPE>::cpptype;
 
 template <typename T>
 constexpr DType dtypeOf() {

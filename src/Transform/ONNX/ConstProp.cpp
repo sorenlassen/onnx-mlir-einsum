@@ -88,7 +88,7 @@ template <typename S>
 struct CastIntsOrFPs {
   template <typename DstDTy, typename... Args>
   struct Cast {
-    using D = typename DstDTy::type;
+    using D = typename DstDTy::cpptype;
     static void eval(ArrayRef<char> src, char *dst) {
       D *rs = reinterpret_cast<D *>(dst);
       ArrayRef<S> vs = castArrayRef<S>(src);
@@ -308,7 +308,7 @@ template <typename OP>
 struct ElementwiseBinary {
   template <typename DTy, typename... Ts>
   struct Compute {
-    using S = typename DTy::type;
+    using S = typename DTy::cpptype;
     using U = toArithmetic<S>;
     static S fn(S x, S y) {
       return static_cast<S>(ElementWiseBinaryOpImpl<OP, U>::impl(
@@ -423,7 +423,7 @@ template <typename OP>
 struct ElementwiseUnary {
   template <typename DTy, typename... Ts>
   struct Compute {
-    using S = typename DTy::type;
+    using S = typename DTy::cpptype;
     using U = toArithmetic<S>;
     static void eval(ArrayRef<char> src, MutableArrayRef<char> dst) {
       fillOrTransform(
@@ -760,11 +760,11 @@ public:
 
 template <typename SrcDTy, typename... Args>
 struct SrcDstCast {
-  using S = typename SrcDTy::type;
+  using S = typename SrcDTy::cpptype;
 
   template <typename DstDTy, typename... InnerArgs>
   struct DstCast {
-    using D = typename DstDTy::type;
+    using D = typename DstDTy::cpptype;
     static void eval(ArrayRef<S> src, MutableArrayRef<char> dst) {
       fillOrTransform(src, castMutableArrayRef<D>(dst),
           [](S v) { return static_cast<D>(v); });

@@ -155,7 +155,7 @@ using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 namespace detail {
 template <typename DTyTrait, typename... Args>
 struct CopyIntOrFP {
-  using X = typename DTyTrait::type;
+  using X = typename DTyTrait::cpptype;
   static void eval(
       StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
     *reinterpret_cast<X *>(dst) =
@@ -171,7 +171,7 @@ inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
 
 template <typename DTyTrait, typename... Args>
 struct ReadIntOrFP {
-  using X = typename DTyTrait::type;
+  using X = typename DTyTrait::cpptype;
   static onnx_mlir::IntOrFP eval(StringRef s, size_t pos) {
     X x = reinterpret_cast<const X *>(s.data())[pos];
     auto n = onnx_mlir::IntOrFP::from(DTyTrait::dtype, x);
