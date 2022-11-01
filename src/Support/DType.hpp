@@ -68,10 +68,10 @@ public:
 private:
   uint16_t u16;
 };
+} // namespace detail
 
 template <class T>
-inline constexpr bool isF16Type = std::is_base_of_v<F16Base<T>, T>;
-} // namespace detail
+inline constexpr bool isF16Type = std::is_base_of_v<detail::F16Base<T>, T>;
 
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
@@ -141,7 +141,7 @@ template <DType DTYPE, typename CPPTY>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
   static constexpr bool is_float =
-      std::is_floating_point_v<CPPTY> || detail::isF16Type<CPPTY>;
+      std::is_floating_point_v<CPPTY> || isF16Type<CPPTY>;
   static constexpr bool is_signed_int =
       std::is_integral_v<CPPTY> && std::is_signed_v<CPPTY>;
   static constexpr bool is_unsigned_int =
