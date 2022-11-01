@@ -427,7 +427,6 @@ public:
       return toDenseElementsAttrByType<APInt>();
     else
       return toDenseElementsAttrByType<APFloat>();
-    // llvm_unreachable("TODO implement toDenseElementsAttr\n");
   }
 
   onnx_mlir::RawBuffer getRawBuffer() const {

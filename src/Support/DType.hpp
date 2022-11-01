@@ -22,17 +22,18 @@ namespace detail {
 uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 
 template <typename ConcreteT>
-struct float16Base {
+struct F16Base {
 public:
-  float16Base() = default;
+  F16Base() = default;
 
-  explicit float16Base(ConcreteT f16) : u16(f16.u16) {}
-
+  explicit F16Base(ConcreteT f16) : u16(f16.u16) {}
+  // Support static_cast<ConcreteT>(X) for any x that is convertible to float.
   template <typename T,
       typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
-  explicit float16Base(T x)
+  explicit F16Base(T x)
       : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
 
+  // Support static_cast<T>(*this) for any T that float converts to.
   template <typename T,
       typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
   explicit operator T() const {
@@ -67,13 +68,16 @@ public:
 private:
   uint16_t u16;
 };
+
+template <class T>
+inline constexpr bool isF16Type = std::is_base_of_v<F16Base<T>, T>;
 } // namespace detail
 
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
-struct float_16 : public detail::float16Base<float_16> {
-  using Base = detail::float16Base<float_16>;
+struct float_16 : public detail::F16Base<float_16> {
+  using Base = detail::F16Base<float_16>;
   using Base::Base;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::IEEEhalf();
@@ -83,8 +87,8 @@ struct float_16 : public detail::float16Base<float_16> {
 // Represents a BFLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
-struct bfloat_16 : public detail::float16Base<bfloat_16> {
-  using Base = detail::float16Base<bfloat_16>;
+struct bfloat_16 : public detail::F16Base<bfloat_16> {
+  using Base = detail::F16Base<bfloat_16>;
   using Base::Base;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::BFloat();
@@ -132,35 +136,62 @@ enum class DType : int8_t {
   // clang-format on
 };
 
-template <DType DTYPE>
-struct DTypeTrait {
-  static constexpr DType dtype = DTYPE;
-};
-
 namespace detail {
-template <DType DTYPE, typename TY>
+template <DType DTYPE, typename CPPTY>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
-  static constexpr bool is_float = std::is_floating_point_v<TY>;
+  static constexpr bool is_float =
+      std::is_floating_point_v<CPPTY> || detail::isF16Type<CPPTY>;
   static constexpr bool is_signed_int =
-      std::is_integral_v<TY> && std::is_signed_v<TY>;
+      std::is_integral_v<CPPTY> && std::is_signed_v<CPPTY>;
   static constexpr bool is_unsigned_int =
-      std::is_integral_v<TY> && !std::is_signed_v<TY>;
+      std::is_integral_v<CPPTY> && !std::is_signed_v<CPPTY>;
   static constexpr unsigned width =
-      std::is_same_v<TY, bool> ? 1 : (8 * sizeof(TY));
+      std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
   static constexpr unsigned bytewidth = (width + 1) / 8;
-  using type = TY;
+  using type = CPPTY;
   using widetype = std::conditional_t<is_float, double,
       std::conditional_t<is_signed_int, int64_t, uint64_t>>;
 };
 } // namespace detail
 
+template <DType DTYPE>
+struct DTypeTrait {};
+
+template <typename CPPTY>
+struct CppTypeTrait : public detail::DTypeTraitBase<DType::UNDEFINED, CPPTY> {};
+
+#define DEFINE_DTypeCppTypeTraits(DTYPE, CPPTY)                                \
+  template <>                                                                  \
+  struct DTypeTrait<DTYPE> : public detail::DTypeTraitBase<DTYPE, CPPTY> {};   \
+  template <>                                                                  \
+  struct CppTypeTrait<CPPTY> : public DTypeTrait<DTYPE> {};
+
+DEFINE_DTypeCppTypeTraits(DType::BOOL, bool);
+DEFINE_DTypeCppTypeTraits(DType::INT8, int8_t);
+DEFINE_DTypeCppTypeTraits(DType::UINT8, uint8_t);
+DEFINE_DTypeCppTypeTraits(DType::INT16, int16_t);
+DEFINE_DTypeCppTypeTraits(DType::UINT16, uint16_t);
+DEFINE_DTypeCppTypeTraits(DType::INT32, int32_t);
+DEFINE_DTypeCppTypeTraits(DType::UINT32, uint32_t);
+DEFINE_DTypeCppTypeTraits(DType::INT64, int64_t);
+DEFINE_DTypeCppTypeTraits(DType::UINT64, uint64_t);
+DEFINE_DTypeCppTypeTraits(DType::DOUBLE, double);
+DEFINE_DTypeCppTypeTraits(DType::FLOAT, float);
+DEFINE_DTypeCppTypeTraits(DType::FLOAT16, float_16);
+DEFINE_DTypeCppTypeTraits(DType::BFLOAT16, bfloat_16);
+
+#undef DEFINE_DTypeCppTypeTraits
+
+#if 0
 template <>
 struct DTypeTrait<DType::FLOAT16>
     : public detail::DTypeTraitBase<DType::FLOAT16, float_16> {
   static constexpr bool is_float = true;
   using widetype = double;
 };
+template <>
+struct CppTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
 
 template <>
 struct DTypeTrait<DType::BFLOAT16>
@@ -168,72 +199,25 @@ struct DTypeTrait<DType::BFLOAT16>
   static constexpr bool is_float = true;
   using widetype = double;
 };
-
-#define DEFINE_DTypeTrait(DT, TY)                                              \
-  template <>                                                                  \
-  struct DTypeTrait<DType::DT>                                                 \
-      : public detail::DTypeTraitBase<DType::DT, TY> {}
-
-DEFINE_DTypeTrait(BOOL, bool);
-DEFINE_DTypeTrait(INT8, int8_t);
-DEFINE_DTypeTrait(UINT8, uint8_t);
-DEFINE_DTypeTrait(INT16, int16_t);
-DEFINE_DTypeTrait(UINT16, uint16_t);
-DEFINE_DTypeTrait(INT32, int32_t);
-DEFINE_DTypeTrait(UINT32, uint32_t);
-DEFINE_DTypeTrait(INT64, int64_t);
-DEFINE_DTypeTrait(UINT64, uint64_t);
-DEFINE_DTypeTrait(DOUBLE, double);
-DEFINE_DTypeTrait(FLOAT, float);
-
-#undef DEFINE_DTypeTrait
-
-template <typename>
-struct CppTypeTrait {
-  static constexpr unsigned width = UINT_MAX;
-};
-template <>
-struct CppTypeTrait<bool> : public DTypeTrait<DType::BOOL> {};
-template <>
-struct CppTypeTrait<int8_t> : public DTypeTrait<DType::INT8> {};
-template <>
-struct CppTypeTrait<uint8_t> : public DTypeTrait<DType::UINT8> {};
-template <>
-struct CppTypeTrait<int16_t> : public DTypeTrait<DType::INT16> {};
-template <>
-struct CppTypeTrait<uint16_t> : public DTypeTrait<DType::UINT16> {};
-template <>
-struct CppTypeTrait<int32_t> : public DTypeTrait<DType::INT32> {};
-template <>
-struct CppTypeTrait<uint32_t> : public DTypeTrait<DType::UINT32> {};
-template <>
-struct CppTypeTrait<int64_t> : public DTypeTrait<DType::INT64> {};
-template <>
-struct CppTypeTrait<uint64_t> : public DTypeTrait<DType::UINT64> {};
-template <>
-struct CppTypeTrait<double> : public DTypeTrait<DType::DOUBLE> {};
-template <>
-struct CppTypeTrait<float> : public DTypeTrait<DType::FLOAT> {};
-template <>
-struct CppTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
 template <>
 struct CppTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
+#endif
 
 template <DType DTYPE>
 using CppTypeOf = typename DTypeTrait<DTYPE>::type;
 
-template <typename TY>
+template <typename T>
 constexpr DType dtypeOf() {
-  return CppTypeTrait<TY>::dtype;
+  return CppTypeTrait<T>::dtype;
 }
 
 DType dtypeOfMlirType(mlir::Type type);
 
 mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
 
-template <typename TY>
+template <typename T>
 mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
-  return mlirTypeOfDType(dtypeOf<TY>(), ctx);
+  return mlirTypeOfDType(dtypeOf<T>(), ctx);
 }
 
 // TODO: find a better place for this
@@ -270,7 +254,7 @@ auto dispatch(mlir::Type type, Action &&act) {
 
 template <template <typename, typename...> class Action>
 struct dispatchInt {
-#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
+#define ACT(DTYPE) (Action<DTypeTrait<DType::DTYPE>, Ts...>::eval(xs...))
   // clang-format off
   template <typename... Ts>
   static auto eval(DType dtype, Ts... xs) {
@@ -305,7 +289,7 @@ struct dispatchInt {
 
 template <template <typename, typename...> class Action, typename Alt>
 struct dispatchFPOr {
-#define ACT(TY) (Action<DTypeTrait<DType::TY>, Ts...>::eval(xs...))
+#define ACT(DTYPE) (Action<DTypeTrait<DType::DTYPE>, Ts...>::eval(xs...))
   // clang-format off
   template <typename... Ts>
   static auto eval(DType dtype, Ts... xs) {
@@ -475,7 +459,9 @@ union IntOrFP { // TODO rename to WideIntOrFP
 
 template <typename T>
 constexpr bool isIntOrFPConvertible() {
-  return CppTypeTrait<T>::width <= 64;
+  // TODO: change to check it's a simple scalar once CppTypeTrait
+  // becomes defined for string and complex types
+  return CppTypeTrait<T>::dtype != DType::UNDEFINED;
 }
 
 template <>
