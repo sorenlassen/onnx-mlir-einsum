@@ -236,8 +236,36 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<TY>(), ctx);
 }
 
+// TODO: find a better place for this
 inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
+}
+
+template <typename Action>
+auto dispatch(DType dtype, Action &&act) {
+  // clang-format off
+  switch (dtype) {
+  case DType::BOOL     : return act(static_cast<bool>(0));
+  case DType::INT8     : return act(static_cast<int8_t>(0));
+  case DType::UINT8    : return act(static_cast<uint8_t>(0));
+  case DType::INT16    : return act(static_cast<int16_t>(0));
+  case DType::UINT16   : return act(static_cast<uint16_t>(0));
+  case DType::INT32    : return act(static_cast<int32_t>(0));
+  case DType::UINT32   : return act(static_cast<uint32_t>(0));
+  case DType::INT64    : return act(static_cast<int64_t>(0));
+  case DType::UINT64   : return act(static_cast<uint64_t>(0));
+  case DType::DOUBLE   : return act(static_cast<double>(0));
+  case DType::FLOAT    : return act(static_cast<float>(0));
+  case DType::FLOAT16  : return act(static_cast<float_16>(0));
+  case DType::BFLOAT16 : return act(static_cast<bfloat_16>(0));
+  default: llvm_unreachable("not a supported integer type");
+  }
+  // clang-format on
+}
+
+template <typename Action>
+auto dispatch(mlir::Type type, Action &&act) {
+  return dispatch(dtypeOfMlirType(type), std::forward<Action>(act));
 }
 
 template <template <typename, typename...> class Action>

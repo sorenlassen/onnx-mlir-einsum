@@ -130,30 +130,24 @@ RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
   llvm_unreachable("unexpected ElementsAttr instance");
 }
 
+namespace {
 template <typename D>
-struct ReadIntsOrFPs {
-  template <typename DTy, typename... Args>
-  struct Read {
-    using S = typename DTy::type;
-    static void eval(ArrayRef<char> src, MutableArrayRef<D> dst) {
-      fillOrTransform(
-          castArrayRef<S>(src), dst, [](S v) { return static_cast<D>(v); });
-    }
-  };
-};
+void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
+  RawBuffer src = getDenseIntOrFPRawData(elements);
+  dispatch(elements.getElementType(), [&](auto zero) {
+    using S = decltype(zero);
+    fillOrTransform(
+        castArrayRef<S>(src.get()), dst, [](S v) { return static_cast<D>(v); });
+  });
+}
+} // namespace
 
 void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
-  // llvm::errs() << "readDenseInts " << elements.getType() << "\n";
-  RawBuffer src = getDenseIntOrFPRawData(elements);
-  dispatchInt<ReadIntsOrFPs<int64_t>::template Read>::eval(
-      elements.getElementType(), src.get(), ints);
+  readDense(elements, ints);
 }
 
 void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
-  // llvm::errs() << "readDenseFPs " << elements.getType() << "\n";
-  RawBuffer src = getDenseIntOrFPRawData(elements);
-  dispatchFP<ReadIntsOrFPs<double>::template Read>::eval(
-      elements.getElementType(), src.get(), fps);
+  readDense(elements, fps);
 }
 
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
