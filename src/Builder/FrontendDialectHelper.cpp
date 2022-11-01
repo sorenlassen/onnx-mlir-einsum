@@ -20,6 +20,7 @@
 
 #include "src/Builder/FrontendDialectHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
+#include "src/Support/DType.hpp"
 
 namespace {
 
@@ -112,6 +113,15 @@ struct TransformValueToONNXData<uint64_t> {
   }
 };
 
+template <typename To, typename From>
+std::enable_if_t<!onnx_mlir::isF16Type<To>, To> ReinterpretTo(From from) {
+  return from;
+}
+template <typename To, typename From>
+std::enable_if_t<onnx_mlir::isF16Type<To>, To> ReinterpretTo(From from) {
+  return To::bitcastFromU16(from);
+}
+
 template <typename T>
 using DenseElementsAttrBuilder =
     llvm::function_ref<mlir::DenseElementsAttr(llvm::ArrayRef<T>)>;
@@ -132,8 +142,20 @@ template <typename T, typename U>
 std::enable_if_t<!std::is_same_v<T, U>, mlir::DenseElementsAttr>
 createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
     DenseElementsAttrBuilder<T> denseBuilder) {
-  llvm::SmallVector<T> copy(data.begin(), data.end());
+  llvm::SmallVector<T> copy;
+  copy.resize_for_overwrite(data.size());
+  std::transform(data.begin(), data.end(), copy.data(),
+      [](U datum) { return ReinterpretTo<T>(datum); });
   return denseBuilder(llvm::makeArrayRef(copy));
+}
+
+template <typename T>
+std::enable_if_t<!onnx_mlir::isF16Type<T>, T> byteSwapped(T x) {
+  return llvm::sys::getSwappedBytes(x);
+}
+template <typename T>
+std::enable_if_t<onnx_mlir::isF16Type<T>, T> byteSwapped(T x) {
+  return T::bitcastFromU16(llvm::sys::getSwappedBytes(x.bitcastToU16()));
 }
 
 // Returns DenseElementsAttr with tp's data.
@@ -158,7 +180,7 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
       llvm::SmallVector<T> vector;
       vector.reserve(size);
       for (T x : arrayRef) {
-        vector.push_back(llvm::sys::getSwappedBytes(x));
+        vector.push_back(byteSwapped(x));
       }
       return denseBuilder(llvm::makeArrayRef(vector));
     } else {
@@ -173,6 +195,15 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
 }
 
 } // namespace
+
+template <>
+struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::float_16> {
+  static constexpr bool value = true;
+};
+template <>
+struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::bfloat_16> {
+  static constexpr bool value = true;
+};
 
 namespace onnx_mlir {
 
@@ -202,19 +233,10 @@ mlir::DenseElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
     return mlir::DenseElementsAttr::get(tensorType, arrayRef);
   };
   switch (tp.data_type()) {
-  case (onnx::TensorProto::FLOAT16): {
-    // F16s are converted bit-wise to U16s when written to protobufs.
-    // So we read U16 from the protobuf and then convert to F16.
-    auto denseBuilderU16ToF16 = [tensorType](
-                                    llvm::ArrayRef<uint16_t> arrayRef) {
-      llvm::ArrayRef<char> bytes(
-          reinterpret_cast<const char *>(arrayRef.data()),
-          arrayRef.size() * sizeof(uint16_t));
-      return mlir::DenseElementsAttr::getFromRawBuffer(tensorType, bytes);
-    };
-    return createDenseElmAttr<uint16_t>(
-        externalDataDir, tp, denseBuilderU16ToF16);
-  }
+  case (onnx::TensorProto::FLOAT16):
+    return createDenseElmAttr<float_16>(externalDataDir, tp, denseBuilder);
+  case (onnx::TensorProto::BFLOAT16):
+    return createDenseElmAttr<bfloat_16>(externalDataDir, tp, denseBuilder);
   case (onnx::TensorProto::FLOAT):
     return createDenseElmAttr<float>(externalDataDir, tp, denseBuilder);
   case (onnx::TensorProto::DOUBLE):
