@@ -75,7 +75,6 @@ struct bfloat_16;
 struct float_16 : public detail::float16Base<float_16> {
   using Base = detail::float16Base<float_16>;
   using Base::Base;
-  // explicit float_16(bfloat_16 bf16) : Base(static_cast<float>(bf16)) {}
   explicit float_16(bfloat_16 bf16);
   explicit operator bfloat_16() const;
   static const llvm::fltSemantics &semantics() {
@@ -87,11 +86,8 @@ struct float_16 : public detail::float16Base<float_16> {
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct bfloat_16 : public detail::float16Base<bfloat_16> {
-  // using detail::float16Base<bfloat_16>::float16Base;
   using Base = detail::float16Base<bfloat_16>;
   using Base::Base;
-  // explicit bfloat_16(float_16 f16) :
-  // detail::float16Base<bfloat_16>::float16Base(static_cast<float>(f16)) {}
   explicit bfloat_16(float_16 f16);
   explicit operator float_16() const;
   static const llvm::fltSemantics &semantics() {
