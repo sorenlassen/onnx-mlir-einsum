@@ -21,27 +21,27 @@ namespace onnx_mlir {
 namespace detail {
 uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 
-template <typename ConcreteT>
-struct F16Base {
+template <typename F16Type> // F16Type is the derived class, float_16 or bfloat_16.
+class F16Base {
 public:
   F16Base() = default;
 
-  explicit F16Base(ConcreteT f16) : u16(f16.u16) {}
-  // Support static_cast<ConcreteT>(X) for any x that is convertible to float.
+  explicit F16Base(F16Type f16) : u16(f16.u16) {}
+  // Support static_cast<F16Type>(X) for any x that is convertible to float.
   template <typename T,
-      typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
+      typename = std::enable_if_t<!std::is_same_v<T, F16Type>>>
   explicit F16Base(T x)
       : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
 
   // Support static_cast<T>(*this) for any T that float converts to.
   template <typename T,
-      typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
+      typename = std::enable_if_t<!std::is_same_v<T, F16Type>>>
   explicit operator T() const {
     return static_cast<float>(toFloat());
   }
 
   llvm::APFloat toAPFloat() const {
-    return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, u16));
+    return llvm::APFloat(F16Type::semantics(), llvm::APInt(16, u16));
   }
 
   // Same as static_cast<float>(*this).
@@ -50,17 +50,17 @@ public:
   // Same as reinterpret_cast<uint16_t>(*this).
   uint16_t bitcastToU16() const { return u16; }
 
-  static ConcreteT fromAPFloat(llvm::APFloat a) {
-    uint16_t u16 = bitcastAPFloat(a, ConcreteT::semantics());
+  static F16Type fromAPFloat(llvm::APFloat a) {
+    uint16_t u16 = bitcastAPFloat(a, F16Type::semantics());
     return bitcastFromU16(u16);
   }
 
-  // Same as static_cast<ConcreteT>(f).
-  static ConcreteT fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
+  // Same as static_cast<F16Type>(f).
+  static F16Type fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
 
-  // Same as reinterpret_cast<ConcreteT>(u).
-  static ConcreteT bitcastFromU16(uint16_t u) {
-    ConcreteT f16;
+  // Same as reinterpret_cast<F16Type>(u).
+  static F16Type bitcastFromU16(uint16_t u) {
+    F16Type f16;
     f16.u16 = u;
     return f16;
   }
