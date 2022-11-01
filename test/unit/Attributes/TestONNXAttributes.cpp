@@ -96,6 +96,17 @@ public:
     return IntegerType::get(ctx, width, IntegerType::Unsigned);
   }
 
+  int test_float_16() {
+    llvm::errs() << "test_float_16:\n";
+    float_16 f1_3(1.3);
+    bfloat_16 f_minus_1(-1);
+    float_16 frombf(f_minus_1);
+    bfloat_16 fromf(f1_3);
+    // assert(static_cast<bfloat_16>(frombf) == fromf); // fails, == not defined
+    assert(frombf.toFloat() == f_minus_1.toFloat());
+    return 0;
+  }
+
   int test_DType() {
     llvm::errs() << "test_DType:\n";
     uint64_t u;
@@ -197,10 +208,10 @@ public:
 
   int test_f16() {
     llvm::errs() << "test_f16:\n";
-    assert(fabs(float_16::toFloat(float_16::fromFloat(4.2)) - 4.2) < 1e-3);
+    assert(fabs(float_16::fromFloat(4.2).toFloat() - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
-      return {.dbl = float_16::toFloat(asArrayRef<float_16>(s)[p])};
+      return {.dbl = asArrayRef<float_16>(s)[p].toFloat()};
     };
     Attribute a = DisposableElementsAttr::get(type, {0}, DType::FLOAT16,
         buffer<float_16>({float_16::fromFloat(4.2)}), fun);
@@ -320,6 +331,7 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_float_16();
   failures += test.test_DType();
   failures += test.test_IntOrFP();
   failures += test.test_DisposablePool();

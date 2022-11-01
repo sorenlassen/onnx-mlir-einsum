@@ -36,24 +36,27 @@ public:
   template <typename T,
       typename = std::enable_if_t<!std::is_same_v<T, ConcreteT>>>
   explicit operator T() const {
-    return static_cast<float>(toFloat(*static_cast<const ConcreteT *>(this)));
+    return static_cast<float>(toFloat());
   }
 
-  static llvm::APFloat toAPFloat(ConcreteT f16) {
-    return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, f16.u16));
+  llvm::APFloat toAPFloat() const {
+    return llvm::APFloat(ConcreteT::semantics(), llvm::APInt(16, u16));
   }
+
+  // Same as static_cast<float>(*this).
+  float toFloat() const { return toAPFloat().convertToFloat(); }
+
+  // Same as reinterpret_cast<uint16_t>(*this).
+  uint16_t bitcastToU16() const { return u16; }
+
   static ConcreteT fromAPFloat(llvm::APFloat a) {
     uint16_t u16 = bitcastAPFloat(a, ConcreteT::semantics());
     return bitcastFromU16(u16);
   }
-  // Same as static_cast<float>(f16).
-  static float toFloat(ConcreteT f16) {
-    return toAPFloat(f16).convertToFloat();
-  }
+
   // Same as static_cast<ConcreteT>(f).
   static ConcreteT fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
-  // Same as reinterpret_cast<uint16_t>(f16).
-  static uint16_t bitcastToU16(ConcreteT f16) { return f16.u16; }
+
   // Same as reinterpret_cast<ConcreteT>(u).
   static ConcreteT bitcastFromU16(uint16_t u) {
     ConcreteT f16;
@@ -66,6 +69,7 @@ private:
 };
 } // namespace detail
 
+// All the concrete classes derived from float16Base:
 struct float_16;
 struct bfloat_16;
 
@@ -95,11 +99,9 @@ struct bfloat_16 : public detail::float16Base<bfloat_16> {
   }
 };
 
-inline float_16::float_16(bfloat_16 bf16)
-    : float_16::Base(bfloat_16::toFloat(bf16)) {}
+inline float_16::float_16(bfloat_16 bf16) : float_16::Base(bf16.toFloat()) {}
 inline float_16::operator bfloat_16() const { return bfloat_16(*this); }
-inline bfloat_16::bfloat_16(float_16 f16)
-    : bfloat_16::Base(float_16::toFloat(f16)) {}
+inline bfloat_16::bfloat_16(float_16 f16) : bfloat_16::Base(f16.toFloat()) {}
 inline bfloat_16::operator float_16() const { return float_16(*this); }
 
 template <typename T>

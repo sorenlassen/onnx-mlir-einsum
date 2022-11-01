@@ -75,9 +75,9 @@ llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
   if (ftag.isa<mlir::Float32Type>())
     return llvm::APFloat(f);
   if (ftag.isa<mlir::Float16Type>())
-    return float_16::toAPFloat(float_16(f));
+    return float_16(f).toAPFloat();
   if (ftag.isa<mlir::BFloat16Type>())
-    return bfloat_16::toAPFloat(bfloat_16(f));
+    return bfloat_16(f).toAPFloat();
   llvm_unreachable("unsupported floating point width");
 }
 
