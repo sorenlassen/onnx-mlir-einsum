@@ -98,18 +98,18 @@ public:
 
   int test_float_16() {
     llvm::errs() << "test_float_16:\n";
-    float_16 f1_3(9984);
-    bfloat_16 f_minus_1(-1);
-    float_16 frombf(f_minus_1);
-    bfloat_16 fromf(f1_3);
-    llvm::errs() << "float16 " << f1_3.toFloat() << " as uint " << f1_3.bitcastToU16() << "\n"; 
-    llvm::errs() << "float16 " << frombf.toFloat() << " as uint " << frombf.bitcastToU16() << "\n"; 
-    llvm::errs() << "bfloat16 " << fromf.toFloat() << " as uint " << fromf.bitcastToU16() << "\n"; 
-    llvm::errs() << "bfloat16 " << f_minus_1.toFloat() << " as uint " << f_minus_1.bitcastToU16() << "\n"; 
-    // assert(static_cast<bfloat_16>(frombf) == fromf); // fails, == not defined
-    assert(frombf.toFloat() == f_minus_1.toFloat());
-    assert(static_cast<float_16>(fromf).toFloat() ==
-           static_cast<bfloat_16>(f1_3).toFloat());
+    float_16 f9984(9984);
+    bfloat_16 fminus1(-1);
+    float_16 bfminus1(fminus1);
+    bfloat_16 bf9984(f9984);
+    llvm::errs() << "float16 " << f9984.toFloat() << " as uint " << f9984.bitcastToU16() << "\n";
+    llvm::errs() << "float16 " << bfminus1.toFloat() << " as uint " << bfminus1.bitcastToU16() << "\n";
+    llvm::errs() << "bfloat16 " << bf9984.toFloat() << " as uint " << bf9984.bitcastToU16() << "\n";
+    llvm::errs() << "bfloat16 " << fminus1.toFloat() << " as uint " << fminus1.bitcastToU16() << "\n";
+    // assert(static_cast<bfloat_16>(bfminus1) == bf9984); // fails, == not defined
+    assert(bfminus1.toFloat() == fminus1.toFloat());
+    assert(static_cast<float_16>(bf9984).toFloat() ==
+           static_cast<bfloat_16>(f9984).toFloat());
     return 0;
   }
 
