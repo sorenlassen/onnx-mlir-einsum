@@ -104,6 +104,8 @@ public:
     bfloat_16 fromf(f1_3);
     // assert(static_cast<bfloat_16>(frombf) == fromf); // fails, == not defined
     assert(frombf.toFloat() == f_minus_1.toFloat());
+    assert(static_cast<float_16>(fromf).toFloat() ==
+           static_cast<bfloat_16>(f1_3).toFloat());
     return 0;
   }
 

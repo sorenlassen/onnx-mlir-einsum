@@ -69,18 +69,12 @@ private:
 };
 } // namespace detail
 
-// All the concrete classes derived from float16Base:
-struct float_16;
-struct bfloat_16;
-
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
 struct float_16 : public detail::float16Base<float_16> {
   using Base = detail::float16Base<float_16>;
   using Base::Base;
-  explicit float_16(bfloat_16 bf16);
-  explicit operator bfloat_16() const;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::IEEEhalf();
   }
@@ -92,17 +86,10 @@ struct float_16 : public detail::float16Base<float_16> {
 struct bfloat_16 : public detail::float16Base<bfloat_16> {
   using Base = detail::float16Base<bfloat_16>;
   using Base::Base;
-  explicit bfloat_16(float_16 f16);
-  explicit operator float_16() const;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::BFloat();
   }
 };
-
-inline float_16::float_16(bfloat_16 bf16) : float_16::Base(bf16.toFloat()) {}
-inline float_16::operator bfloat_16() const { return bfloat_16(*this); }
-inline bfloat_16::bfloat_16(float_16 f16) : bfloat_16::Base(f16.toFloat()) {}
-inline bfloat_16::operator float_16() const { return float_16(*this); }
 
 template <typename T>
 using toArithmetic = std::conditional_t<std::is_arithmetic_v<T>, T, float>;
