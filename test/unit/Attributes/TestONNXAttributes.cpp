@@ -98,10 +98,14 @@ public:
 
   int test_float_16() {
     llvm::errs() << "test_float_16:\n";
-    float_16 f1_3(1.3);
+    float_16 f1_3(9984);
     bfloat_16 f_minus_1(-1);
     float_16 frombf(f_minus_1);
     bfloat_16 fromf(f1_3);
+    llvm::errs() << "float16 " << f1_3.toFloat() << " as uint " << f1_3.bitcastToU16() << "\n"; 
+    llvm::errs() << "float16 " << frombf.toFloat() << " as uint " << frombf.bitcastToU16() << "\n"; 
+    llvm::errs() << "bfloat16 " << fromf.toFloat() << " as uint " << fromf.bitcastToU16() << "\n"; 
+    llvm::errs() << "bfloat16 " << f_minus_1.toFloat() << " as uint " << f_minus_1.bitcastToU16() << "\n"; 
     // assert(static_cast<bfloat_16>(frombf) == fromf); // fails, == not defined
     assert(frombf.toFloat() == f_minus_1.toFloat());
     assert(static_cast<float_16>(fromf).toFloat() ==
