@@ -134,7 +134,7 @@ namespace {
 template <typename D>
 void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
   RawBuffer src = getDenseIntOrFPRawData(elements);
-  dispatch(elements.getElementType(), [&](auto typeToken) {
+  dispatchByMlirType(elements.getElementType(), [&](auto typeToken) {
     using S = decltype(typeToken);
     fillOrTransform(
         castArrayRef<S>(src.get()), dst, [](S v) { return static_cast<D>(v); });
