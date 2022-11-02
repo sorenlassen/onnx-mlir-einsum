@@ -155,30 +155,30 @@ using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 namespace detail {
 
 template <onnx_mlir::DType dtype>
-static void copyIntOrFP(
+void copyIntOrFP(
     StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
   using X = onnx_mlir::CppType<dtype>;
   X x = transform ? transform(s, pos).to<X>(dtype)
                   : reinterpret_cast<const X *>(s.data())[pos];
   *reinterpret_cast<X *>(dst) = x;
 }
-inline static void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
+inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
   onnx_mlir::dispatchByMlirType(
       t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
 }
 
 template <onnx_mlir::DType dtype>
-static onnx_mlir::IntOrFP readIntOrFP(StringRef s, size_t pos) {
+onnx_mlir::IntOrFP readIntOrFP(StringRef s, size_t pos) {
   using X = onnx_mlir::CppType<dtype>;
   X x = reinterpret_cast<const X *>(s.data())[pos];
   return onnx_mlir::IntOrFP::from(dtype, x);
 }
-inline static onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
+inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
   return onnx_mlir::dispatchByMlirType(
-      t, [&](auto dtype) { return readIntOrFP<dtype>(s, pos); });
+      t, [s, pos](auto dtype) { return readIntOrFP<dtype>(s, pos); });
 }
-inline static onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s,
+inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s,
     size_t pos, const ElementsTransform &transform) {
   return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
 }
