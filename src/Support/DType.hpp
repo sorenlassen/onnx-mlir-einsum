@@ -249,9 +249,9 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
 #undef ACT
 }
 
-template <typename Action>
-auto dispatchByMlirType(mlir::Type type, Action &&act) {
-  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act));
+template <typename Action, typename... Args>
+auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
+  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act), std::forward<Args>(args)...);
 }
 
 template <template <typename, typename...> class Action>
