@@ -14,8 +14,8 @@
 
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/SwapByteOrder.h"
+#include "llvm/Support/raw_ostream.h"
 
 #include <algorithm>
 #include <iostream>
@@ -43,6 +43,9 @@ inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
 }
 inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
   return os << "IntOrFP(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
+}
+inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::DType dtype) {
+  return os << "DType(" << static_cast<int>(dtype) << ")";
 }
 
 MLIRContext *createCtx() {
@@ -111,14 +114,36 @@ public:
     bfloat_16 fminus1(-1);
     float_16 bfminus1(fminus1);
     bfloat_16 bf9984(f9984);
-    llvm::errs() << "float16 " << f9984.toFloat() << " as uint " << f9984.bitcastToU16() << "\n";
-    llvm::errs() << "float16 " << bfminus1.toFloat() << " as uint " << bfminus1.bitcastToU16() << "\n";
-    llvm::errs() << "bfloat16 " << bf9984.toFloat() << " as uint " << bf9984.bitcastToU16() << "\n";
-    llvm::errs() << "bfloat16 " << fminus1.toFloat() << " as uint " << fminus1.bitcastToU16() << "\n";
-    // assert(static_cast<bfloat_16>(bfminus1) == bf9984); // fails, == not defined
+    llvm::errs() << "float16 " << f9984.toFloat() << " as uint "
+                 << f9984.bitcastToU16() << "\n";
+    llvm::errs() << "float16 " << bfminus1.toFloat() << " as uint "
+                 << bfminus1.bitcastToU16() << "\n";
+    llvm::errs() << "bfloat16 " << bf9984.toFloat() << " as uint "
+                 << bf9984.bitcastToU16() << "\n";
+    llvm::errs() << "bfloat16 " << fminus1.toFloat() << " as uint "
+                 << fminus1.bitcastToU16() << "\n";
+    // assert(static_cast<bfloat_16>(bfminus1) == bf9984); // fails, == not
+    // defined
     assert(bfminus1.toFloat() == fminus1.toFloat());
     assert(static_cast<float_16>(bf9984).toFloat() ==
            static_cast<bfloat_16>(f9984).toFloat());
+    constexpr float_16 f16z = float_16();
+    constexpr bfloat_16 bf16z = bfloat_16();
+    constexpr float_16 f16z2 = f16z;
+    constexpr bfloat_16 bf16z2 = bf16z;
+    constexpr uint16_t f16zu = f16z2.bitcastToU16();
+    constexpr uint16_t bf16zu = bf16z2.bitcastToU16();
+    constexpr DType df16 = dtypeOf(f16z);
+    constexpr DType dbf16 = dtypeOf(bf16z);
+    assert(df16 == dtypeOf<float_16>());
+    assert(dbf16 == dtypeOf<bfloat_16>());
+    assert((std::is_same_v<CppTypeOf<df16>, float_16>));
+    assert((std::is_same_v<CppTypeOf<dbf16>, bfloat_16>));
+    assert((std::is_same_v<CppTypeOf<dtypeOf<float>()>, float>));
+    llvm::errs() << "float16 " << f16z.toFloat() << " as uint " << f16zu
+                 << ", dtype=" << df16 << "\n";
+    llvm::errs() << "bfloat16 " << bf16z.toFloat() << " as uint " << bf16zu
+                 << ", dtype=" << dbf16 << "\n";
     return 0;
   }
 

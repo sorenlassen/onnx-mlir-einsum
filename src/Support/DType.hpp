@@ -24,11 +24,11 @@ public:
   using bitcasttype = uint16_t;
 
   // Substitute for reinterpret_cast<uint16_t>(*this), which C++ doesn't allow.
-  bitcasttype bitcastToU16() const { return u16; }
+  constexpr bitcasttype bitcastToU16() const { return u16; }
 
 protected:
-  FP16Type() = default;
-  explicit FP16Type(uint16_t u16) : u16(u16) {}
+  constexpr FP16Type() : u16(){};
+  constexpr explicit FP16Type(uint16_t u16) : u16(u16) {}
 
   bitcasttype u16;
 };
@@ -42,9 +42,9 @@ uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
 template <typename FP16> // FP16 is the derived class, float_16 or bfloat_16.
 class FP16Base : public FP16Type {
 public:
-  FP16Base() : FP16Type() {}
+  constexpr FP16Base() : FP16Type() {}
 
-  explicit FP16Base(FP16 f16) : FP16Type(f16.u16) {}
+  constexpr explicit FP16Base(FP16 f16) : FP16Type(f16.u16) {}
   // Support static_cast<FP16>(X) for any x that is convertible to float.
   template <typename T, typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
   explicit FP16Base(T x)
@@ -72,7 +72,7 @@ public:
   static FP16 fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
 
   // Same as reinterpret_cast<FP16>(u).
-  static FP16 bitcastFromU16(bitcasttype u) {
+  static constexpr FP16 bitcastFromU16(bitcasttype u) {
     FP16 f16;
     f16.u16 = u;
     return f16;
@@ -207,7 +207,7 @@ template <DType DTYPE>
 using CppTypeOf = typename DTypeTrait<DTYPE>::cpptype;
 
 template <typename T>
-constexpr DType dtypeOf() {
+constexpr DType dtypeOf(T = T()) {
   return CppTypeTrait<T>::dtype;
 }
 
@@ -251,7 +251,8 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
 
 template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
-  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act), std::forward<Args>(args)...);
+  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act),
+      std::forward<Args>(args)...);
 }
 
 template <template <typename, typename...> class Action>
