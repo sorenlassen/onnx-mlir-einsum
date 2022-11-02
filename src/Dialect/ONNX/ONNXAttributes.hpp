@@ -161,7 +161,7 @@ static void copyIntOrFP(
       transform ? transform(s, pos).to<X>(dtype)
                 : reinterpret_cast<const X *>(s.data())[pos];
 }
-inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
+inline static void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
   return onnx_mlir::dispatchByMlirType(
       t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
@@ -176,10 +176,10 @@ struct ReadIntOrFP {
     return n;
   }
 };
-inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
+inline static onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
   return onnx_mlir::dispatchFPOrInt<ReadIntOrFP>::eval(t, s, pos);
 }
-inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
+inline static onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
     const ElementsTransform &transform) {
   return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
 }
