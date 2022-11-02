@@ -23,7 +23,7 @@ class FP16Type {
 public:
   using bitcasttype = uint16_t;
 
-  // Same as reinterpret_cast<uint16_t>(*this).
+  // Substitute for reinterpret_cast<uint16_t>(*this), which C++ doesn't allow.
   bitcasttype bitcastToU16() const { return u16; }
 
 protected:
@@ -68,7 +68,7 @@ public:
     return bitcastFromU16(u16);
   }
 
-  // Same as static_cast<FP16>(f).
+  // Substitute for reinterpret_cast<FP16>(f), which C++ doesn't allow.
   static FP16 fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
 
   // Same as reinterpret_cast<FP16>(u).
