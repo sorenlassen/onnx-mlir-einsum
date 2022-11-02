@@ -166,7 +166,7 @@ struct DTypeTraitBase {
 } // namespace detail
 
 template <DType DTYPE>
-struct DTypeTrait {}; // TODO: derive from detail::DTypeTraitBase<DTYPE, void>
+struct DTypeTrait : public detail::DTypeTraitBase<DTYPE, void> {};
 
 template <typename CPPTY>
 struct CppTypeTrait : public detail::DTypeTraitBase<DType::UNDEFINED, CPPTY> {};
@@ -192,26 +192,6 @@ DEFINE_DTypeCppTypeTraits(DType::FLOAT16, float_16);
 DEFINE_DTypeCppTypeTraits(DType::BFLOAT16, bfloat_16);
 
 #undef DEFINE_DTypeCppTypeTraits
-
-#if 0
-template <>
-struct DTypeTrait<DType::FLOAT16>
-    : public detail::DTypeTraitBase<DType::FLOAT16, float_16> {
-  static constexpr bool is_float = true;
-  using widetype = double;
-};
-template <>
-struct CppTypeTrait<float_16> : public DTypeTrait<DType::FLOAT16> {};
-
-template <>
-struct DTypeTrait<DType::BFLOAT16>
-    : public detail::DTypeTraitBase<DType::BFLOAT16, bfloat_16> {
-  static constexpr bool is_float = true;
-  using widetype = double;
-};
-template <>
-struct CppTypeTrait<bfloat_16> : public DTypeTrait<DType::BFLOAT16> {};
-#endif
 
 template <DType DTYPE>
 using CppTypeOf = typename DTypeTrait<DTYPE>::cpptype;
