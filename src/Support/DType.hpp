@@ -107,9 +107,9 @@ using toArithmetic = std::conditional_t<std::is_arithmetic_v<T>, T, float>;
 
 // Numerical representation of basic data types.
 //
-// DType faithfully copies onnx::TensorProto::DataType from
+// DType faithfully copies onnx::TensorProto_DataType from
 // https://github.com/onnx/onnx/blob/main/onnx/onnx.proto
-// and DType and onnx::TensorProto::DataType can be used interchangeably.
+// and DType and onnx::TensorProto_DataType can be used interchangeably.
 // In some places it is convenient to use DType to avoid compile time
 // dependencies on third_party/onnx.
 enum class DType : int8_t {
@@ -142,6 +142,21 @@ enum class DType : int8_t {
   BFLOAT16 = 16
   // clang-format on
 };
+
+// DType and enum onnx::TensorProto_DataType convert to each other with
+// static_cast because DType faithfully copies onnx::TensorProto_DataType.
+// The conversion functions onnxDataTypeOfDType and dtypeOfOnnxDataType pass
+// onnx::TensorProto_DataType values as int in line with the C++ protobuf API
+// in #include "onnx/onnx_pb.h".
+
+// Returns a value from enum onnx::TensorProto_DataType.
+inline int onnxDataTypeOfDType(DType dtype) {
+  return static_cast<int>(dtype);
+}
+// Precondition: onnxDataType must be from enum onnx::TensorProto_DataType.
+inline DType dtypeOfOnnxDataType(int onnxDataType) {
+  return static_cast<DType>(onnxDataType);
+}
 
 namespace detail {
 template <DType DTYPE, typename CPPTY>

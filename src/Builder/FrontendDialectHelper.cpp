@@ -22,6 +22,17 @@
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Support/DType.hpp"
 
+// Enable DenseElementsAttr to operate on float_16, bfloat_16 data types.
+// TODO: move to AttributesHelper.hpp
+template <>
+struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::float_16> {
+  static constexpr bool value = true;
+};
+template <>
+struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::bfloat_16> {
+  static constexpr bool value = true;
+};
+
 namespace {
 
 // Parses unsigned number.
@@ -201,16 +212,14 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
 
 } // namespace
 
-template <>
-struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::float_16> {
-  static constexpr bool value = true;
-};
-template <>
-struct mlir::DenseElementsAttr::is_valid_cpp_fp_type<onnx_mlir::bfloat_16> {
-  static constexpr bool value = true;
-};
-
 namespace onnx_mlir {
+
+// Precondition: onnxDatatype must be a value from enum onnx::TensorProto_DataType.
+// TODO: move to ONNXOpsHelper.hpp
+DType dtypeOfONNXDataType(int onnxDatatype) {
+  // DType values faithfully copy onnx::TensorProto_DataType.
+  return static_cast<DType>(onnxDatatype);
+}
 
 mlir::Value EmitInitializerForInputTensor(mlir::Location loc,
     mlir::OpBuilder &builder, const std::string &externalDataDir,
@@ -237,32 +246,33 @@ mlir::DenseElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
   auto denseBuilder = [tensorType](auto arrayRef) {
     return mlir::DenseElementsAttr::get(tensorType, arrayRef);
   };
-  switch (tp.data_type()) {
-  case (onnx::TensorProto::FLOAT16):
+  DType dtype = dtypeOfONNXDataType(tp.data_type());
+  switch (dtype) {
+  case (DType::FLOAT16):
     return createDenseElmAttr<float_16>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::BFLOAT16):
+  case (DType::BFLOAT16):
     return createDenseElmAttr<bfloat_16>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::FLOAT):
+  case (DType::FLOAT):
     return createDenseElmAttr<float>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::DOUBLE):
+  case (DType::DOUBLE):
     return createDenseElmAttr<double>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::INT8):
+  case (DType::INT8):
     return createDenseElmAttr<int8_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::UINT8):
+  case (DType::UINT8):
     return createDenseElmAttr<uint8_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::INT16):
+  case (DType::INT16):
     return createDenseElmAttr<int16_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::UINT16):
+  case (DType::UINT16):
     return createDenseElmAttr<uint16_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::INT32):
+  case (DType::INT32):
     return createDenseElmAttr<int32_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::UINT32):
+  case (DType::UINT32):
     return createDenseElmAttr<uint32_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::INT64):
+  case (DType::INT64):
     return createDenseElmAttr<int64_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::UINT64):
+  case (DType::UINT64):
     return createDenseElmAttr<uint64_t>(externalDataDir, tp, denseBuilder);
-  case (onnx::TensorProto::BOOL):
+  case (DType::BOOL):
     return createDenseElmAttr<bool>(externalDataDir, tp, denseBuilder);
   default:
     llvm_unreachable(
