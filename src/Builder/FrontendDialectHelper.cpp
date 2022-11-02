@@ -149,7 +149,8 @@ createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
 }
 
 template <typename T>
-std::enable_if_t<!std::is_same_v<T, bool> && !onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
+std::enable_if_t<!std::is_same_v<T, bool> && !onnx_mlir::isFP16Type<T>, T>
+swappedBytes(T x) {
   return llvm::sys::getSwappedBytes(x);
 }
 template <typename T>

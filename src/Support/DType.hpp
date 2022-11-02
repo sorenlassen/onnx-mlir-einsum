@@ -46,14 +46,12 @@ public:
 
   explicit FP16Base(FP16 f16) : FP16Type(f16.u16) {}
   // Support static_cast<FP16>(X) for any x that is convertible to float.
-  template <typename T,
-      typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
+  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
   explicit FP16Base(T x)
       : FP16Type(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
 
   // Support static_cast<T>(*this) for any T that float converts to.
-  template <typename T,
-      typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
+  template <typename T, typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
   explicit operator T() const {
     return static_cast<float>(toFloat());
   }
@@ -161,7 +159,8 @@ struct DTypeTraitBase {
   using cpptype = CPPTY;
   using widetype = std::conditional_t<is_float, double,
       std::conditional_t<is_signed_int, int64_t, uint64_t>>;
-  using bitcasttype = std::conditional_t<isFP16Type<CPPTY>, typename FP16Type::bitcasttype, CPPTY>;
+  using bitcasttype = std::conditional_t<isFP16Type<CPPTY>,
+      typename FP16Type::bitcasttype, CPPTY>;
 };
 } // namespace detail
 
