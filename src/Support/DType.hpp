@@ -228,9 +228,7 @@ inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
 #if 1
 template <DType DTYPE>
 struct DTypeToken {
-  constexpr DTypeToken(DType dtype = DTYPE) {
-    assert(dtype == DTYPE && "DTypeToken must have correct dtype");
-  }
+  constexpr DTypeToken() {}
   constexpr operator DType() const { return DTYPE; }
 };
 
