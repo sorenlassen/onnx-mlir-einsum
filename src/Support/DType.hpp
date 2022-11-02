@@ -227,7 +227,7 @@ inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
 
 template <typename Action, typename... Args>
 auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
-#define ACT(CPPTY) act(static_cast<CPPTY>(0), std::forward<Args>(args)...)
+#define ACT(CPPTY) act(CPPTY(), std::forward<Args>(args)...)
   // clang-format off
   switch (dtype) {
   case DType::BOOL     : return ACT(bool);
