@@ -234,9 +234,9 @@ mlir::DenseElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
   mlir::Type elmType = mlirTypeOfDType(dtype, builder.getContext());
   llvm::ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());
   auto tensorType = mlir::RankedTensorType::get(tensorDims, elmType);
-  return dispatchByDType(dtype, [&](auto typeToken) {
-    using CppType = decltype(typeToken);
-    return createDenseElmAttr<CppType>(externalDataDir, tp, tensorType);
+  return dispatchByDType(dtype, [&](auto dtype) {
+    using cpptype = CppType<dtype>;
+    return createDenseElmAttr<cpptype>(externalDataDir, tp, tensorType);
   });
 }
 
