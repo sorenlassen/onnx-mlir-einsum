@@ -153,20 +153,18 @@ inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
 using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 namespace detail {
-template <typename DTyTrait, typename... Args>
-struct CopyIntOrFP {
-  using X = typename DTyTrait::cpptype;
-  static void eval(
-      StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
-    *reinterpret_cast<X *>(dst) =
-        transform ? transform(s, pos).to<X>(DTyTrait::dtype)
-                  : reinterpret_cast<const X *>(s.data())[pos];
-  }
-};
+template <onnx_mlir::DType dtype>
+static void copyIntOrFP(
+    StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
+  using X = onnx_mlir::CppType<dtype>;
+  *reinterpret_cast<X *>(dst) =
+      transform ? transform(s, pos).to<X>(dtype)
+                : reinterpret_cast<const X *>(s.data())[pos];
+}
 inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
-  return onnx_mlir::dispatchFPOrInt<CopyIntOrFP>::eval(
-      t, s, pos, dst, transform);
+  return onnx_mlir::dispatchByMlirType(
+      t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
 }
 
 template <typename DTyTrait, typename... Args>
@@ -448,9 +446,12 @@ public:
       // llvm::errs() << "getRawBuffer indirect\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(numElements * bytewidth);
-      traverse(type, getStrides(), [&](size_t pos, size_t flatIndex) {
-        detail::copyIntOrFP(
-            elementType, s, pos, vec.data() + flatIndex * bytewidth, transform);
+      Strides strides = getStrides();
+      onnx_mlir::dispatchByMlirType(elementType, [&](auto dtype) {
+        traverse(type, strides, [&](size_t pos, size_t flatIndex) {
+          detail::copyIntOrFP<dtype>(
+              s, pos, vec.data() + flatIndex * bytewidth, transform);
+        });
       });
       return onnx_mlir::RawBuffer(std::move(vec));
     } else {
