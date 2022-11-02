@@ -129,19 +129,6 @@ public:
     return 0;
   }
 
-  int test_dispatch_DType() {
-    llvm::errs() << "test_dispatch_DType:\n";
-    for (int i = 1; i <= 16; ++i) {
-      if (i == 8 || i == 14 || i == 15)
-        continue;
-      dispatchByDType(static_cast<DType>(i), [](DType dtype) {
-        // constexpr DType d = dtype; // doesn't work
-        llvm::errs() << "dtype " << dtype << "\n";
-      });
-    }
-    return 0;
-  }
-
   int test_float_16() {
     llvm::errs() << "test_float_16:\n";
     float_16 f9984(9984);
@@ -407,7 +394,6 @@ int main(int argc, char *argv[]) {
   int failures = 0;
   failures += test.test_getSwappedBytes();
   failures += test.test_dispatch_DTypeToken();
-  failures += test.test_dispatch_DType();
   failures += test.test_float_16();
   failures += test.test_DType();
   failures += test.test_IntOrFP();
