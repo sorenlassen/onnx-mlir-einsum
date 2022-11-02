@@ -446,10 +446,8 @@ public:
     int64_t numBufferElements = s.size() / bytewidth;
     if (transform || numBufferElements != numElements) {
       // llvm::errs() << "getRawBuffer indirect\n";
-      const auto &transform = getTransform();
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(numElements * bytewidth);
-      // TODO: run over every pos and flatIndex, using shape and strides
       traverse(type, getStrides(), [&](size_t pos, size_t flatIndex) {
         detail::copyIntOrFP(
             elementType, s, pos, vec.data() + flatIndex * bytewidth, transform);
@@ -463,8 +461,9 @@ public:
 
 private: // TODO: Figure out if any of the following would be useful publicly.
   template <typename Act>
-  size_t traverse(ShapedType type, ArrayRef<int64_t> strides, const Act &act,
-      int64_t axis = 0, size_t offset = 0, size_t flatIndex = 0) const {
+  static size_t traverse(ShapedType type, ArrayRef<int64_t> strides,
+      const Act &act, int64_t axis = 0, size_t offset = 0,
+      size_t flatIndex = 0) {
     ArrayRef<int64_t> shape = type.getShape();
     int64_t rank = shape.size();
     if (axis == rank) {
