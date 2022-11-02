@@ -46,18 +46,18 @@ DType dtypeOfMlirType(mlir::Type type) {
 }
 
 mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx) {
-  bool isSigned = true, isUnsigned = false;
+  constexpr bool isUnsigned = false;
   mlir::Builder b(ctx);
   // clang-format off
   switch (dtype) {
     case DType::BOOL     : return b.getI1Type();
-    case DType::INT8     : return b.getIntegerType(8, isSigned);
+    case DType::INT8     : return b.getIntegerType(8);
     case DType::UINT8    : return b.getIntegerType(8, isUnsigned);
-    case DType::INT16    : return b.getIntegerType(16, isSigned);
+    case DType::INT16    : return b.getIntegerType(16);
     case DType::UINT16   : return b.getIntegerType(16, isUnsigned);
-    case DType::INT32    : return b.getIntegerType(32, isSigned);
+    case DType::INT32    : return b.getIntegerType(32);
     case DType::UINT32   : return b.getIntegerType(32, isUnsigned);
-    case DType::INT64    : return b.getIntegerType(64, isSigned);
+    case DType::INT64    : return b.getIntegerType(64);
     case DType::UINT64   : return b.getIntegerType(64, isUnsigned);
     case DType::DOUBLE   : return b.getF64Type();
     case DType::FLOAT    : return b.getF32Type();
