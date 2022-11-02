@@ -204,7 +204,7 @@ DEFINE_DTypeCppTypeTraits(DType::BFLOAT16, bfloat_16);
 #undef DEFINE_DTypeCppTypeTraits
 
 template <DType DTYPE>
-using CppTypeOf = typename DTypeTrait<DTYPE>::cpptype;
+using CppType = typename DTypeTrait<DTYPE>::cpptype;
 
 template <typename T>
 constexpr DType dtypeOf(T = T()) {
@@ -225,6 +225,39 @@ inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 
+#if 1
+template <DType DTYPE>
+struct DTypeToken {
+  constexpr DTypeToken(DType dtype = DTYPE) {
+    assert(dtype == DTYPE && "DTypeToken must have correct dtype");
+  }
+  constexpr operator DType() const { return DTYPE; }
+};
+
+template <typename Action, typename... Args>
+auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
+#define ACT(DTYPE) act(DTypeToken<DTYPE>{}, std::forward<Args>(args)...)
+  // clang-format off
+  switch (dtype) {
+  case DType::BOOL     : return ACT(DType::BOOL);
+  case DType::INT8     : return ACT(DType::INT8);
+  case DType::UINT8    : return ACT(DType::UINT8);
+  case DType::INT16    : return ACT(DType::INT16);
+  case DType::UINT16   : return ACT(DType::UINT16);
+  case DType::INT32    : return ACT(DType::INT32);
+  case DType::UINT32   : return ACT(DType::UINT32);
+  case DType::INT64    : return ACT(DType::INT64);
+  case DType::UINT64   : return ACT(DType::UINT64);
+  case DType::DOUBLE   : return ACT(DType::DOUBLE);
+  case DType::FLOAT    : return ACT(DType::FLOAT);
+  case DType::FLOAT16  : return ACT(DType::FLOAT16);
+  case DType::BFLOAT16 : return ACT(DType::BFLOAT16);
+  default: llvm_unreachable("not a supported datatype");
+  }
+  // clang-format on
+#undef ACT
+}
+#else
 template <typename Action, typename... Args>
 auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
 #define ACT(CPPTY) act(CPPTY(), std::forward<Args>(args)...)
@@ -243,11 +276,12 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
   case DType::FLOAT    : return ACT(float);
   case DType::FLOAT16  : return ACT(float_16);
   case DType::BFLOAT16 : return ACT(bfloat_16);
-  default: llvm_unreachable("not a supported integer type");
+  default: llvm_unreachable("not a supported datatype");
   }
   // clang-format on
 #undef ACT
 }
+#endif
 
 template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {

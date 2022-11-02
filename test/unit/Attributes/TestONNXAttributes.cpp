@@ -38,6 +38,9 @@ std::ostream &operator<<(std::ostream &os, const ArrayRef<int64_t> &v) {
   os << ")";
   return os;
 }
+inline raw_ostream &operator<<(raw_ostream &os, FP16Type fp16) {
+  return os << "FP16(" << fp16.bitcastToU16() << ")";
+}
 inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
   return os << "APFloat(" << af.convertToDouble() << ")";
 }
@@ -108,6 +111,37 @@ public:
     return 0;
   }
 
+  int test_dispatch_DTypeToken() {
+    llvm::errs() << "test_dispatch_DTypeToken:\n";
+    for (int i = 1; i <= 16; ++i) {
+      if (i == 8 || i == 14 || i == 15)
+        continue;
+      dispatchByDType(static_cast<DType>(i), [](auto dtype) {
+        using cpptype = CppType<dtype>;
+        constexpr cpptype x{};
+        constexpr DType d1 = dtype;
+        constexpr DType d2 = dtypeOf(x);
+        assert(d1 == d2);
+        constexpr DType dtypeO = dtypeOf(x);
+        llvm::errs() << "dtypeOf " << dtypeO << ", x=" << x << "\n";
+      });
+    }
+    return 0;
+  }
+
+  int test_dispatch_DType() {
+    llvm::errs() << "test_dispatch_DType:\n";
+    for (int i = 1; i <= 16; ++i) {
+      if (i == 8 || i == 14 || i == 15)
+        continue;
+      dispatchByDType(static_cast<DType>(i), [](DType dtype) {
+        // constexpr DType d = dtype; // doesn't work
+        llvm::errs() << "dtype " << dtype << "\n";
+      });
+    }
+    return 0;
+  }
+
   int test_float_16() {
     llvm::errs() << "test_float_16:\n";
     float_16 f9984(9984);
@@ -137,9 +171,9 @@ public:
     constexpr DType dbf16 = dtypeOf(bf16z);
     assert(df16 == dtypeOf<float_16>());
     assert(dbf16 == dtypeOf<bfloat_16>());
-    assert((std::is_same_v<CppTypeOf<df16>, float_16>));
-    assert((std::is_same_v<CppTypeOf<dbf16>, bfloat_16>));
-    assert((std::is_same_v<CppTypeOf<dtypeOf<float>()>, float>));
+    assert((std::is_same_v<CppType<df16>, float_16>));
+    assert((std::is_same_v<CppType<dbf16>, bfloat_16>));
+    assert((std::is_same_v<CppType<dtypeOf<float>()>, float>));
     llvm::errs() << "float16 " << f16z.toFloat() << " as uint " << f16zu
                  << ", dtype=" << df16 << "\n";
     llvm::errs() << "bfloat16 " << bf16z.toFloat() << " as uint " << bf16zu
@@ -372,6 +406,8 @@ int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
   failures += test.test_getSwappedBytes();
+  failures += test.test_dispatch_DTypeToken();
+  failures += test.test_dispatch_DType();
   failures += test.test_float_16();
   failures += test.test_DType();
   failures += test.test_IntOrFP();
