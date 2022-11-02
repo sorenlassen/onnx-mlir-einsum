@@ -153,36 +153,36 @@ inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
 using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 namespace detail {
+
 template <onnx_mlir::DType dtype>
 static void copyIntOrFP(
     StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
   using X = onnx_mlir::CppType<dtype>;
-  *reinterpret_cast<X *>(dst) =
-      transform ? transform(s, pos).to<X>(dtype)
-                : reinterpret_cast<const X *>(s.data())[pos];
+  X x = transform ? transform(s, pos).to<X>(dtype)
+                  : reinterpret_cast<const X *>(s.data())[pos];
+  *reinterpret_cast<X *>(dst) = x;
 }
 inline static void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
-  return onnx_mlir::dispatchByMlirType(
+  onnx_mlir::dispatchByMlirType(
       t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
 }
 
-template <typename DTyTrait, typename... Args>
-struct ReadIntOrFP {
-  using X = typename DTyTrait::cpptype;
-  static onnx_mlir::IntOrFP eval(StringRef s, size_t pos) {
-    X x = reinterpret_cast<const X *>(s.data())[pos];
-    auto n = onnx_mlir::IntOrFP::from(DTyTrait::dtype, x);
-    return n;
-  }
-};
-inline static onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
-  return onnx_mlir::dispatchFPOrInt<ReadIntOrFP>::eval(t, s, pos);
+template <onnx_mlir::DType dtype>
+static onnx_mlir::IntOrFP readIntOrFP(StringRef s, size_t pos) {
+  using X = onnx_mlir::CppType<dtype>;
+  X x = reinterpret_cast<const X *>(s.data())[pos];
+  return onnx_mlir::IntOrFP::from(dtype, x);
 }
-inline static onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
-    const ElementsTransform &transform) {
+inline static onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
+  return onnx_mlir::dispatchByMlirType(
+      t, [&](auto dtype) { return readIntOrFP<dtype>(s, pos); });
+}
+inline static onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s,
+    size_t pos, const ElementsTransform &transform) {
   return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
 }
+
 } // namespace detail
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
