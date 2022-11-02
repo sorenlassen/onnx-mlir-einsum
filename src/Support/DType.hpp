@@ -150,9 +150,7 @@ enum class DType : int8_t {
 // in #include "onnx/onnx_pb.h".
 
 // Returns a value from enum onnx::TensorProto_DataType.
-inline int onnxDataTypeOfDType(DType dtype) {
-  return static_cast<int>(dtype);
-}
+inline int onnxDataTypeOfDType(DType dtype) { return static_cast<int>(dtype); }
 // Precondition: onnxDataType must be from enum onnx::TensorProto_DataType.
 inline DType dtypeOfOnnxDataType(int onnxDataType) {
   return static_cast<DType>(onnxDataType);
@@ -227,26 +225,28 @@ inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 
-template <typename Action>
-auto dispatch(DType dtype, Action &&act) {
+template <typename Action, typename... Args>
+auto dispatch(DType dtype, Action &&act, Args &&...args) {
+#define ACT(CPPTY) act(static_cast<CPPTY>(0), std::forward<Args>(args)...)
   // clang-format off
   switch (dtype) {
-  case DType::BOOL     : return act(static_cast<bool>(0));
-  case DType::INT8     : return act(static_cast<int8_t>(0));
-  case DType::UINT8    : return act(static_cast<uint8_t>(0));
-  case DType::INT16    : return act(static_cast<int16_t>(0));
-  case DType::UINT16   : return act(static_cast<uint16_t>(0));
-  case DType::INT32    : return act(static_cast<int32_t>(0));
-  case DType::UINT32   : return act(static_cast<uint32_t>(0));
-  case DType::INT64    : return act(static_cast<int64_t>(0));
-  case DType::UINT64   : return act(static_cast<uint64_t>(0));
-  case DType::DOUBLE   : return act(static_cast<double>(0));
-  case DType::FLOAT    : return act(static_cast<float>(0));
-  case DType::FLOAT16  : return act(static_cast<float_16>(0));
-  case DType::BFLOAT16 : return act(static_cast<bfloat_16>(0));
+  case DType::BOOL     : return ACT(bool);
+  case DType::INT8     : return ACT(int8_t);
+  case DType::UINT8    : return ACT(uint8_t);
+  case DType::INT16    : return ACT(int16_t);
+  case DType::UINT16   : return ACT(uint16_t);
+  case DType::INT32    : return ACT(int32_t);
+  case DType::UINT32   : return ACT(uint32_t);
+  case DType::INT64    : return ACT(int64_t);
+  case DType::UINT64   : return ACT(uint64_t);
+  case DType::DOUBLE   : return ACT(double);
+  case DType::FLOAT    : return ACT(float);
+  case DType::FLOAT16  : return ACT(float_16);
+  case DType::BFLOAT16 : return ACT(bfloat_16);
   default: llvm_unreachable("not a supported integer type");
   }
   // clang-format on
+#undef ACT
 }
 
 template <typename Action>
