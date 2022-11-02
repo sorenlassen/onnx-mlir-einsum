@@ -159,8 +159,6 @@ struct DTypeTraitBase {
   using cpptype = CPPTY;
   using widetype = std::conditional_t<is_float, double,
       std::conditional_t<is_signed_int, int64_t, uint64_t>>;
-  using bitcasttype = std::conditional_t<isFP16Type<CPPTY>,
-      typename FP16Type::bitcasttype, CPPTY>;
 };
 } // namespace detail
 
