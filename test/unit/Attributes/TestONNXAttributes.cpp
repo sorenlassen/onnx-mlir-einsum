@@ -15,6 +15,7 @@
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
+#include "llvm/Support/SwapByteOrder.h"
 
 #include <algorithm>
 #include <iostream>
@@ -94,6 +95,14 @@ public:
 
   Type getUInt(unsigned width) const {
     return IntegerType::get(ctx, width, IntegerType::Unsigned);
+  }
+
+  int test_getSwappedBytes() {
+    llvm::errs() << "test_float_16:\n";
+    llvm::errs() << "swap true " << llvm::sys::getSwappedBytes(true) << "\n";
+    bool t = true;
+    llvm::errs() << "swap t " << llvm::sys::getSwappedBytes(t) << "\n";
+    return 0;
   }
 
   int test_float_16() {
@@ -337,6 +346,7 @@ public:
 int main(int argc, char *argv[]) {
   Test test;
   int failures = 0;
+  failures += test.test_getSwappedBytes();
   failures += test.test_float_16();
   failures += test.test_DType();
   failures += test.test_IntOrFP();

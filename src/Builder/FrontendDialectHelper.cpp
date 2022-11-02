@@ -114,11 +114,11 @@ struct TransformValueToONNXData<uint64_t> {
 };
 
 template <typename To, typename From>
-std::enable_if_t<!onnx_mlir::isF16Type<To>, To> ReinterpretTo(From from) {
+std::enable_if_t<!onnx_mlir::isFP16Type<To>, To> DeserializeDatum(From from) {
   return from;
 }
 template <typename To, typename From>
-std::enable_if_t<onnx_mlir::isF16Type<To>, To> ReinterpretTo(From from) {
+std::enable_if_t<onnx_mlir::isFP16Type<To>, To> DeserializeDatum(From from) {
   return To::bitcastFromU16(from);
 }
 
@@ -144,17 +144,21 @@ createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
     DenseElementsAttrBuilder<T> denseBuilder) {
   llvm::SmallVector<T> copy;
   copy.resize_for_overwrite(data.size());
-  std::transform(data.begin(), data.end(), copy.data(),
-      [](U datum) { return ReinterpretTo<T>(datum); });
+  std::transform(data.begin(), data.end(), copy.data(), DeserializeDatum<T, U>);
   return denseBuilder(llvm::makeArrayRef(copy));
 }
 
 template <typename T>
-std::enable_if_t<!onnx_mlir::isF16Type<T>, T> byteSwapped(T x) {
+std::enable_if_t<!std::is_same_v<T, bool> && !onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
   return llvm::sys::getSwappedBytes(x);
 }
 template <typename T>
-std::enable_if_t<onnx_mlir::isF16Type<T>, T> byteSwapped(T x) {
+std::enable_if_t<std::is_same_v<T, bool>, T> swappedBytes(T x) {
+  assert(sizeof(x) == 1 && "bool should fit into 1 byte");
+  return x;
+}
+template <typename T>
+std::enable_if_t<onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
   return T::bitcastFromU16(llvm::sys::getSwappedBytes(x.bitcastToU16()));
 }
 
@@ -180,7 +184,7 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
       llvm::SmallVector<T> vector;
       vector.reserve(size);
       for (T x : arrayRef) {
-        vector.push_back(byteSwapped(x));
+        vector.push_back(swappedBytes(x));
       }
       return denseBuilder(llvm::makeArrayRef(vector));
     } else {
