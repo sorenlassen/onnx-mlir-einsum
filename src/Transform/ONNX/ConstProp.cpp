@@ -758,25 +758,6 @@ public:
 // Code to perform constant propagation for CastOp.
 //===----------------------------------------------------------------------===//
 
-template <typename SrcDTy, typename... Args>
-struct SrcDstCast {
-  using S = typename SrcDTy::cpptype;
-
-  template <typename DstDTy, typename... InnerArgs>
-  struct DstCast {
-    using D = typename DstDTy::cpptype;
-    static void eval(ArrayRef<S> src, MutableArrayRef<char> dst) {
-      fillOrTransform(src, castMutableArrayRef<D>(dst),
-          [](S v) { return static_cast<D>(v); });
-    }
-  };
-
-  static void eval(
-      Type dstType, ArrayRef<char> src, MutableArrayRef<char> dst) {
-    dispatchFPOrInt<DstCast>::eval(dstType, castArrayRef<S>(src), dst);
-  }
-};
-
 Value ConstPropCast(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
   ShapedType srcType = constValue.getType().cast<ShapedType>();
@@ -793,8 +774,14 @@ Value ConstPropCast(
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       dstType, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<SrcDstCast>::eval(
-            srcElemType, dstElemType, src.get(), dst);
+        dispatchByMlirType(srcElemType, [&](auto srcDType) {
+          using S = CppType<srcDType>;
+          dispatchByMlirType(dstElemType, [&](auto dstDType) {
+            using D = CppType<dstDType>;
+            fillOrTransform(castArrayRef<S>(src.get()), castMutableArrayRef<D>(dst),
+                [](S v) { return static_cast<D>(v); });
+          });
+        });
       });
 
   // Construct a new ONNXConstantOp.
