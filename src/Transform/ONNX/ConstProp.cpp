@@ -423,21 +423,12 @@ struct ElementWiseUnaryOpImpl<ONNXReluOp, U, EnableNotBool<U>> {
   static U impl(U val) { return val < 0 ? 0 : val; }
 };
 
-template <typename OP>
-struct ElementwiseUnary {
-  template <typename DTy, typename... Ts>
-  struct Compute {
-    using S = typename DTy::cpptype;
-    using U = toArithmetic<S>;
-    static void eval(ArrayRef<char> src, MutableArrayRef<char> dst) {
-      fillOrTransform(
-          castArrayRef<S>(src), castMutableArrayRef<S>(dst), [](S v) {
-            return static_cast<S>(
-                ElementWiseUnaryOpImpl<OP, U>::impl(static_cast<U>(v)));
-          });
-    }
-  };
-};
+template <typename OP, typename T>
+T evalElementWiseUnaryOp(T val) {
+  using U = toArithmetic<T>;
+  return static_cast<T>(
+      ElementWiseUnaryOpImpl<OP, U>::impl(static_cast<U>(val)));
+}
 
 /// Do element-wise unary calculation of 'input' value and create an
 /// ONNXConstantOp for the result.
@@ -457,9 +448,12 @@ Value ConstPropElementwiseUnary(
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       replacingType, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<ElementwiseUnary<
-            ElementwiseUnaryOp>::template Compute>::eval(elementType, src.get(),
-            dst);
+        dispatchByMlirType(elementType, [&](auto dtype) {
+          using T = CppType<dtype>;
+          fillOrTransform(castArrayRef<T>(src.get()),
+              castMutableArrayRef<T>(dst),
+              evalElementWiseUnaryOp<ElementwiseUnaryOp, T>);
+        });
       });
 
   // Construct a new ONNXConstantOp.
