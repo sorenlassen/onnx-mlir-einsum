@@ -157,14 +157,8 @@ createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
 }
 
 template <typename T>
-std::enable_if_t<!std::is_same_v<T, bool> && !onnx_mlir::isFP16Type<T>, T>
-swappedBytes(T x) {
+std::enable_if_t<!onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
   return llvm::sys::getSwappedBytes(x);
-}
-template <typename T>
-std::enable_if_t<std::is_same_v<T, bool>, T> swappedBytes(T x) {
-  assert(sizeof(x) == 1 && "bool should fit into 1 byte");
-  return x;
 }
 template <typename T>
 std::enable_if_t<onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
@@ -188,6 +182,8 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
         reinterpret_cast<T const *>(buffer.data()), size);
     // Perform byte swap if system endianness is BE.
     // ONNX tensor content raw data is always in LE.
+    // Don't byte swap single byte types, because that's unnecessary
+    // and llvm::sys::getSwappedBytes(bool) also happens to be broken.
     if (sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
                              llvm::support::endianness::little) {
       llvm::SmallVector<T> vector;
