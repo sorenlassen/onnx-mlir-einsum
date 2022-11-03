@@ -178,8 +178,8 @@ inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
   return onnx_mlir::dispatchByMlirType(
       t, [s, pos](auto dtype) { return readIntOrFP<dtype>(s, pos); });
 }
-inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s,
-    size_t pos, const ElementsTransform &transform) {
+inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
+    const ElementsTransform &transform) {
   return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
 }
 
@@ -232,6 +232,11 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // Data type (BOOL, INT8, FLOAT16, etc) of the elements in buffer.
   onnx_mlir::DType dtype;
 
+  // TODO: DType bufferDType
+  // TODO: bool isTransformed
+  // TODO: bool isStrided
+  // TODO: bool isSplat
+
   // shared_ptr to an underlying MemoryBuffer which can be either heap allocated
   // or a mmap'ed file or point to the raw data of a DenseElementsAttr.
   //
@@ -254,7 +259,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
   //
-  // nullptr means no transform.
+  // TODO: always set transform so we don't have to check whether it's set
   ElementsTransform transform;
 }; // struct DisposableElementsAttributeStorage
 
@@ -396,6 +401,7 @@ public:
       detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
       size_t pos = detail::getStridesPosition(indices, s->strides);
       Type elementType = s->type.getElementType();
+      // TODO: always set transform so we can just do: n = transform(s, pos)
       onnx_mlir::IntOrFP n = detail::readIntOrFP(
           elementType, s->buffer->getBuffer(), pos, s->transform);
       X x = n.to<X>(elementType);

@@ -98,6 +98,15 @@ struct CastIntsOrFPs {
   };
 };
 
+template <typename S>
+void castAndCopy(Type dstElemType, ArrayRef<S> src, MutableArrayRef<char> dst) {
+  dispatchByMlirType(dstElemType, [&](auto dstDType) {
+    using D = CppType<dstDType>;
+    fillOrTransform(src, castMutableArrayRef<D>(dst),
+        [](S v) { return static_cast<D>(v); });
+  });
+}
+
 RawBuffer getDenseIntOrFPRawDataFromConstOp(
     ONNXConstantOp constOp, ShapedType type) {
   Attribute bufferIDAttr =
@@ -113,12 +122,11 @@ RawBuffer getDenseIntOrFPRawDataFromConstOp(
     char *res = allocateBufferFor(type, /*useMaxSize=*/false);
     bufferPtrs.push_back(res);
     Type elementType = type.getElementType();
+    MutableArrayRef<char> dst(res, size);
     if (elementType.isa<FloatType>()) {
-      dispatchFP<CastIntsOrFPs<double>::template Cast>::eval(
-          elementType, src, res);
+      castAndCopy(elementType, castArrayRef<double>(src), dst);
     } else if (elementType.isa<IntegerType>()) {
-      dispatchInt<CastIntsOrFPs<int64_t>::template Cast>::eval(
-          elementType, src, res);
+      castAndCopy(elementType, castArrayRef<int64_t>(src), dst);
     } else {
       llvm_unreachable("Unknown data type");
     }
@@ -776,11 +784,7 @@ Value ConstPropCast(
       dstType, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(srcElemType, [&](auto srcDType) {
           using S = CppType<srcDType>;
-          dispatchByMlirType(dstElemType, [&](auto dstDType) {
-            using D = CppType<dstDType>;
-            fillOrTransform(castArrayRef<S>(src.get()), castMutableArrayRef<D>(dst),
-                [](S v) { return static_cast<D>(v); });
-          });
+          castAndCopy(dstElemType, castArrayRef<S>(src.get()), dst);
         });
       });
 
