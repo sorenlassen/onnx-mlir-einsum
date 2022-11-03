@@ -333,7 +333,7 @@ using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 // with an mlir Type which is either an IntegerType or FloatType.
 // The type tags which field of the union is populated:
 // dbl if FloatType, i64 or u64 if IntegerType and isSigned() or not.
-union IntOrFP { // TODO rename to WideIntOrFP
+union IntOrFP { // TODO rename to WideIntOrFP or WideNum
   double dbl;   // Floating point numbers with precision and range up to double.
   int64_t i64;  // Signed ints up to bitwidth 64.
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
