@@ -122,28 +122,6 @@ RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
 }
 
 namespace {
-// template <typename T, typename Reader>
-// auto getDenseIntOrFPRawData(ElementsAttr elements, Reader &&reader) {
-//   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
-//     ArrayRef<char> raw = dense.getRawData();
-//     // raw is either a single splat value or a whole array.
-//     ShapedType type = elements.getType();
-//     size_t w = getIntOrFloatByteWidth(type.getElementType());
-//     if (dense.isSplat()) {
-//       assert(raw.size() == w);
-//     } else {
-//       assert(raw.size() == type.getNumElements() * w);
-//     }
-//     return raw;
-//   }
-//   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
-//     return disposable.getRawBuffer();
-//   }
-//   if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>())
-//     return denseResrc.getRawHandle().getResource()->getBlob()->getData();
-//   llvm_unreachable("unexpected ElementsAttr instance");
-// }
-
 template <typename D>
 void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
   RawBuffer src = getDenseIntOrFPRawData(elements);
