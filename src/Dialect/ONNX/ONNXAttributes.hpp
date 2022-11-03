@@ -419,7 +419,7 @@ public:
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
-  bool isSplat() const { return getProperties.isBufferSplat; }
+  bool isSplat() const { return getProperties().isBufferSplat; }
   template <typename X>
   llvm::Optional<X> tryGetSplatValue() const {
     if (!isSplat())
