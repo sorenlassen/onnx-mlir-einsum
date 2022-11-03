@@ -57,23 +57,24 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     std::unique_ptr<llvm::MemoryBuffer> buffer;
     bool isSplat = splatterBuffer(type, bytes);
     if (mustCopy) {
-      StringRef s(bytes.data(), isSplat ? bytewidth : bytes.size());
+      StringRef s = asStringRef(isSplat ? bytes.take_front(bytewidth) : bytes);
       buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
     } else {
-      StringRef s(bytes.data(), bytes.size());
+      StringRef s = asStringRef(bytes);
       buffer = llvm::MemoryBuffer::getMemBuffer(
           s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
     }
-    return disposablePool->createElementsAttr(type, std::move(buffer));
+    return disposablePool->createElementsAttr(type, isSplat, std::move(buffer));
   }
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
+    bool isSplat = splatterBuffer(type, bytes);
     AsmResourceBlob blob =
         mustCopy ? HeapAsmResourceBlob::allocateAndCopy(
-                       bytes, ALIGN, /*dataIsMutable=*/true)
+                       isSplat ? bytes.take_front(bytewidth) : bytes, ALIGN,
+                       /*dataIsMutable=*/true)
                  : AsmResourceBlob(bytes, ALIGN, /*deleter=*/nullptr,
                        /*dataIsMutable=*/false);
-    splatterBlob(type, blob, /*dataIsMutable=*/mustCopy);
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);

@@ -300,7 +300,7 @@ private:
   // buffer, transform). It's ok to not detect splatness.
   static DisposableElementsAttr get(
       ShapedType type, Buffer buffer, ElementsTransform transform = nullptr) {
-    ArrayRef<char> rawBuffer = onnx_mlir::castArrayRef(buffer->getBuffer());
+    ArrayRef<char> rawBuffer = onnx_mlir::asArrayRef(buffer->getBuffer());
     bool isBufferSplat = false;
     if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
       llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
@@ -354,7 +354,8 @@ private:
         Super::Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
-    s.transform = transform ? std::move(transform) : getIdentityTransform(properties.dtype);
+    s.transform = transform ? std::move(transform)
+                            : getIdentityTransform(properties.dtype);
     return a;
   }
 
@@ -479,7 +480,6 @@ public:
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
-
   onnx_mlir::IntOrFP readPos(size_t pos) const {
     return getTransform()(getBuffer()->getBuffer(), pos);
   }

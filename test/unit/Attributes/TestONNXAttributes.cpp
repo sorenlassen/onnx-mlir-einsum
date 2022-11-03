@@ -68,12 +68,6 @@ ArrayRef<Dst> asArrayRef(const llvm::MemoryBuffer &b) {
   return asArrayRef<Dst>(b.getBuffer());
 }
 
-template <typename Src>
-StringRef asStringRef(ArrayRef<Src> a) {
-  ArrayRef<char> c = castArrayRef<char>(a);
-  return StringRef(c.data(), c.size());
-}
-
 template <typename T>
 std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
   return std::shared_ptr<llvm::MemoryBuffer>(

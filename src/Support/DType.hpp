@@ -285,9 +285,15 @@ llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
 }
 
 template <typename New = char>
-llvm::ArrayRef<New> castArrayRef(llvm::StringRef s) {
-  return llvm::makeArrayRef(reinterpret_cast<const New *>(s.data()),
-      s.size() / sizeof(New));
+llvm::ArrayRef<New> asArrayRef(llvm::StringRef s) {
+  return llvm::makeArrayRef(
+      reinterpret_cast<const New *>(s.data()), s.size() / sizeof(New));
+}
+
+template <typename Old = char>
+llvm::StringRef asStringRef(llvm::ArrayRef<Old> a) {
+  llvm::ArrayRef<char> c = castArrayRef<char>(a);
+  return llvm::StringRef(c.begin(), c.size());
 }
 
 template <typename New, typename Old = char>

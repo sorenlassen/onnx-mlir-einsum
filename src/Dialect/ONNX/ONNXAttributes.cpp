@@ -30,13 +30,15 @@ namespace {
 template <DType DTYPE>
 IntOrFP identityTransform(StringRef s, size_t pos) {
   using cpptype = CppType<DTYPE>;
-  cpptype x = castArrayRef<cpptype>(s)[pos];
+  cpptype x = asArrayRef<cpptype>(s)[pos];
   return IntOrFP::from(DTYPE, x);
 }
-}
+} // namespace
 
-ElementsTransform DisposableElementsAttr::getIdentityTransform(onnx_mlir::DType d) {
-  return dispatchByDType(d, [](auto dtype) { return identityTransform<dtype>; });
+ElementsTransform DisposableElementsAttr::getIdentityTransform(
+    onnx_mlir::DType d) {
+  return dispatchByDType(
+      d, [](auto dtype) { return identityTransform<dtype>; });
 }
 
 void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
