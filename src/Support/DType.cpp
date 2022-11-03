@@ -27,7 +27,7 @@ uint64_t detail::bitcastAPFloat(
   return i.getZExtValue();
 }
 
-DType dtypeOfMlirType(mlir::Type type) {
+DType dtypeOf(mlir::Type type) {
   // clang-format off
   if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
   if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
@@ -45,7 +45,7 @@ DType dtypeOfMlirType(mlir::Type type) {
   // clang-format on
 }
 
-mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx) {
+mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx) {
   constexpr bool isUnsigned = false;
   mlir::Builder b(ctx);
   // clang-format off

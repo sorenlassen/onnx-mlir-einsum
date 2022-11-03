@@ -316,7 +316,7 @@ public:
     Type elementType = type.getElementType();
     SmallVector<int64_t, 4> strides =
         detail::getDefaultStrides(type.getShape());
-    onnx_mlir::DType dtype = onnx_mlir::dtypeOfMlirType(elementType);
+    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(elementType);
     return get(type, strides, dtype, std::move(buffer));
   }
   static DisposableElementsAttr get(ShapedType type, Strides strides,

@@ -206,14 +206,22 @@ DEFINE_DTypeCppTypeTraits(DType::BFLOAT16, bfloat_16);
 template <DType DTYPE>
 using CppType = typename DTypeTrait<DTYPE>::cpptype;
 
-template <typename T>
-constexpr DType dtypeOf(T = T()) {
-  return CppTypeTrait<T>::dtype;
+template <typename CPPTY>
+constexpr DType toDType = CppTypeTrait<CPPTY>::dtype;
+
+template <typename CPPTY>
+constexpr DType dtypeOf(CPPTY = CPPTY()) {
+  return toDType<CPPTY>;
 }
 
-DType dtypeOfMlirType(mlir::Type type);
+DType dtypeOf(mlir::Type type);
 
-mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
+mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx);
+
+template <typename CPPTY>
+mlir::Type toMlirType(mlir::MLIRContext *ctx) {
+  return dtypeOf(toDType<CPPTY>, ctx);
+}
 
 template <typename T>
 mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
@@ -257,8 +265,8 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
 
 template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
-  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act),
-      std::forward<Args>(args)...);
+  return dispatchByDType(
+      dtypeOf(type), std::forward<Action>(act), std::forward<Args>(args)...);
 }
 
 // Helper functions frequently used together with dispatch.
@@ -332,7 +340,7 @@ union IntOrFP { // TODO rename to WideIntOrFP
       !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
   to(mlir::Type tag) const {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    return to<T>(dtypeOfMlirType(tag));
+    return to<T>(dtypeOf(tag));
   }
   template <typename T>
   std::enable_if_t<std::is_same_v<T, llvm::APInt>, T> to(mlir::Type tag) const {
@@ -374,7 +382,7 @@ union IntOrFP { // TODO rename to WideIntOrFP
       IntOrFP>
   from(mlir::Type tag, T x) {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    return from<T>(dtypeOfMlirType(tag), x);
+    return from<T>(dtypeOf(tag), x);
   }
   template <typename X>
   static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP> from(

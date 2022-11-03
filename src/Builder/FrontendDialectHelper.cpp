@@ -231,7 +231,7 @@ mlir::DenseElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
     const std::string &externalDataDir, const onnx::TensorProto &tp) {
   // Tensor dimensions.
   DType dtype = dtypeOfOnnxDataType(tp.data_type());
-  mlir::Type elmType = mlirTypeOfDType(dtype, builder.getContext());
+  mlir::Type elmType = mlirTypeOf(dtype, builder.getContext());
   llvm::ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());
   auto tensorType = mlir::RankedTensorType::get(tensorDims, elmType);
   return dispatchByDType(dtype, [&](auto dtype) {
