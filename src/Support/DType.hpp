@@ -228,12 +228,23 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<T>(), ctx);
 }
 
-// Return DTypeTrait<dtype>::isFloat/isSignedInt/etc when dtype isn't
-// known at compile time.
+// The following functions isFloatDType(dtype), widthOfDType(dtype), etc are
+// helpful alternatives to DTypeTrait<dtype>::isFloat/width/etc
+// when dtype isn't known at compile.
+
+// == isa<FloatType>(mlirTypeOf(dtype, ctx))
 bool isFloatDType(DType);
+
+// == mlirTypeOf(dtype, ctx).isSignlessInteger()
 bool isSignedIntDType(DType);
+
+// == mlirTypeOf(dtype, ctx).isUnsignedInteger()
 bool isUnsignedIntDType(DType);
+
+// == mlirTypeOf(dtype, ctx).getIntOrFloatBitWidth()
 bool widthOfDType(DType);
+
+// == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
 bool bytewidthOfDType(DType);
 
 inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
