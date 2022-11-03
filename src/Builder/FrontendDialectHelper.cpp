@@ -125,11 +125,11 @@ struct TransformValueToONNXData<uint64_t> {
 };
 
 template <typename To, typename From>
-std::enable_if_t<!onnx_mlir::isFP16Type<To>, To> DeserializeDatum(From from) {
+std::enable_if_t<!onnx_mlir::isFP16Type<To>, To> deserializeDatum(From from) {
   return from;
 }
 template <typename To, typename From>
-std::enable_if_t<onnx_mlir::isFP16Type<To>, To> DeserializeDatum(From from) {
+std::enable_if_t<onnx_mlir::isFP16Type<To>, To> deserializeDatum(From from) {
   return To::bitcastFromU16(from);
 }
 
@@ -152,10 +152,11 @@ createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
     mlir::RankedTensorType tensorType) {
   llvm::SmallVector<T> copy;
   copy.resize_for_overwrite(data.size());
-  std::transform(data.begin(), data.end(), copy.data(), DeserializeDatum<T, U>);
+  std::transform(data.begin(), data.end(), copy.data(), deserializeDatum<T, U>);
   return mlir::DenseElementsAttr::get(tensorType, llvm::makeArrayRef(copy));
 }
 
+// Extension of llvm::sys::getSwappedBytes to also handle float_16, bfloat_16.
 template <typename T>
 std::enable_if_t<!onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
   return llvm::sys::getSwappedBytes(x);
@@ -165,43 +166,45 @@ std::enable_if_t<onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
   return T::bitcastFromU16(llvm::sys::getSwappedBytes(x.bitcastToU16()));
 }
 
+template <typename T>
+mlir::DenseElementsAttr createDenseElmAttrFromRawData(
+    llvm::StringRef buffer, mlir::RankedTensorType tensorType) {
+  size_t size = buffer.size() / sizeof(T);
+  llvm::ArrayRef<T> array(reinterpret_cast<T const *>(buffer.data()), size);
+  // Perform byte swap if system endianness is BE.
+  // ONNX tensor content raw data is always in LE.
+  // Don't byte swap single byte types, because that's unnecessary
+  // and llvm::sys::getSwappedBytes(bool) also happens to be broken.
+  if (sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
+                           llvm::support::endianness::little) {
+    llvm::SmallVector<T> copy;
+    copy.resize_for_overwrite(size);
+    std::transform(array.begin(), array.end(), copy.data(), swappedBytes<T>);
+    return mlir::DenseElementsAttr::get(tensorType, llvm::makeArrayRef(copy));
+  } else {
+    // No need to take care of endianness.
+    return mlir::DenseElementsAttr::get(tensorType, array);
+  }
+}
+
 // Returns DenseElementsAttr with tp's data.
 template <typename T>
 mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
     const onnx::TensorProto &tp, mlir::RankedTensorType tensorType) {
-  std::unique_ptr<llvm::MemoryBuffer> externalData =
-      (tp.has_data_location() &&
-          tp.data_location() == onnx::TensorProto::EXTERNAL)
-          ? readExternalData(externalDataDir, tp)
-          : nullptr;
-  if (externalData || tp.has_raw_data()) {
-    llvm::StringRef buffer = externalData ? externalData->getBuffer()
-                                          : llvm::StringRef(tp.raw_data());
-    size_t size = buffer.size() / sizeof(T);
-    llvm::ArrayRef<T> arrayRef(
-        reinterpret_cast<T const *>(buffer.data()), size);
-    // Perform byte swap if system endianness is BE.
-    // ONNX tensor content raw data is always in LE.
-    // Don't byte swap single byte types, because that's unnecessary
-    // and llvm::sys::getSwappedBytes(bool) also happens to be broken.
-    if (sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
-                             llvm::support::endianness::little) {
-      llvm::SmallVector<T> vector;
-      vector.reserve(size);
-      for (T x : arrayRef) {
-        vector.push_back(swappedBytes(x));
-      }
-      return mlir::DenseElementsAttr::get(
-          tensorType, llvm::makeArrayRef(vector));
-    } else {
-      // No need to take care of endianness.
-      return mlir::DenseElementsAttr::get(tensorType, arrayRef);
-    }
-  } else {
-    // Not raw, no need to take care of endianness.
-    const auto &data = TransformValueToONNXData<T>::data(tp);
-    return createDenseElmAttrFromProtoData<T>(data, tensorType);
+  if (tp.has_data_location() &&
+      tp.data_location() == onnx::TensorProto::EXTERNAL) {
+    if (std::unique_ptr<llvm::MemoryBuffer> externalData =
+            readExternalData(externalDataDir, tp))
+      return createDenseElmAttrFromRawData<T>(
+          externalData->getBuffer(), tensorType);
   }
+  if (tp.has_raw_data()) {
+    return createDenseElmAttrFromRawData<T>(
+        llvm::StringRef(tp.raw_data()), tensorType);
+  }
+  // Not raw, no need to take care of endianness.
+  const auto &data = TransformValueToONNXData<T>::data(tp);
+  return createDenseElmAttrFromProtoData<T>(data, tensorType);
 }
 
 } // namespace
