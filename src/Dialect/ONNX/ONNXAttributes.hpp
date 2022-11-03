@@ -158,9 +158,7 @@ template <onnx_mlir::DType DTYPE>
 void copyIntOrFP(
     StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
   using X = onnx_mlir::CppType<DTYPE>;
-  X x = transform ? transform(s, pos).to<X>(DTYPE)
-                  : reinterpret_cast<const X *>(s.data())[pos];
-  *reinterpret_cast<X *>(dst) = x;
+  *reinterpret_cast<X *>(dst) = transform(s, pos).to<X>(DTYPE);
 }
 inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
