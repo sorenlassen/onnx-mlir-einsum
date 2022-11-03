@@ -387,9 +387,11 @@ private:
         Super::Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
-    s.transform = std::move(transform);
+    s.transform = transform ? std::move(transform) : getIdentityTransform(properties.dtype);
     return a;
   }
+
+  static ElementsTransform getIdentityTransform(onnx_mlir::DType);
 
 public:
   DisposableElementsAttr(std::nullptr_t) {}
