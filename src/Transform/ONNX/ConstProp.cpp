@@ -300,6 +300,13 @@ struct ElementWiseBinaryOpImpl<ONNXDivOp, U, EnableNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs / rhs; }
 };
 
+template <typename OP, typename T>
+T evalElementWiseBinaryOp(T lhs, T rhs) {
+  using U = toArithmetic<T>;
+  return static_cast<T>(ElementWiseBinaryOpImpl<OP, U>::impl(
+      static_cast<U>(lhs), static_cast<U>(rhs)));
+}
+
 std::vector<int64_t> unbroadcast(
     ArrayRef<int64_t> dstIndices, ArrayRef<int64_t> srcShape) {
   assert(dstIndices.size() >= srcShape.size());
@@ -312,53 +319,39 @@ std::vector<int64_t> unbroadcast(
   return srcIndices;
 }
 
-template <typename OP>
-struct ElementwiseBinary {
-  template <typename DTy, typename... Ts>
-  struct Compute {
-    using S = typename DTy::cpptype;
-    using U = toArithmetic<S>;
-    static S fn(S x, S y) {
-      return static_cast<S>(ElementWiseBinaryOpImpl<OP, U>::impl(
-          static_cast<U>(x), static_cast<U>(y)));
-    }
-    static void eval(ArrayRef<int64_t> lhsShape, ArrayRef<char> lhs,
-        ArrayRef<int64_t> rhsShape, ArrayRef<char> rhs,
-        ArrayRef<int64_t> dstShape, MutableArrayRef<char> dst) {
-      ArrayRef<S> xs = castArrayRef<S>(lhs);
-      ArrayRef<S> ys = castArrayRef<S>(rhs);
-      MutableArrayRef<S> zs = castMutableArrayRef<S>(dst);
-      std::vector<int64_t> lhsStrides;
-      bool lhsBroadcast = lhsShape != dstShape;
-      if (lhsBroadcast)
-        lhsStrides = getStrides(lhsShape);
-      std::vector<int64_t> rhsStrides;
-      bool rhsBroadcast = rhsShape != dstShape;
-      if (rhsBroadcast)
-        rhsStrides = getStrides(rhsShape);
-      std::vector<int64_t> dstStrides;
-      bool broadcast = lhsBroadcast || rhsBroadcast;
-      if (broadcast)
-        dstStrides = getStrides(dstShape);
-      for (size_t k = 0; k < zs.size(); ++k) {
-        size_t i = k;
-        size_t j = k;
-        if (broadcast) {
-          std::vector<int64_t> dstIndices = getAccessIndex(i, dstStrides);
-          if (lhsBroadcast) {
-            std::vector<int64_t> lhsIndices = unbroadcast(dstIndices, lhsShape);
-            i = getLinearAccessIndex(lhsIndices, lhsStrides);
-          }
-          if (rhsBroadcast) {
-            std::vector<int64_t> rhsIndices = unbroadcast(dstIndices, rhsShape);
-            j = getLinearAccessIndex(rhsIndices, rhsStrides);
-          }
-        }
-        zs[k] = fn(xs[i], ys[j]);
+template <typename OP, typename T>
+void evalElementwiseBinaryOp(ArrayRef<int64_t> lhsShape, ArrayRef<T> lhs,
+    ArrayRef<int64_t> rhsShape, ArrayRef<T> rhs, ArrayRef<int64_t> dstShape,
+    MutableArrayRef<T> dst) {
+  std::vector<int64_t> lhsStrides;
+  bool lhsBroadcast = lhsShape != dstShape;
+  if (lhsBroadcast)
+    lhsStrides = getStrides(lhsShape);
+  std::vector<int64_t> rhsStrides;
+  bool rhsBroadcast = rhsShape != dstShape;
+  if (rhsBroadcast)
+    rhsStrides = getStrides(rhsShape);
+  std::vector<int64_t> dstStrides;
+  bool broadcast = lhsBroadcast || rhsBroadcast;
+  if (broadcast)
+    dstStrides = getStrides(dstShape);
+  for (size_t k = 0; k < dst.size(); ++k) {
+    size_t i = k;
+    size_t j = k;
+    if (broadcast) {
+      std::vector<int64_t> dstIndices = getAccessIndex(i, dstStrides);
+      if (lhsBroadcast) {
+        std::vector<int64_t> lhsIndices = unbroadcast(dstIndices, lhsShape);
+        i = getLinearAccessIndex(lhsIndices, lhsStrides);
+      }
+      if (rhsBroadcast) {
+        std::vector<int64_t> rhsIndices = unbroadcast(dstIndices, rhsShape);
+        j = getLinearAccessIndex(rhsIndices, rhsStrides);
       }
     }
-  };
-};
+    dst[k] = evalElementWiseBinaryOp<OP, T>(lhs[i], rhs[j]);
+  }
+}
 
 /// Do element-wise binary calculation of 'lhs' and 'rhs' values and create an
 /// ONNXConstantOp for the result.
@@ -391,9 +384,12 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
 
   ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
       type, [&](MutableArrayRef<char> dst) {
-        dispatchFPOrInt<ElementwiseBinary<
-            ElementwiseBinaryOp>::template Compute>::eval(elementType, lhsShape,
-            lhs.get(), rhsShape, rhs.get(), type.getShape(), dst);
+        dispatchByMlirType(elementType, [&](auto dtype) {
+          using T = CppType<dtype>;
+          evalElementwiseBinaryOp<ElementwiseBinaryOp, T>(lhsShape,
+              castArrayRef<T>(lhs.get()), rhsShape, castArrayRef<T>(rhs.get()),
+              type.getShape(), castMutableArrayRef<T>(dst));
+        });
       });
 
   // Construct a new ONNXConstantOp.
