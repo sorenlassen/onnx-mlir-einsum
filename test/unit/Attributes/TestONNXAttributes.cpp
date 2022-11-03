@@ -57,12 +57,6 @@ MLIRContext *createCtx() {
   return ctx;
 }
 
-template <typename Src, typename Dst = char>
-ArrayRef<Dst> castArrayRef(ArrayRef<Src> a) {
-  return llvm::makeArrayRef(reinterpret_cast<const Dst *>(a.data()),
-      a.size() * sizeof(Src) / sizeof(Dst));
-}
-
 template <typename Dst = char>
 ArrayRef<Dst> asArrayRef(StringRef s) {
   return llvm::makeArrayRef(
@@ -74,12 +68,16 @@ ArrayRef<Dst> asArrayRef(const llvm::MemoryBuffer &b) {
   return asArrayRef<Dst>(b.getBuffer());
 }
 
+template <typename Src>
+StringRef asStringRef(ArrayRef<Src> a) {
+  ArrayRef<char> c = castArrayRef<char>(a);
+  return StringRef(c.data(), c.size());
+}
+
 template <typename T>
 std::shared_ptr<llvm::MemoryBuffer> buffer(ArrayRef<T> data) {
-  StringRef s(
-      reinterpret_cast<const char *>(data.data()), data.size() * sizeof(T));
   return std::shared_ptr<llvm::MemoryBuffer>(
-      llvm::MemoryBuffer::getMemBufferCopy(s));
+      llvm::MemoryBuffer::getMemBufferCopy(asStringRef(data)));
 }
 
 class Test {
@@ -243,8 +241,11 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.dbl = asArrayRef<float>(s)[p]};
     };
-    Attribute a = DisposableElementsAttr::get(
-        type, {0}, DType::UINT64, buffer<float>({4.2}), fun);
+    ArrayRef<int64_t> strides{};
+    bool isSplat = true;
+    bool isContiguous = true;
+    Attribute a = disposablePool.createElementsAttr(type, strides, DType::FLOAT,
+        isSplat, isContiguous, buffer<float>({4.2}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -274,7 +275,11 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.dbl = asArrayRef<float_16>(s)[p].toFloat()};
     };
-    Attribute a = DisposableElementsAttr::get(type, {0}, DType::FLOAT16,
+    ArrayRef<int64_t> strides{};
+    bool isSplat = true;
+    bool isContiguous = true;
+    Attribute a = disposablePool.createElementsAttr(type, strides,
+        DType::FLOAT16, isSplat, isContiguous,
         buffer<float_16>({float_16::fromFloat(4.2)}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
@@ -299,8 +304,11 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.u64 = asArrayRef<bool>(s)[p]};
     };
-    Attribute a = DisposableElementsAttr::get(
-        type, {0}, DType::BOOL, buffer<bool>({true}), fun);
+    ArrayRef<int64_t> strides{};
+    bool isSplat = true;
+    bool isContiguous = true;
+    Attribute a = disposablePool.createElementsAttr(type, strides, DType::BOOL,
+        isSplat, isContiguous, buffer<bool>({true}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -325,8 +333,7 @@ public:
       return {.u64 = asArrayRef<uint64_t>(s)[p]};
     };
     Attribute a;
-    a = DisposableElementsAttr::get(
-        type, {1}, DType::UINT64, buffer<uint64_t>({7, 9}), fun);
+    a = disposablePool.createElementsAttr(type, buffer<uint64_t>({7, 9}), fun);
     assert(a);
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();

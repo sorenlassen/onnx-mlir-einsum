@@ -185,16 +185,34 @@ inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
 
 } // namespace detail
 
+struct DisposableElementsAttributeProperties {
+  // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
+  onnx_mlir::DType dtype;
+
+  // Data type of the elements in buffer before transform.
+  onnx_mlir::DType bufferDType;
+
+  // Is there a single element in the buffer?
+  bool isBufferSplat;
+
+  // Do the strides match the type's shape?
+  bool isContiguous;
+
+  // Is the transform the identity?
+  bool isTransformed;
+};
+
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using KeyTy = std::tuple<ShapedType, Strides, onnx_mlir::DType>;
+  using Properties = DisposableElementsAttributeProperties;
+  using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 
   // Constructs only type and strides while the caller sets buffer and transform
   // after construction to minimize copying.
   DisposableElementsAttributeStorage(
-      ShapedType type, Strides strides, onnx_mlir::DType dtype)
-      : type(type), strides(strides), dtype(dtype) {}
+      ShapedType type, Strides strides, Properties properties)
+      : type(type), strides(strides), properties(properties) {}
 
   // Equality and hashKey are engineered to defeat the storage uniquer.
   // We don't want uniqueing because we can't compare transforms for equality
@@ -210,10 +228,10 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
       AttributeStorageAllocator &allocator, const KeyTy &key) {
     ShapedType type = std::get<0>(key);
     Strides strides = std::get<1>(key);
-    onnx_mlir::DType dtype = std::get<2>(key);
+    Properties properties = std::get<2>(key);
     return new (allocator.allocate<DisposableElementsAttributeStorage>())
         DisposableElementsAttributeStorage(
-            type, allocator.copyInto(strides), dtype);
+            type, allocator.copyInto(strides), properties);
   }
 
   // The tensor shape and element type that this object represents.
@@ -229,13 +247,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // splat value that broadcasts to shape's size with all-zero strides.
   Strides strides;
 
-  // Data type (BOOL, INT8, FLOAT16, etc) of the elements in buffer.
-  onnx_mlir::DType dtype;
-
-  // TODO: DType bufferDType
-  // TODO: bool isTransformed
-  // TODO: bool isStrided
-  // TODO: bool isSplat
+  Properties properties;
 
   // shared_ptr to an underlying MemoryBuffer which can be either heap allocated
   // or a mmap'ed file or point to the raw data of a DenseElementsAttr.
@@ -254,12 +266,12 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // file closed) when no one points to it anymore.
   Buffer buffer;
 
-  // Element wise transform of the buffer elements to values of Cpp type T.
+  // Element wise transform of the buffer elements to values of type's
+  // element type. Is set to the identity reader function if data is not
+  // transformed, namely when properties.isTransformed is false.
   //
   // Garbage collection clears the transform when the DisposableElementsAttr is
   // disposed.
-  //
-  // TODO: always set transform so we don't have to check whether it's set
   ElementsTransform transform;
 }; // struct DisposableElementsAttributeStorage
 
@@ -307,21 +319,63 @@ public:
   using Storage = DisposableElementsAttributeStorage;
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
+  using Properties = DisposableElementsAttributeProperties;
+
+private:
   using Super = Attribute::AttrBase<DisposableElementsAttr, Attribute,
       DisposableElementsAttributeStorage, ElementsAttr::Trait,
       TypedAttr::Trait>;
   using Super::Base::Base;
-  // TODO: make all the get() methods private, only called from DisposablePool
-  static DisposableElementsAttr get(ShapedType type, Buffer buffer) {
-    Type elementType = type.getElementType();
-    SmallVector<int64_t, 4> strides =
-        detail::getDefaultStrides(type.getShape());
-    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(elementType);
-    return get(type, strides, dtype, std::move(buffer));
+
+  // Checks the buffer contents to detect if it's splat.
+  // To bypass this check, e.g. if the buffer mmaps a file and you don't
+  // want to read it here, call get(type, bufferDType, /*isBufferSplat=*/false,
+  // buffer, transform). It's ok to not detect splatness.
+  static DisposableElementsAttr get(
+      ShapedType type, Buffer buffer, ElementsTransform transform = nullptr) {
+    ArrayRef<char> rawBuffer = onnx_mlir::castArrayRef(buffer->getBuffer());
+    bool isBufferSplat = false;
+    if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
+      llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
+    return get(type, isBufferSplat, buffer, transform);
   }
-  static DisposableElementsAttr get(ShapedType type, Strides strides,
-      onnx_mlir::DType dtype, Buffer buffer,
+
+  static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
+      Buffer buffer, ElementsTransform transform = nullptr) {
+    Type elementType = type.getElementType();
+    onnx_mlir::DType bufferDType = onnx_mlir::dtypeOf(elementType);
+    return get(type, bufferDType, isBufferSplat, buffer, transform);
+  }
+
+  static DisposableElementsAttr get(ShapedType type,
+      onnx_mlir::DType bufferDType, bool isBufferSplat, Buffer buffer,
       ElementsTransform transform = nullptr) {
+    SmallVector<int64_t, 4> strides;
+    if (!isBufferSplat)
+      strides = detail::getDefaultStrides(type.getShape());
+    bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
+    return get(type, strides, bufferDType, isBufferSplat, isContiguous, buffer,
+        transform);
+  }
+
+  static DisposableElementsAttr get(ShapedType type, Strides strides,
+      onnx_mlir::DType bufferDType, bool isBufferSplat, bool isContiguous,
+      Buffer buffer, ElementsTransform transform = nullptr) {
+    Type elementType = type.getElementType();
+    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(elementType);
+    Properties properties = {.dtype = dtype,
+        .bufferDType = bufferDType,
+        .isBufferSplat = isBufferSplat,
+        .isContiguous = isContiguous,
+        .isTransformed = transform != nullptr};
+    return create(
+        type, strides, properties, std::move(buffer), std::move(transform));
+  }
+
+  static DisposableElementsAttr create(ShapedType type, Strides strides,
+      Properties properties, Buffer buffer,
+      ElementsTransform transform = nullptr) {
+    // TODO: remove these checks, trust internal callers
     unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
     assert(buffer->getBufferSize() % w == 0);
     int64_t numBufferElements = buffer->getBufferSize() / w;
@@ -330,12 +384,14 @@ public:
            numBufferElements ==
                detail::getStridesNumElements(type.getShape(), strides));
     DisposableElementsAttr a =
-        Super::Base::get(type.getContext(), type, strides, dtype);
+        Super::Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();
     s.buffer = std::move(buffer);
     s.transform = std::move(transform);
     return a;
   }
+
+public:
   DisposableElementsAttr(std::nullptr_t) {}
 
   // Allow implicit conversion to ElementsAttr.
@@ -349,7 +405,9 @@ public:
   int64_t getRank() const { return getType().getRank(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
   ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
-  onnx_mlir::DType getDType() const { return this->getImpl()->dtype; }
+  const Properties &getProperties() const {
+    return this->getImpl()->properties;
+  }
   const Buffer &getBuffer() const {
     assert(!isDisposed());
     return this->getImpl()->buffer;
@@ -361,9 +419,7 @@ public:
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
-  bool isSplat() const {
-    return detail::isSplat(getStrides()) && getNumElements() > 0;
-  }
+  bool isSplat() const { return getProperties.isBufferSplat; }
   template <typename X>
   llvm::Optional<X> tryGetSplatValue() const {
     if (!isSplat())

@@ -86,7 +86,8 @@ void DisposablePool::eraseUnreachable(const Pool &reachable) {
       // p is unreachable, so we reset the buffer payload shared_ptr
       // which decreases the reference count and, if it reached zero,
       // frees or closes the underlying MemoryBuffer's heap allocation or file.
-      p->buffer.reset(); // Decrement reference count.
+      p->buffer.reset();
+      p->transform = nullptr;
       it = pool.erase(it);
     } else {
       ++it;
