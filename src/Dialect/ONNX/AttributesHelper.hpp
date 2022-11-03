@@ -28,6 +28,9 @@ public:
   RawBuffer(llvm::ArrayRef<char> ref) : vec(), ref(ref) {}
   RawBuffer() = delete;
   RawBuffer(const RawBuffer &) = delete;
+  RawBuffer(RawBuffer &&other)
+      : vec(std::move(other.vec)),
+        ref(vec.empty() ? other.ref : llvm::makeArrayRef(vec)) {}
 
   llvm::ArrayRef<char> get() const { return ref; }
   size_t size() const { return ref.size(); }
