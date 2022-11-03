@@ -134,22 +134,6 @@ auto end(int64_t numElements, const std::function<T(size_t)> &fun) {
 
 } // namespace detail
 
-// TODO: remove after testing :
-inline raw_ostream &operator<<(raw_ostream &os, const ArrayRef<int64_t> &v) {
-  os << "(";
-  for (auto i : v)
-    os << i << ",";
-  os << ")";
-  return os;
-}
-inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
-  return os << "APFloat(" << af.convertToDouble() << ")";
-}
-inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
-  return os << "IntOrFP(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
-}
-// TODO: remove after testing ^
-
 using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 namespace detail {
