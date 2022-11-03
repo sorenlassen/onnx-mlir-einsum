@@ -460,12 +460,11 @@ public:
       detail::copyIntOrFP(elementType, s, 0, vec.data(), transform);
       return onnx_mlir::RawBuffer(std::move(vec));
     }
-    ShapedType type = getType();
-    int64_t numElements = type.getNumElements();
-    int64_t numBufferElements = s.size() / bytewidth;
-    if (transform || numBufferElements != numElements) {
+    const Properties &properties = getProperties();
+    if (properties.isTransformed || !properties.isContiguous) {
+      ShapedType type = getType();
       onnx_mlir::RawBuffer::Vector vec;
-      vec.resize_for_overwrite(numElements * bytewidth);
+      vec.resize_for_overwrite(type.getNumElements() * bytewidth);
       Strides strides = getStrides();
       onnx_mlir::dispatchByMlirType(elementType, [&](auto dtype) {
         traverse(type, strides, [&](size_t pos, size_t flatIndex) {
