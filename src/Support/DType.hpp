@@ -225,7 +225,6 @@ inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
 
-#if 1
 template <DType DTYPE>
 struct DTypeToken {
   constexpr DTypeToken() {}
@@ -255,31 +254,6 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
   // clang-format on
 #undef ACT
 }
-#else
-template <typename Action, typename... Args>
-auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
-#define ACT(CPPTY) act(CPPTY(), std::forward<Args>(args)...)
-  // clang-format off
-  switch (dtype) {
-  case DType::BOOL     : return ACT(bool);
-  case DType::INT8     : return ACT(int8_t);
-  case DType::UINT8    : return ACT(uint8_t);
-  case DType::INT16    : return ACT(int16_t);
-  case DType::UINT16   : return ACT(uint16_t);
-  case DType::INT32    : return ACT(int32_t);
-  case DType::UINT32   : return ACT(uint32_t);
-  case DType::INT64    : return ACT(int64_t);
-  case DType::UINT64   : return ACT(uint64_t);
-  case DType::DOUBLE   : return ACT(double);
-  case DType::FLOAT    : return ACT(float);
-  case DType::FLOAT16  : return ACT(float_16);
-  case DType::BFLOAT16 : return ACT(bfloat_16);
-  default: llvm_unreachable("not a supported datatype");
-  }
-  // clang-format on
-#undef ACT
-}
-#endif
 
 template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
@@ -287,81 +261,7 @@ auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
       std::forward<Args>(args)...);
 }
 
-template <template <typename, typename...> class Action>
-struct dispatchInt {
-#define ACT(DTYPE) (Action<DTypeTrait<DType::DTYPE>, Ts...>::eval(xs...))
-  // clang-format off
-  template <typename... Ts>
-  static auto eval(DType dtype, Ts... xs) {
-    switch (dtype) {
-      case DType::BOOL   : return ACT(BOOL);
-      case DType::INT8   : return ACT(INT8);
-      case DType::UINT8  : return ACT(UINT8);
-      case DType::INT16  : return ACT(INT16);
-      case DType::UINT16 : return ACT(UINT16);
-      case DType::INT32  : return ACT(INT32);
-      case DType::UINT32 : return ACT(UINT32);
-      case DType::INT64  : return ACT(INT64);
-      case DType::UINT64 : return ACT(UINT64);
-      default: llvm_unreachable("not a supported integer type");
-    }
-  }
-  template <typename... Ts>
-  static auto eval(mlir::Type type, Ts... xs) {
-    auto itype = type.cast<mlir::IntegerType>();
-    switch (itype.getWidth()) {
-      case  1: return ACT(BOOL);
-      case  8: return itype.isUnsigned() ? ACT(UINT8)  : ACT(INT8);
-      case 16: return itype.isUnsigned() ? ACT(UINT16) : ACT(INT16);
-      case 32: return itype.isUnsigned() ? ACT(UINT32) : ACT(INT32);
-      case 64: return itype.isUnsigned() ? ACT(UINT64) : ACT(INT64);
-      default: llvm_unreachable("unsupported integer width");
-    }
-  }
-  // clang-format on
-#undef ACT
-};
-
-template <template <typename, typename...> class Action, typename Alt>
-struct dispatchFPOr {
-#define ACT(DTYPE) (Action<DTypeTrait<DType::DTYPE>, Ts...>::eval(xs...))
-  // clang-format off
-  template <typename... Ts>
-  static auto eval(DType dtype, Ts... xs) {
-    switch (dtype) {
-      case DType::DOUBLE   : return ACT(DOUBLE);
-      case DType::FLOAT    : return ACT(FLOAT);
-      case DType::FLOAT16  : return ACT(FLOAT16);
-      case DType::BFLOAT16 : return ACT(BFLOAT16);
-      default: return Alt::eval(dtype, xs...);
-    }
-  }
-  template <typename... Ts>
-  static auto eval(mlir::Type type, Ts... xs) {
-    if (type.isa<mlir::Float64Type>())  return ACT(DOUBLE);
-    if (type.isa<mlir::Float32Type>())  return ACT(FLOAT);
-    if (type.isa<mlir::Float16Type>())  return ACT(FLOAT16);
-    if (type.isa<mlir::BFloat16Type>()) return ACT(BFLOAT16);
-    return Alt::eval(type, xs...);
-  }
-  // clang-format on
-#undef ACT
-};
-
-struct dispatchFail {
-  template <typename T, typename... Ts>
-  static auto eval(T dtype, Ts... xs) {
-    llvm_unreachable("unsupported type");
-  }
-};
-
-template <template <typename, typename...> class Action>
-using dispatchFP = dispatchFPOr<Action, dispatchFail>;
-
-template <template <typename, typename...> class Action>
-using dispatchFPOrInt = dispatchFPOr<Action, dispatchInt<Action>>;
-
-// Helper functions frequently used together with dispatch classes.
+// Helper functions frequently used together with dispatch.
 
 template <typename New, typename Old = char>
 llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
