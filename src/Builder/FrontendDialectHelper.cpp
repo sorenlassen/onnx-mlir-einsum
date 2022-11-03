@@ -124,13 +124,17 @@ struct TransformValueToONNXData<uint64_t> {
   }
 };
 
+// Converts to the cpp type 'To' that correspond's to the tensor element type
+// (bool, int8, float_16, uint32, etc) from the the proto data field type
+// which may be a wider type (int32, uint64). In most cases the conversion is
+// just standard C implicit conversion. The exception is float_16 and bfloat_16
+// which must be bit-wise converted from uint16_t.
 template <typename To, typename From>
-std::enable_if_t<!onnx_mlir::isFP16Type<To>, To> deserializeDatum(From from) {
-  return from;
-}
-template <typename To, typename From>
-std::enable_if_t<onnx_mlir::isFP16Type<To>, To> deserializeDatum(From from) {
-  return To::bitcastFromU16(from);
+To deserializeDatum(From from) {
+  if constexpr (onnx_mlir::isFP16Type<To>)
+    return To::bitcastFromU16(from);
+  else
+    return from;
 }
 
 // When the protobuf repeated field has a type of the same size as T,
@@ -158,12 +162,11 @@ createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
 
 // Extension of llvm::sys::getSwappedBytes to also handle float_16, bfloat_16.
 template <typename T>
-std::enable_if_t<!onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
-  return llvm::sys::getSwappedBytes(x);
-}
-template <typename T>
-std::enable_if_t<onnx_mlir::isFP16Type<T>, T> swappedBytes(T x) {
-  return T::bitcastFromU16(llvm::sys::getSwappedBytes(x.bitcastToU16()));
+T swappedBytes(T x) {
+  if constexpr (onnx_mlir::isFP16Type<T>)
+    return T::bitcastFromU16(llvm::sys::getSwappedBytes(x.bitcastToU16()));
+  else
+    return llvm::sys::getSwappedBytes(x);
 }
 
 template <typename T>
