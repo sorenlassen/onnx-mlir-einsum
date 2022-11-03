@@ -154,11 +154,11 @@ using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 namespace detail {
 
-template <onnx_mlir::DType dtype>
+template <onnx_mlir::DType DTYPE>
 void copyIntOrFP(
     StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
-  using X = onnx_mlir::CppType<dtype>;
-  X x = transform ? transform(s, pos).to<X>(dtype)
+  using X = onnx_mlir::CppType<DTYPE>;
+  X x = transform ? transform(s, pos).to<X>(DTYPE)
                   : reinterpret_cast<const X *>(s.data())[pos];
   *reinterpret_cast<X *>(dst) = x;
 }
@@ -166,21 +166,6 @@ inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
     const ElementsTransform &transform) {
   onnx_mlir::dispatchByMlirType(
       t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
-}
-
-template <onnx_mlir::DType dtype>
-onnx_mlir::IntOrFP readIntOrFP(StringRef s, size_t pos) {
-  using X = onnx_mlir::CppType<dtype>;
-  X x = reinterpret_cast<const X *>(s.data())[pos];
-  return onnx_mlir::IntOrFP::from(dtype, x);
-}
-inline onnx_mlir::IntOrFP readIntOrFP(Type t, StringRef s, size_t pos) {
-  return onnx_mlir::dispatchByMlirType(
-      t, [s, pos](auto dtype) { return readIntOrFP<dtype>(s, pos); });
-}
-inline onnx_mlir::IntOrFP readIntOrFP(Type elementType, StringRef s, size_t pos,
-    const ElementsTransform &transform) {
-  return transform ? transform(s, pos) : readIntOrFP(elementType, s, pos);
 }
 
 } // namespace detail
@@ -418,6 +403,7 @@ public:
     assert(!isDisposed());
     return this->getImpl()->transform;
   }
+  onnx_mlir::DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the transform function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
@@ -426,10 +412,7 @@ public:
   llvm::Optional<X> tryGetSplatValue() const {
     if (!isSplat())
       return llvm::None;
-    Type elementType = getElementType();
-    onnx_mlir::IntOrFP n = detail::readIntOrFP(
-        elementType, getBuffer()->getBuffer(), 0, getTransform());
-    return n.to<X>(elementType);
+    return readPos(0).to<X>(getElementType());
   }
   template <typename X>
   X getSplatValue() const {
@@ -453,17 +436,9 @@ public:
   template <typename X>
   std::enable_if_t<onnx_mlir::isIntOrFPConvertible<X>(), FailureOr<iterator<X>>>
   try_value_begin_impl(OverloadToken<X>) const {
-    DisposableElementsAttributeStorage *s = this->getImpl();
-    return detail::begin<X>(getNumElements(), [s](size_t flatIndex) -> X {
-      SmallVector<int64_t, 4> indices;
-      detail::unflattenIndex(s->type.getShape(), flatIndex, indices);
-      size_t pos = detail::getStridesPosition(indices, s->strides);
-      Type elementType = s->type.getElementType();
-      // TODO: always set transform so we can just do: n = transform(s, pos)
-      onnx_mlir::IntOrFP n = detail::readIntOrFP(
-          elementType, s->buffer->getBuffer(), pos, s->transform);
-      X x = n.to<X>(elementType);
-      return x;
+    DisposableElementsAttr attr = *this;
+    return detail::begin<X>(getNumElements(), [attr](size_t flatIndex) -> X {
+      return attr.readFlatIndex(flatIndex).to<X>(attr.getElementType());
     });
   }
 
@@ -525,6 +500,18 @@ public:
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
+
+  onnx_mlir::IntOrFP readPos(size_t pos) const {
+    return getTransform()(getBuffer()->getBuffer(), pos);
+  }
+
+  onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
+    SmallVector<int64_t, 4> indices;
+    detail::unflattenIndex(getShape(), flatIndex, indices);
+    size_t pos = detail::getStridesPosition(indices, getStrides());
+    return readPos(pos);
+  }
+
   template <typename Act>
   static size_t traverse(ShapedType type, ArrayRef<int64_t> strides,
       const Act &act, int64_t axis = 0, size_t offset = 0,
