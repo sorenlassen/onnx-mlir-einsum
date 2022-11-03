@@ -137,23 +137,18 @@ To deserializeDatum(From from) {
     return from;
 }
 
-// When the protobuf repeated field has a type of the same size as T,
-// access the data directly via ArrayRef.
 template <typename T, typename U>
-std::enable_if_t<std::is_same_v<T, U>, mlir::DenseElementsAttr>
-createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
+mlir::DenseElementsAttr createDenseElmAttrFromProtoData(
+    const google::protobuf::RepeatedField<U> &data,
     mlir::RankedTensorType tensorType) {
-  return mlir::DenseElementsAttr::get(
-      tensorType, llvm::makeArrayRef(data.data(), data.size()));
-}
-
-// When the protobuf repeated field has a type larger than T,
-// copy the data into correctly typed SmallVector because
-// DenseElementsAttr needs argument type of the correct bitwidth.
-template <typename T, typename U>
-std::enable_if_t<!std::is_same_v<T, U>, mlir::DenseElementsAttr>
-createDenseElmAttrFromProtoData(const google::protobuf::RepeatedField<U> &data,
-    mlir::RankedTensorType tensorType) {
+  if constexpr (std::is_same_v<T, U>) {
+    // When the protobuf repeated field has a type of the same size as T,
+    // access the data directly via ArrayRef.
+    return mlir::DenseElementsAttr::get(
+        tensorType, llvm::makeArrayRef(data.data(), data.size()));
+  }
+  // Copy the data into correctly typed SmallVector because
+  // DenseElementsAttr needs argument type of the correct bitwidth.
   llvm::SmallVector<T> copy;
   copy.resize_for_overwrite(data.size());
   std::transform(data.begin(), data.end(), copy.data(), deserializeDatum<T, U>);
