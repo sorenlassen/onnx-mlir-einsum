@@ -160,18 +160,18 @@ namespace detail {
 template <DType DTYPE, typename CPPTY>
 struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
-  static constexpr bool is_float =
+  static constexpr bool isFloat =
       std::is_floating_point_v<CPPTY> || isFP16Type<CPPTY>;
-  static constexpr bool is_signed_int =
+  static constexpr bool isSignedInt =
       std::is_integral_v<CPPTY> && std::is_signed_v<CPPTY>;
-  static constexpr bool is_unsigned_int =
+  static constexpr bool isUnsignedInt =
       std::is_integral_v<CPPTY> && !std::is_signed_v<CPPTY>;
   static constexpr unsigned width =
       std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
   static constexpr unsigned bytewidth = (width + 1) / 8;
   using cpptype = CPPTY;
-  using widetype = std::conditional_t<is_float, double,
-      std::conditional_t<is_signed_int, int64_t, uint64_t>>;
+  using widetype = std::conditional_t<isFloat, double,
+      std::conditional_t<isSignedInt, int64_t, uint64_t>>;
 };
 } // namespace detail
 
@@ -228,7 +228,14 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<T>(), ctx);
 }
 
-// TODO: find a better place for this
+// Return DTypeTrait<dtype>::isFloat/isSignedInt/etc when dtype isn't
+// known at compile time.
+bool isFloatDType(DType);
+bool isSignedIntDType(DType);
+bool isUnsignedIntDType(DType);
+bool widthOfDType(DType);
+bool bytewidthOfDType(DType);
+
 inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
 }
@@ -277,6 +284,12 @@ llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
       (a.size() * sizeof(Old)) / sizeof(New));
 }
 
+template <typename New = char>
+llvm::ArrayRef<New> castArrayRef(llvm::StringRef s) {
+  return llvm::makeArrayRef(reinterpret_cast<const New *>(s.data()),
+      s.size() / sizeof(New));
+}
+
 template <typename New, typename Old = char>
 llvm::MutableArrayRef<New> castMutableArrayRef(llvm::MutableArrayRef<Old> a) {
   return llvm::makeMutableArrayRef(reinterpret_cast<New *>(a.data()),
@@ -293,7 +306,7 @@ void fillOrTransform(
 }
 
 template <typename U>
-using EnableFloat = std::enable_if_t<CppTypeTrait<U>::is_float>;
+using EnableFloat = std::enable_if_t<CppTypeTrait<U>::isFloat>;
 
 template <typename U>
 using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;

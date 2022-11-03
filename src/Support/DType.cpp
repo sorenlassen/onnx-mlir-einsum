@@ -68,6 +68,26 @@ mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx) {
   // clang-format on
 }
 
+bool isFloatDType(DType d) {
+  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isFloat; });
+}
+
+bool isSignedIntDType(DType d) {
+  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isSignedInt; });
+}
+
+bool isUnsignedIntDType(DType d) {
+  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isUnsignedInt; });
+}
+
+bool widthOfDType(DType d) {
+  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::width; });
+}
+
+bool bytewidthOfDType(DType d) {
+  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::bytewidth; });
+}
+
 llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
   if (ftag.isa<mlir::Float64Type>())
     return llvm::APFloat(dbl);

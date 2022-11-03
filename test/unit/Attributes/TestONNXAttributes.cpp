@@ -176,7 +176,7 @@ public:
     llvm::errs() << "-128i8 as u64 " << u << "\n";
     llvm::errs() << "static_cast<u64>(-128i8) " << static_cast<uint64_t>(i)
                  << "\n";
-    assert(CppTypeTrait<float>::is_float);
+    assert(CppTypeTrait<float>::isFloat);
     return 0;
   }
 
