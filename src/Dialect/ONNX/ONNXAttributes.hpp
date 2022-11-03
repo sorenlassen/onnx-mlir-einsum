@@ -470,7 +470,6 @@ public:
     StringRef s = getBuffer()->getBuffer();
     const auto &transform = getTransform();
     if (isSplat()) {
-      // llvm::errs() << "getRawBuffer isSplat\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(bytewidth);
       detail::copyIntOrFP(elementType, s, 0, vec.data(), transform);
@@ -480,7 +479,6 @@ public:
     int64_t numElements = type.getNumElements();
     int64_t numBufferElements = s.size() / bytewidth;
     if (transform || numBufferElements != numElements) {
-      // llvm::errs() << "getRawBuffer indirect\n";
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(numElements * bytewidth);
       Strides strides = getStrides();
@@ -492,7 +490,6 @@ public:
       });
       return onnx_mlir::RawBuffer(std::move(vec));
     } else {
-      // llvm::errs() << "getRawBuffer direct\n";
       return llvm::makeArrayRef(s.data(), s.size());
     }
   }
