@@ -69,23 +69,28 @@ mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx) {
 }
 
 bool isFloatDType(DType d) {
-  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isFloat; });
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::isFloat; });
 }
 
 bool isSignedIntDType(DType d) {
-  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isSignedInt; });
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::isSignedInt; });
 }
 
 bool isUnsignedIntDType(DType d) {
-  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::isUnsignedInt; });
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::isUnsignedInt; });
 }
 
 bool widthOfDType(DType d) {
-  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::width; });
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::width; });
 }
 
 bool bytewidthOfDType(DType d) {
-  return dispatchByDType(d, [](auto dtype) { return DTypeTrait<dtype>::bytewidth; });
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::bytewidth; });
 }
 
 llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
@@ -103,10 +108,23 @@ llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
 
 llvm::APInt IntOrFP::toAPInt(mlir::IntegerType itag) const {
   if (itag.isSigned())
-    // Actually, isSigned flag is ignored becuase width <= 64.
+    // Actually, isSigned flag is ignored because width <= 64.
     return llvm::APInt(itag.getWidth(), i64, /*isSigned=*/true);
   else
     return llvm::APInt(itag.getWidth(), u64);
+}
+
+/*static*/
+IntOrFP IntOrFP::fromAPInt(mlir::IntegerType itag, llvm::APInt x) {
+  if (itag.isSigned())
+    return {.i64 = x.getSExtValue()};
+  else
+    return {.u64 = x.getZExtValue()};
+}
+
+/*static*/
+IntOrFP IntOrFP::fromAPFloat(mlir::FloatType ftag, llvm::APFloat x) {
+  return {.dbl = x.convertToDouble()};
 }
 
 } // namespace onnx_mlir

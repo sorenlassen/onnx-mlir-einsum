@@ -333,16 +333,29 @@ using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
 // Union of 64-bit integers and double precision floating point numbers.
 // It is tagless and should always be used in a conjunction
-// with an mlir Type which is either an IntegerType or FloatType.
-// The type tags which field of the union is populated:
-// dbl if FloatType, i64 or u64 if IntegerType and isSigned() or not.
-union IntOrFP { // TODO rename to WideIntOrFP or WideNum
+// with a DType or a corresponding int or float mlir Type.
+// The dtype tags which field of the union is populated:
+// dbl if isFloat(dtype), i64 or u64 if isSigned/UnsignedInt(dtype).
+//
+// IntOrFP satisfies the property
+//
+//   static_cast<Y>(x) == IntOrFP::from<X>(dtype, x).To<Y>(dtype)
+//
+// for all cpp types X and Y value x of type X, provided the wide type of
+// dtype (double, int64_t, uint64_t) has enough precision and range to
+// represent x up to the precision and range of Y.
+//
+// TODO: rename IntOrFP to WideNum
+//
+union IntOrFP {
   double dbl;   // Floating point numbers with precision and range up to double.
   int64_t i64;  // Signed ints up to bitwidth 64.
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
 
   llvm::APInt toAPInt(mlir::IntegerType itag) const;
   llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
+  static IntOrFP fromAPInt(mlir::IntegerType itag, llvm::APInt x);
+  static IntOrFP fromAPFloat(mlir::FloatType ftag, llvm::APFloat x);
 
   template <typename T>
   constexpr T to(DType dtag) const {
@@ -367,13 +380,6 @@ union IntOrFP { // TODO rename to WideIntOrFP or WideNum
       llvm_unreachable("to unsupported dtype");
     }
   }
-
-  // TODO: consider adding to<DTYPE>() = to<CppType<DTYPE>>(DTYPE)
-
-  // TODO: add write and read methods
-  // void write<DTYPE>(char *dst) const { reinterpret_cast<CppType<DTYPE>
-  // *>(dst) = to<...>(...); } static IntOrFP read<DTYPE>(const char *dst) {
-  // return from(*reinterpret_cast...) }
 
   template <typename T>
   std::enable_if_t<
