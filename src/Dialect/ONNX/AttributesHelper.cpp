@@ -45,7 +45,16 @@ constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
 
 } // namespace
 
-ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
+mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
+    mlir::ShapedType type, llvm::ArrayRef<char> bytes) {
+  if (type.getElementType().isInteger(1)) {
+    // don't use getFromRawBuffer which requires bit packing
+    return DenseElementsAttr::get(type, castArrayRef<bool>(bytes));
+  }
+  return DenseElementsAttr::getFromRawBuffer(type, bytes);
+}
+
+ElementsAttr makeDenseIntOrFPElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
   size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
@@ -77,36 +86,38 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
   }
-  return DenseElementsAttr::getFromRawBuffer(type, bytes);
+  return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
-    ShapedType type, FillDenseRawBufferFn fill) {
+ElementsAttr makeDenseIntOrFPElementsAttrWithRawBytesFiller(
+    ShapedType type, DenseRawBytesFiller filler) {
   size_t size =
       type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
   if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
       disposablePool && disposablePool->isActive()) {
     std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
         llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
-    fill(buffer->getBuffer());
+    filler(buffer->getBuffer());
     return disposablePool->createElementsAttr(type, std::move(buffer));
   }
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
     AsmResourceBlob blob = HeapAsmResourceBlob::allocate(size, ALIGN);
-    fill(blob.getMutableData());
+    filler(blob.getMutableData());
     splatterBlob(type, blob, /*dataIsMutable=*/true);
     DenseResourceElementsHandle r =
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
   }
   std::vector<char> bytes(size, 0);
-  fill(bytes);
-  return DenseElementsAttr::getFromRawBuffer(type, bytes);
+  filler(bytes);
+  return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
+RawBuffer getDenseIntOrFPRawBytes(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    // TODO: copy out contents if bool, because raw data is bit packed
+    assert(!dense.getElementType().isInteger(1) && "bool unsupported");
     return dense.getRawData(); // Single splat value or a full array.
   }
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
@@ -133,7 +144,7 @@ void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
     });
     return;
   }
-  RawBuffer src = getDenseIntOrFPRawData(elements);
+  RawBuffer src = getDenseIntOrFPRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
     fillOrTransform(

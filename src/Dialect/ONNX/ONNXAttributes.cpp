@@ -86,7 +86,7 @@ void DisposablePool::scrub(ModuleOp moduleOp) {
       if (auto elements = attr->dyn_cast<DisposableElementsAttr>()) {
         assert(this->pool.count(elements.getImpl()) == 1 &&
                "reachable disposables must be in the pool");
-        RawBuffer rawBuffer = getDenseIntOrFPRawData(elements);
+        RawBuffer rawBuffer = getDenseIntOrFPRawBytes(elements);
         constOp.valueAttr(DenseElementsAttr::getFromRawBuffer(
             elements.getType(), rawBuffer.get()));
       }

@@ -133,7 +133,7 @@ RawBuffer getDenseIntOrFPRawDataFromConstOp(
     return llvm::makeArrayRef(res, size);
   }
   ElementsAttr elements = constOp.valueAttr().cast<ElementsAttr>();
-  return getDenseIntOrFPRawData(elements);
+  return getDenseIntOrFPRawBytes(elements);
 }
 
 RawBuffer getDenseIntOrFPRawDataFromConstValue(Value constValue) {
@@ -382,7 +382,7 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
 
   // TODO: make single element splat dst buffer if both lhs and rhs are splat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
+  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
       type, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(elementType, [&](auto dtype) {
           using T = CppType<dtype>;
@@ -446,7 +446,7 @@ Value ConstPropElementwiseUnary(
 
   // TODO: make single element splat dst buffer if src isSplat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
+  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
       replacingType, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(elementType, [&](auto dtype) {
           using T = CppType<dtype>;
@@ -771,7 +771,7 @@ Value ConstPropCast(
 
   // TODO: make single element splat dst buffer if src isSplat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBuffer(
+  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
       dstType, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(srcElemType, [&](auto srcDType) {
           using S = CppType<srcDType>;
