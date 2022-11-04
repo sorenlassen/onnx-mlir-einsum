@@ -169,9 +169,9 @@ struct DTypeTraitBase {
       std::is_integral_v<CPPTY> && std::is_signed_v<CPPTY>;
   static constexpr bool isUnsignedInt =
       std::is_integral_v<CPPTY> && !std::is_signed_v<CPPTY>;
-  static constexpr unsigned width = // TODO: rename to bitwidth
+  static constexpr unsigned bitwidth =
       std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
-  static constexpr unsigned bytewidth = (width + 1) / 8;
+  static constexpr unsigned bytewidth = (bitwidth + 1) / 8;
   using cpptype = CPPTY;
   using widetype = std::conditional_t<isFloat, double,
       std::conditional_t<isSignedInt, int64_t, uint64_t>>;
@@ -231,8 +231,8 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(dtypeOf<T>(), ctx);
 }
 
-// The following functions isFloatDType(dtype), widthOfDType(dtype), etc are
-// helpful alternatives to DTypeTrait<dtype>::isFloat/width/etc
+// The following functions isFloatDType(dtype), bitwidthOfDType(dtype), etc are
+// helpful alternatives to DTypeTrait<dtype>::isFloat/bitwidth/etc
 // when dtype isn't known at compile.
 
 // == mlirTypeOf(dtype, ctx).isa<FloatType>()
@@ -248,7 +248,7 @@ bool isSignedIntDType(DType);
 bool isUnsignedIntDType(DType);
 
 // == mlirTypeOf(dtype, ctx).getIntOrFloatBitWidth()
-unsigned widthOfDType(DType); // TODO: rename to bitwidth
+unsigned bitwidthOfDType(DType);
 
 // == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
 unsigned bytewidthOfDType(DType);

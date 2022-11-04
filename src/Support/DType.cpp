@@ -88,9 +88,9 @@ bool isUnsignedIntDType(DType d) {
       d, [](auto dtype) { return DTypeTrait<dtype>::isUnsignedInt; });
 }
 
-unsigned widthOfDType(DType d) {
+unsigned bitwidthOfDType(DType d) {
   return dispatchByDType(
-      d, [](auto dtype) { return DTypeTrait<dtype>::width; });
+      d, [](auto dtype) { return DTypeTrait<dtype>::bitwidth; });
 }
 
 unsigned bytewidthOfDType(DType d) {
@@ -114,9 +114,9 @@ llvm::APFloat IntOrFP::toAPFloat(DType tag) const {
 }
 
 llvm::APInt IntOrFP::toAPInt(DType tag) const {
-  unsigned bitwidth = widthOfDType(tag);
+  unsigned bitwidth = bitwidthOfDType(tag);
   if (isSignedIntDType(tag))
-    // Actually, isSigned flag is ignored because width <= 64.
+    // Actually, isSigned flag is ignored because bitwidth <= 64.
     return llvm::APInt(bitwidth, i64, /*isSigned=*/true);
   if (isUnsignedIntDType(tag))
     return llvm::APInt(bitwidth, u64);
