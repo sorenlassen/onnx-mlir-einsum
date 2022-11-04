@@ -147,13 +147,12 @@ char *getArrayFromAttributeOrBuffer(PatternRewriter &rewriter, Operation *op) {
   assert(constOp && "Not a constant operation");
   char *res = nullptr;
 
-  Attribute bufferIDAttr = op->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
+  Attribute bufferIDAttr = op->getAttr(BUFFER_ID_ATTR);
   if (bufferIDAttr) {
     unsigned bufferId = bufferIDAttr.cast<IntegerAttr>().getUInt();
     res = bufferPtrs[bufferId];
   } else {
-    ElementsAttr dataAttr = op->getAttrOfType<::mlir::Attribute>("value")
-                                .cast<mlir::ElementsAttr>();
+    ElementsAttr dataAttr = constOp.valueAttr().cast<mlir::ElementsAttr>();
     res = createArrayFromDenseElementsAttr(dataAttr);
     bufferPtrs.emplace_back(res);
     unsigned bufferId = bufferPtrs.size() - 1;
@@ -478,8 +477,7 @@ Value ConstPropTranspose(
 
   // Get perm attribute.
   SmallVector<uint64_t, 4> perm;
-  Attribute permAttr =
-      replacingValue.getDefiningOp()->getAttrOfType<::mlir::Attribute>("perm");
+  Attribute permAttr = replacingValue.getDefiningOp()->getAttr("perm");
   assert(permAttr && "permute attribute expected to be defined here");
   for (auto permVal : permAttr.cast<ArrayAttr>().getValue())
     perm.emplace_back(permVal.cast<IntegerAttr>().getInt());
