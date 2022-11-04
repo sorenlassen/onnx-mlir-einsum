@@ -91,7 +91,7 @@ public:
   }
   ~Test() { delete ctx; }
 
-  Type getUInt(unsigned width) const {
+  IntegerType getUInt(unsigned width) const {
     return IntegerType::get(ctx, width, IntegerType::Unsigned);
   }
 
@@ -176,17 +176,16 @@ public:
     llvm::errs() << "test_IntOrFP:\n";
     constexpr IntOrFP nf = IntOrFP::from(DType::DOUBLE, 42.0);
     llvm::errs() << "nf " << nf << "\n";
-    llvm::errs() << "nf as APFloat " << nf.to<APFloat>(builder.getF64Type())
+    llvm::errs() << "nf as APFloat " << nf.toAPFloat(builder.getF64Type())
                  << "\n";
     constexpr int64_t i = -42;
     constexpr IntOrFP ni = IntOrFP::from(DType::INT64, i);
     llvm::errs() << "ni " << ni << "\n";
-    llvm::errs() << "ni as APInt " << ni.to<APInt>(builder.getI64Type())
-                 << "\n";
+    llvm::errs() << "ni as APInt " << ni.toAPInt(builder.getI64Type()) << "\n";
     constexpr uint64_t u = 1ULL << 63;
     constexpr IntOrFP nu = IntOrFP::from(DType::UINT64, u);
     llvm::errs() << "nu " << nu << "\n";
-    llvm::errs() << "nu as APInt " << nu.to<APInt>(getUInt(64)) << "\n";
+    llvm::errs() << "nu as APInt " << nu.toAPInt(getUInt(64)) << "\n";
     constexpr bool b = true;
     constexpr IntOrFP nb = IntOrFP::from(DType::UINT64, b);
     // constexpr bool b1 = nb.cast<bool>();

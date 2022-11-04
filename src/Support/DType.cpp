@@ -73,6 +73,11 @@ bool isFloatDType(DType d) {
       d, [](auto dtype) { return DTypeTrait<dtype>::isFloat; });
 }
 
+bool isIntOrFloatDType(DType d) {
+  return dispatchByDType(
+      d, [](auto dtype) { return DTypeTrait<dtype>::isIntOrFloat; });
+}
+
 bool isSignedIntDType(DType d) {
   return dispatchByDType(
       d, [](auto dtype) { return DTypeTrait<dtype>::isSignedInt; });
@@ -83,14 +88,54 @@ bool isUnsignedIntDType(DType d) {
       d, [](auto dtype) { return DTypeTrait<dtype>::isUnsignedInt; });
 }
 
-bool widthOfDType(DType d) {
+unsigned widthOfDType(DType d) {
   return dispatchByDType(
       d, [](auto dtype) { return DTypeTrait<dtype>::width; });
 }
 
-bool bytewidthOfDType(DType d) {
+unsigned bytewidthOfDType(DType d) {
   return dispatchByDType(
       d, [](auto dtype) { return DTypeTrait<dtype>::bytewidth; });
+}
+
+llvm::APFloat IntOrFP::toAPFloat(DType tag) const {
+  switch (tag) {
+  case DType::DOUBLE:
+    return llvm::APFloat(dbl);
+  case DType::FLOAT:
+    return llvm::APFloat(static_cast<float>(dbl));
+  case DType::FLOAT16:
+    return float_16(dbl).toAPFloat();
+  case DType::BFLOAT16:
+    return bfloat_16(dbl).toAPFloat();
+  default:
+    llvm_unreachable("DType must be a float");
+  }
+}
+
+llvm::APInt IntOrFP::toAPInt(DType tag) const {
+  unsigned bitwidth = widthOfDType(tag);
+  if (isSignedIntDType(tag))
+    // Actually, isSigned flag is ignored because width <= 64.
+    return llvm::APInt(bitwidth, i64, /*isSigned=*/true);
+  if (isUnsignedIntDType(tag))
+    return llvm::APInt(bitwidth, u64);
+  llvm_unreachable("DType must be an integer");
+}
+
+/*static*/
+IntOrFP IntOrFP::fromAPFloat(DType tag, llvm::APFloat x) {
+  assert(isFloatDType(tag) && "DType must be an integer");
+  return {.dbl = x.convertToDouble()};
+}
+
+/*static*/
+IntOrFP IntOrFP::fromAPInt(DType tag, llvm::APInt x) {
+  if (isSignedIntDType(tag))
+    return {.i64 = x.getSExtValue()};
+  if (isUnsignedIntDType(tag))
+    return {.u64 = x.getZExtValue()};
+  llvm_unreachable("DType must be an integer");
 }
 
 llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {

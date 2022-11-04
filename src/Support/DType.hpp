@@ -238,6 +238,9 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
 // == mlirTypeOf(dtype, ctx).isa<FloatType>()
 bool isFloatDType(DType);
 
+// == mlirTypeOf(dtype, ctx).isIntOrFloat()
+bool isIntOrFloatDType(DType);
+
 // == mlirTypeOf(dtype, ctx).isSignlessInteger()
 bool isSignedIntDType(DType);
 
@@ -245,10 +248,10 @@ bool isSignedIntDType(DType);
 bool isUnsignedIntDType(DType);
 
 // == mlirTypeOf(dtype, ctx).getIntOrFloatBitWidth()
-bool widthOfDType(DType); // TODO: rename to bitwidth
+unsigned widthOfDType(DType); // TODO: rename to bitwidth
 
 // == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
-bool bytewidthOfDType(DType);
+unsigned bytewidthOfDType(DType);
 
 inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
@@ -352,6 +355,11 @@ union IntOrFP {
   int64_t i64;  // Signed ints up to bitwidth 64.
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
 
+  llvm::APFloat toAPFloat(DType tag) const;
+  llvm::APInt toAPInt(DType tag) const;
+  static IntOrFP fromAPFloat(DType tag, llvm::APFloat x);
+  static IntOrFP fromAPInt(DType tag, llvm::APInt x);
+
   llvm::APInt toAPInt(mlir::IntegerType itag) const;
   llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
   static IntOrFP fromAPInt(mlir::IntegerType itag, llvm::APInt x);
@@ -382,20 +390,9 @@ union IntOrFP {
   }
 
   template <typename T>
-  std::enable_if_t<
-      !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
-  to(mlir::Type tag) const {
+  T to(mlir::Type tag) const {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
     return to<T>(dtypeOf(tag));
-  }
-  template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APInt>, T> to(mlir::Type tag) const {
-    return toAPInt(tag.cast<mlir::IntegerType>());
-  }
-  template <typename T>
-  std::enable_if_t<std::is_same_v<T, llvm::APFloat>, T> to(
-      mlir::Type tag) const {
-    return toAPFloat(tag.cast<mlir::FloatType>());
   }
 
   template <typename T>
@@ -423,33 +420,10 @@ union IntOrFP {
   }
 
   template <typename T>
-  static std::enable_if_t<!std::is_same_v<T, llvm::APInt> &&
-                              !std::is_same_v<T, llvm::APFloat>,
-      IntOrFP>
-  from(mlir::Type tag, T x) {
+  IntOrFP from(mlir::Type tag, T x) {
     assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
     return from<T>(dtypeOf(tag), x);
   }
-  template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APInt>, IntOrFP> from(
-      mlir::Type tag, X x) {
-    if (tag.cast<mlir::IntegerType>().isSigned())
-      return {.i64 = x.getSExtValue()};
-    else
-      return {.u64 = x.getZExtValue()};
-  }
-  template <typename X>
-  static std::enable_if_t<std::is_same_v<X, llvm::APFloat>, IntOrFP> from(
-      mlir::Type tag, X x) {
-    assert(tag.cast<mlir::FloatType>().getWidth() <= 64); // TODO remove
-    return {.f64 = x.convertToDouble()};
-  }
 };
-
-template <typename T>
-constexpr bool isIntOrFPConvertible =
-    (CppTypeTrait<T>::dtype != DType::UNDEFINED &&
-        CppTypeTrait<T>::isIntOrFloat) ||
-    std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
 
 } // namespace onnx_mlir

@@ -345,6 +345,16 @@ private:
 
   static ElementsTransform getIdentityTransform(onnx_mlir::DType);
 
+  template <typename X>
+  static X getNumber(onnx_mlir::DType tag, onnx_mlir::IntOrFP n) {
+    if constexpr (std::is_same_v<X, llvm::APFloat>)
+      return n.toAPFloat(tag);
+    else if constexpr (std::is_same_v<X, llvm::APInt>)
+      return n.toAPInt(tag);
+    else
+      return n.to<X>(tag);
+  }
+
 public:
   DisposableElementsAttr(std::nullptr_t) {}
 
@@ -379,7 +389,7 @@ public:
   llvm::Optional<X> tryGetSplatValue() const {
     if (!isSplat())
       return llvm::None;
-    return readBufferPos(0).to<X>(getElementType());
+    return getNumber<X>(getDType(), readBufferPos(0));
   }
   template <typename X>
   X getSplatValue() const {
@@ -397,16 +407,24 @@ public:
       uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
       float, double, APInt, APFloat>;
 
+  template <typename T>
+  static constexpr bool isIntOrFPConvertible =
+      (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
+          onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
+      std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
+
   template <typename X>
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
   FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const {
-    if constexpr (onnx_mlir::isIntOrFPConvertible<X>) {
+    if constexpr (isIntOrFPConvertible<X>) {
+      onnx_mlir::DType dtype = getDType();
       DisposableElementsAttr attr = *this;
-      return detail::begin<X>(getNumElements(), [attr](size_t flatIndex) -> X {
-        return attr.readFlatIndex(flatIndex).to<X>(attr.getElementType());
-      });
+      return detail::begin<X>(
+          getNumElements(), [dtype, attr](size_t flatIndex) -> X {
+            return getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
+          });
     } else {
       // TODO: support iteration over Attribute
       return failure();
