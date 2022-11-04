@@ -33,6 +33,7 @@
 #include "src/Support/DType.hpp"
 #include "src/Support/TypeUtilities.hpp"
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
+#include "src/Transform/ONNX/ElementsComputer.hpp"
 
 #include <math.h>
 
@@ -465,6 +466,44 @@ Value ConstPropElementwiseUnary(
 // Code to perform constant propagation for transpose.
 //===----------------------------------------------------------------------===//
 
+#if 0
+namespace {
+template <typename T>
+SmallVector<T, 4> createIntVectorFromArrayAttr(ArrayAttr a) {
+  SmallVector<T, 4> vec;
+  for (auto val : a.getValue())
+    vec.push_back(val.cast<IntegerAttr>().getInt());
+  return vec;
+}
+
+ElementsAttr getConstValueElements(Value constValue) {
+  ONNXConstantOp constOp = getONNXConstantOp(constValue);
+  return constOp.valueAttr().cast<ElementsAttr>();
+}
+
+ONNXConstantOp createConstantOp(
+    PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
+  return rewriter.create<ONNXConstantOp>(replacingValue.getLoc(),
+      replacingValue.getType(), Attribute(), elements, FloatAttr(), ArrayAttr(),
+      IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
+}
+} // namespace
+
+Value ConstPropTranspose(
+    PatternRewriter &rewriter, Value replacingValue, Value constValue) {
+Value ConstPropTranspose(
+    PatternRewriter &rewriter, Value replacingValue, Value constValue) {
+  // TODO: figure out if default may be omitted and what to do in that case
+  ArrayAttr permAttr =
+      replacingValue.getDefiningOp()->getAttr("perm").cast<ArrayAttr>();
+  SmallVector<uint64_t, 4> perm =
+      createIntVectorFromArrayAttr<uint64_t>(permAttr);
+
+  ElementsAttr constElements = getConstValueElements(constValue);
+  ElementsAttr elements = transposeElements(constElements, perm);
+  return createConstantOp(rewriter, replacingValue, elements).getResult();
+}
+#else
 Value ConstPropTranspose(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
   ShapedType constType = constValue.getType().cast<ShapedType>();
@@ -499,6 +538,7 @@ Value ConstPropTranspose(
 
   return res.getResult();
 }
+#endif
 
 //===----------------------------------------------------------------------===//
 // Code to perform constant propagation for unsqueeze.
