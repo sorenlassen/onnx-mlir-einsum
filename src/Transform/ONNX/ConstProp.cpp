@@ -132,7 +132,7 @@ RawBuffer getRawBytesFromConstOp(ONNXConstantOp constOp, ShapedType type) {
     return llvm::makeArrayRef(res, size);
   }
   ElementsAttr elements = constOp.valueAttr().cast<ElementsAttr>();
-  return getRawBytes(elements);
+  return getElementsRawBytes(elements);
 }
 
 RawBuffer getRawBytesFromConstValue(Value constValue) {

@@ -88,11 +88,11 @@ char *createArrayFromDenseElementsAttr(ElementsAttr dataAttr) {
   if (elementType.isa<FloatType>()) {
     // Use double to avoid the precision loss during computation.
     double *resArr = (double *)res;
-    readDenseFPs(dataAttr, llvm::makeMutableArrayRef(resArr, numElements));
+    readFPElements(dataAttr, llvm::makeMutableArrayRef(resArr, numElements));
   } else if (elementType.isa<IntegerType>()) {
     // Use int64_t to avoid the precision loss during computation.
     int64_t *resArr = (int64_t *)res;
-    readDenseInts(dataAttr, llvm::makeMutableArrayRef(resArr, numElements));
+    readIntElements(dataAttr, llvm::makeMutableArrayRef(resArr, numElements));
   } else
     llvm_unreachable("Unknown data type");
   return res;

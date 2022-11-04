@@ -114,14 +114,14 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
   return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-RawBuffer getRawBytes(ElementsAttr elements) {
+RawBuffer getElementsRawBytes(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
     // TODO: copy out contents if bool, because raw data is bit packed
     assert(!dense.getElementType().isInteger(1) && "bool unsupported");
     return dense.getRawData(); // Single splat value or a full array.
   }
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
-    return disposable.getRawBuffer();
+    return disposable.getRawBytes();
   }
   if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>())
     return denseResrc.getRawHandle().getResource()->getBlob()->getData();
@@ -133,7 +133,7 @@ namespace {
 // D is a 64 bit "wide" type of the same kind (int or float) as the underlying
 // elements' data type.
 template <typename D>
-void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
+void readElements(ElementsAttr elements, MutableArrayRef<D> dst) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
     disposable.read([dst](size_t flatIndex, IntOrFP n) {
       // Since D is the "wide" type of the elements' data type it's ok to use
@@ -144,7 +144,7 @@ void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
     });
     return;
   }
-  RawBuffer src = getRawBytes(elements);
+  RawBuffer src = getElementsRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
     fillOrTransform(
@@ -154,14 +154,14 @@ void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
 
 } // namespace
 
-void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
+void readIntElements(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
   assert(elements.getType().getElementType().isa<IntegerType>());
-  readDense(elements, ints);
+  readElements(elements, ints);
 }
 
-void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
+void readFPElements(ElementsAttr elements, MutableArrayRef<double> fps) {
   assert(elements.getType().getElementType().isa<FloatType>());
-  readDense(elements, fps);
+  readElements(elements, fps);
 }
 
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {

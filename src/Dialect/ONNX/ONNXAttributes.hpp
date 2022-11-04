@@ -429,7 +429,7 @@ public:
 
   void printWithoutType(raw_ostream &os) const;
 
-  // TODO: remove this or reimplement using getRawBuffer
+  // TODO: remove this or reimplement using getRawBytes
   DenseElementsAttr toDenseElementsAttr() const {
     if (getElementType().isa<IntegerType>())
       return toDenseElementsAttrByType<APInt>();
@@ -448,7 +448,7 @@ public:
     });
   }
 
-  onnx_mlir::RawBuffer getRawBuffer() const {
+  onnx_mlir::RawBuffer getRawBytes() const {
     onnx_mlir::DType dtype = getDType();
     unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
     if (isSplat()) {

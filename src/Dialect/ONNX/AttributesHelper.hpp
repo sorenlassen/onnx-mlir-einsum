@@ -61,12 +61,12 @@ typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 mlir::ElementsAttr makeElementsAttrWithRawBytesFiller(
     mlir::ShapedType type, RawBytesFiller filler);
 
-RawBuffer getRawBytes(mlir::ElementsAttr elements);
+RawBuffer getElementsRawBytes(mlir::ElementsAttr elements);
 
-void readDenseInts(
+void readIntElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<int64_t> ints);
 
-void readDenseFPs(
+void readFPElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
 mlir::DenseElementsAttr toDenseElementsAttribute(mlir::ElementsAttr elements);
