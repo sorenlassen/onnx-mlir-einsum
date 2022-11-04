@@ -107,7 +107,8 @@ ElementsAttr getConstValueElements(Value constValue) {
   return constOp.valueAttr().cast<ElementsAttr>();
 }
 
-ONNXConstantOp createConstantOp(
+// Creates ONNXConstantOp with the location and result type from replacingValue.
+ONNXConstantOp createReplacingConstantOp(
     PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
   return rewriter.create<ONNXConstantOp>(replacingValue.getLoc(),
       replacingValue.getType(), Attribute(), elements, FloatAttr(), ArrayAttr(),
@@ -482,7 +483,7 @@ Value ConstPropTranspose(
 
   ElementsAttr constElements = getConstValueElements(constValue);
   ElementsAttr elements = transposeElements(constElements, perm);
-  return createConstantOp(rewriter, replacingValue, elements).getResult();
+  return createReplacingConstantOp(rewriter, replacingValue, elements).getResult();
 }
 
 //===----------------------------------------------------------------------===//
