@@ -107,8 +107,7 @@ void castAndCopy(Type dstElemType, ArrayRef<S> src, MutableArrayRef<char> dst) {
   });
 }
 
-RawBuffer getDenseIntOrFPRawDataFromConstOp(
-    ONNXConstantOp constOp, ShapedType type) {
+RawBuffer getRawBytesFromConstOp(ONNXConstantOp constOp, ShapedType type) {
   Attribute bufferIDAttr =
       constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
   if (bufferIDAttr) {
@@ -133,12 +132,12 @@ RawBuffer getDenseIntOrFPRawDataFromConstOp(
     return llvm::makeArrayRef(res, size);
   }
   ElementsAttr elements = constOp.valueAttr().cast<ElementsAttr>();
-  return getDenseIntOrFPRawBytes(elements);
+  return getRawBytes(elements);
 }
 
-RawBuffer getDenseIntOrFPRawDataFromConstValue(Value constValue) {
+RawBuffer getRawBytesFromConstValue(Value constValue) {
   ONNXConstantOp constOp = getONNXConstantOp(constValue);
-  return getDenseIntOrFPRawDataFromConstOp(constOp, constValue.getType());
+  return getRawBytesFromConstOp(constOp, constValue.getType());
 }
 
 /// Get a data array from a given ONNXConstantOp. If data were stored in memory,
@@ -371,19 +370,19 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
   ArrayRef<int64_t> rhsShape = rhsType.getShape();
 
   ArrayRef<int64_t> splatShape = {};
-  RawBuffer lhs = getDenseIntOrFPRawDataFromConstValue(lhsValue);
+  RawBuffer lhs = getRawBytesFromConstValue(lhsValue);
   if (lhs.size() == eltSizeInBytes) {
     lhsShape = splatShape;
   }
-  RawBuffer rhs = getDenseIntOrFPRawDataFromConstValue(rhsValue);
+  RawBuffer rhs = getRawBytesFromConstValue(rhsValue);
   if (rhs.size() == eltSizeInBytes) {
     rhsShape = splatShape;
   }
 
   // TODO: make single element splat dst buffer if both lhs and rhs are splat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
-      type, [&](MutableArrayRef<char> dst) {
+  ElementsAttr elements =
+      makeElementsAttrWithRawBytesFiller(type, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(elementType, [&](auto dtype) {
           using T = CppType<dtype>;
           evalElementwiseBinaryOp<ElementwiseBinaryOp, T>(lhsShape,
@@ -442,11 +441,11 @@ Value ConstPropElementwiseUnary(
 
   Type elementType = replacingType.getElementType();
 
-  RawBuffer src = getDenseIntOrFPRawDataFromConstValue(constValue);
+  RawBuffer src = getRawBytesFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
+  ElementsAttr elements = makeElementsAttrWithRawBytesFiller(
       replacingType, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(elementType, [&](auto dtype) {
           using T = CppType<dtype>;
@@ -767,11 +766,11 @@ Value ConstPropCast(
   Type srcElemType = srcType.getElementType();
   Type dstElemType = dstType.getElementType();
 
-  RawBuffer src = getDenseIntOrFPRawDataFromConstValue(constValue);
+  RawBuffer src = getRawBytesFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
-  ElementsAttr elements = makeDenseIntOrFPElementsAttrWithRawBytesFiller(
+  ElementsAttr elements = makeElementsAttrWithRawBytesFiller(
       dstType, [&](MutableArrayRef<char> dst) {
         dispatchByMlirType(srcElemType, [&](auto srcDType) {
           using S = CppType<srcDType>;

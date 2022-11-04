@@ -56,7 +56,7 @@ struct ScrubResourcesPass
     moduleOp.walk([&](ONNXConstantOp constOp) {
       if (auto attr = constOp.value())
         if (auto elements = attr->dyn_cast<DenseResourceElementsAttr>()) {
-          RawBuffer rawBuffer = getDenseIntOrFPRawBytes(elements);
+          RawBuffer rawBuffer = getRawBytes(elements);
           constOp.valueAttr(makeDenseElementsAttrFromRawBytes(
               elements.getType(), rawBuffer.get()));
         }

@@ -54,7 +54,7 @@ mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
   return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
-ElementsAttr makeDenseIntOrFPElementsAttrFromRawBytes(
+ElementsAttr makeElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
   size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
@@ -89,8 +89,8 @@ ElementsAttr makeDenseIntOrFPElementsAttrFromRawBytes(
   return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-ElementsAttr makeDenseIntOrFPElementsAttrWithRawBytesFiller(
-    ShapedType type, DenseRawBytesFiller filler) {
+ElementsAttr makeElementsAttrWithRawBytesFiller(
+    ShapedType type, RawBytesFiller filler) {
   size_t size =
       type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
   if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
@@ -114,7 +114,7 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBytesFiller(
   return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-RawBuffer getDenseIntOrFPRawBytes(ElementsAttr elements) {
+RawBuffer getRawBytes(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
     // TODO: copy out contents if bool, because raw data is bit packed
     assert(!dense.getElementType().isInteger(1) && "bool unsupported");
@@ -144,7 +144,7 @@ void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
     });
     return;
   }
-  RawBuffer src = getDenseIntOrFPRawBytes(elements);
+  RawBuffer src = getRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
     fillOrTransform(

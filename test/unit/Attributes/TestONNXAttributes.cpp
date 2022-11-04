@@ -205,15 +205,15 @@ public:
     ShapedType type = RankedTensorType::get({2}, builder.getF32Type());
     auto b = buffer<float>({42.0f, 42.0f});
 
-    auto eCopy = makeDenseIntOrFPElementsAttrFromRawBytes(
-        type, asArrayRef(*b), /*mustCopy=*/true);
+    auto eCopy =
+        makeElementsAttrFromRawBytes(type, asArrayRef(*b), /*mustCopy=*/true);
     llvm::errs() << "eCopy " << eCopy << "\n";
     assert(eCopy.isa<DisposableElementsAttr>());
     auto dCopy = eCopy.cast<DisposableElementsAttr>();
     assert(dCopy.getBuffer()->getBuffer().data() != b->getBuffer().data());
 
-    auto e = makeDenseIntOrFPElementsAttrFromRawBytes(
-        type, asArrayRef(*b), /*mustCopy=*/false);
+    auto e =
+        makeElementsAttrFromRawBytes(type, asArrayRef(*b), /*mustCopy=*/false);
     assert(e.isa<DisposableElementsAttr>());
     auto d = e.cast<DisposableElementsAttr>();
     assert(d.getBuffer()->getBuffer().data() == b->getBuffer().data());

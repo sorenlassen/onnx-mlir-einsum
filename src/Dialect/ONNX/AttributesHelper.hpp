@@ -10,6 +10,8 @@
 
 #pragma once
 
+#include "src/Support/DType.hpp"
+
 #include "mlir/IR/BuiltinAttributes.h"
 
 namespace llvm {
@@ -44,27 +46,22 @@ private:
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
 
-// TODO: rename to makeElementsAttrFromRawBytes
-mlir::ElementsAttr makeDenseIntOrFPElementsAttrFromRawBytes(
+mlir::ElementsAttr makeElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
 
 template <typename NumericType>
-mlir::ElementsAttr makeDenseIntOrFPElementsAttr(
+mlir::ElementsAttr makeElementsAttr(
     mlir::ShapedType type, llvm::ArrayRef<NumericType> numbers, bool mustCopy) {
-  llvm::ArrayRef<char> bytes(reinterpret_cast<const char *>(numbers.data()),
-      numbers.size() * sizeof(NumericType));
-  return makeDenseIntOrFPElementsAttrFromRawBytes(type, bytes, mustCopy);
+  return makeElementsAttrFromRawBytes(
+      type, castArrayRef<char>(numbers), mustCopy);
 }
 
-typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)>
-    DenseRawBytesFiller;
+typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 
-mlir::ElementsAttr makeDenseIntOrFPElementsAttrWithRawBytesFiller(
-    mlir::ShapedType type, DenseRawBytesFiller filler);
+mlir::ElementsAttr makeElementsAttrWithRawBytesFiller(
+    mlir::ShapedType type, RawBytesFiller filler);
 
-// llvm::ArrayRef<char> getDenseIntOrFPRawData(mlir::ElementsAttr elements);
-
-RawBuffer getDenseIntOrFPRawBytes(mlir::ElementsAttr elements);
+RawBuffer getRawBytes(mlir::ElementsAttr elements);
 
 void readDenseInts(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<int64_t> ints);
