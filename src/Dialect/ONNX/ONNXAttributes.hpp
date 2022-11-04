@@ -292,29 +292,13 @@ private:
 
   static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
       Buffer buffer, ElementsTransform transform = nullptr) {
-    Type elementType = type.getElementType();
-    onnx_mlir::DType bufferDType = onnx_mlir::dtypeOf(elementType);
-    return get(type, bufferDType, isBufferSplat, buffer, transform);
-  }
-
-  static DisposableElementsAttr get(ShapedType type,
-      onnx_mlir::DType bufferDType, bool isBufferSplat, Buffer buffer,
-      ElementsTransform transform = nullptr) {
+    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(type.getElementType());
     SmallVector<int64_t, 4> strides;
     if (!isBufferSplat)
       strides = detail::getDefaultStrides(type.getShape());
     bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
-    return get(type, strides, bufferDType, isBufferSplat, isContiguous, buffer,
-        transform);
-  }
-
-  static DisposableElementsAttr get(ShapedType type, Strides strides,
-      onnx_mlir::DType bufferDType, bool isBufferSplat, bool isContiguous,
-      Buffer buffer, ElementsTransform transform = nullptr) {
-    Type elementType = type.getElementType();
-    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(elementType);
     Properties properties = {.dtype = dtype,
-        .bufferDType = bufferDType,
+        .bufferDType = dtype,
         .isBufferSplat = isBufferSplat,
         .isContiguous = isContiguous,
         .isTransformed = transform != nullptr};
@@ -322,10 +306,9 @@ private:
         type, strides, properties, std::move(buffer), std::move(transform));
   }
 
-  static DisposableElementsAttr create(ShapedType type, Strides strides,
+  static DisposableElementsAttr get(ShapedType type, Strides strides,
       Properties properties, Buffer buffer,
       ElementsTransform transform = nullptr) {
-    // TODO: remove these checks, trust internal callers
     unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
     assert(buffer->getBufferSize() % w == 0);
     int64_t numBufferElements = buffer->getBufferSize() / w;
@@ -333,6 +316,14 @@ private:
     assert(numBufferElements == 1 ||
            numBufferElements ==
                detail::getStridesNumElements(type.getShape(), strides));
+    // TODO: add more checks
+    return create(
+        type, strides, properties, std::move(buffer), std::move(transform));
+  }
+
+  static DisposableElementsAttr create(ShapedType type, Strides strides,
+      Properties properties, Buffer buffer,
+      ElementsTransform transform = nullptr) {
     DisposableElementsAttr a =
         Super::Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();

@@ -227,11 +227,9 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.dbl = asArrayRef<float>(s)[p]};
     };
-    ArrayRef<int64_t> strides{};
     bool isSplat = true;
-    bool isContiguous = true;
-    Attribute a = disposablePool.createElementsAttr(type, strides, DType::FLOAT,
-        isSplat, isContiguous, buffer<float>({4.2}), fun);
+    Attribute a = disposablePool.createElementsAttr(
+        type, isSplat, buffer<float>({4.2}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -261,12 +259,9 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.dbl = asArrayRef<float_16>(s)[p].toFloat()};
     };
-    ArrayRef<int64_t> strides{};
     bool isSplat = true;
-    bool isContiguous = true;
-    Attribute a = disposablePool.createElementsAttr(type, strides,
-        DType::FLOAT16, isSplat, isContiguous,
-        buffer<float_16>({float_16::fromFloat(4.2)}), fun);
+    Attribute a = disposablePool.createElementsAttr(
+        type, isSplat, buffer<float_16>({float_16::fromFloat(4.2)}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -290,11 +285,9 @@ public:
     auto fun = [](StringRef s, size_t p) -> IntOrFP {
       return {.u64 = asArrayRef<bool>(s)[p]};
     };
-    ArrayRef<int64_t> strides{};
     bool isSplat = true;
-    bool isContiguous = true;
-    Attribute a = disposablePool.createElementsAttr(type, strides, DType::BOOL,
-        isSplat, isContiguous, buffer<bool>({true}), fun);
+    Attribute a = disposablePool.createElementsAttr(
+        type, isSplat, buffer<bool>({true}), fun);
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
