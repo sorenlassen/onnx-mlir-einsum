@@ -176,26 +176,19 @@ public:
     llvm::errs() << "test_IntOrFP:\n";
     constexpr IntOrFP nf = IntOrFP::from(DType::DOUBLE, 42.0);
     llvm::errs() << "nf " << nf << "\n";
-    llvm::errs() << "nf as APFloat " << nf.toAPFloat(builder.getF64Type())
-                 << "\n";
+    llvm::errs() << "nf as APFloat " << nf.toAPFloat(DType::DOUBLE) << "\n";
     constexpr int64_t i = -42;
     constexpr IntOrFP ni = IntOrFP::from(DType::INT64, i);
     llvm::errs() << "ni " << ni << "\n";
-    llvm::errs() << "ni as APInt " << ni.toAPInt(builder.getI64Type()) << "\n";
+    llvm::errs() << "ni as APInt " << ni.toAPInt(DType::INT64) << "\n";
     constexpr uint64_t u = 1ULL << 63;
     constexpr IntOrFP nu = IntOrFP::from(DType::UINT64, u);
     llvm::errs() << "nu " << nu << "\n";
-    llvm::errs() << "nu as APInt " << nu.toAPInt(getUInt(64)) << "\n";
+    llvm::errs() << "nu as APInt " << nu.toAPInt(DType::UINT64) << "\n";
     constexpr bool b = true;
     constexpr IntOrFP nb = IntOrFP::from(DType::UINT64, b);
-    // constexpr bool b1 = nb.cast<bool>();
-    // constexpr bool b2 = nb.to<DType::BOOL>();
     constexpr bool b3 = nb.to<bool>(DType::BOOL);
-    bool b4 = nb.to<bool>(getUInt(1));
-    // llvm::errs() << "b1 " << b1 << "\n";
-    // llvm::errs() << "b2 " << b2 << "\n";
     llvm::errs() << "b3 " << b3 << "\n";
-    llvm::errs() << "b4 " << b4 << "\n";
     return 0;
   }
 

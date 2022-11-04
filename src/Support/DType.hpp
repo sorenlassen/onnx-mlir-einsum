@@ -360,11 +360,6 @@ union IntOrFP {
   static IntOrFP fromAPFloat(DType tag, llvm::APFloat x);
   static IntOrFP fromAPInt(DType tag, llvm::APInt x);
 
-  llvm::APInt toAPInt(mlir::IntegerType itag) const;
-  llvm::APFloat toAPFloat(mlir::FloatType ftag) const;
-  static IntOrFP fromAPInt(mlir::IntegerType itag, llvm::APInt x);
-  static IntOrFP fromAPFloat(mlir::FloatType ftag, llvm::APFloat x);
-
   template <typename T>
   constexpr T to(DType dtag) const {
     switch (dtag) {
@@ -390,12 +385,6 @@ union IntOrFP {
   }
 
   template <typename T>
-  T to(mlir::Type tag) const {
-    assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    return to<T>(dtypeOf(tag));
-  }
-
-  template <typename T>
   static constexpr IntOrFP from(DType dtag, T x) {
     switch (dtag) {
     case DType::BOOL:
@@ -417,12 +406,6 @@ union IntOrFP {
     default:
       llvm_unreachable("from unsupported dtype");
     }
-  }
-
-  template <typename T>
-  IntOrFP from(mlir::Type tag, T x) {
-    assert(tag.getIntOrFloatBitWidth() <= 64); // TODO remove, too expensive
-    return from<T>(dtypeOf(tag), x);
   }
 };
 

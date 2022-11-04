@@ -138,38 +138,4 @@ IntOrFP IntOrFP::fromAPInt(DType tag, llvm::APInt x) {
   llvm_unreachable("DType must be an integer");
 }
 
-llvm::APFloat IntOrFP::toAPFloat(mlir::FloatType ftag) const {
-  if (ftag.isa<mlir::Float64Type>())
-    return llvm::APFloat(dbl);
-  float f = static_cast<float>(dbl);
-  if (ftag.isa<mlir::Float32Type>())
-    return llvm::APFloat(f);
-  if (ftag.isa<mlir::Float16Type>())
-    return float_16(f).toAPFloat();
-  if (ftag.isa<mlir::BFloat16Type>())
-    return bfloat_16(f).toAPFloat();
-  llvm_unreachable("unsupported floating point width");
-}
-
-llvm::APInt IntOrFP::toAPInt(mlir::IntegerType itag) const {
-  if (itag.isSigned())
-    // Actually, isSigned flag is ignored because width <= 64.
-    return llvm::APInt(itag.getWidth(), i64, /*isSigned=*/true);
-  else
-    return llvm::APInt(itag.getWidth(), u64);
-}
-
-/*static*/
-IntOrFP IntOrFP::fromAPInt(mlir::IntegerType itag, llvm::APInt x) {
-  if (itag.isSigned())
-    return {.i64 = x.getSExtValue()};
-  else
-    return {.u64 = x.getZExtValue()};
-}
-
-/*static*/
-IntOrFP IntOrFP::fromAPFloat(mlir::FloatType ftag, llvm::APFloat x) {
-  return {.dbl = x.convertToDouble()};
-}
-
 } // namespace onnx_mlir
