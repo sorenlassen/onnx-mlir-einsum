@@ -312,10 +312,12 @@ private:
     unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
     assert(buffer->getBufferSize() % w == 0);
     int64_t numBufferElements = buffer->getBufferSize() / w;
+    auto shape = type.getShape();
     assert(!detail::isSplat(strides) || numBufferElements == 1);
     assert(numBufferElements == 1 ||
-           numBufferElements ==
-               detail::getStridesNumElements(type.getShape(), strides));
+           numBufferElements == detail::getStridesNumElements(shape, strides));
+    assert(!properties.isContiguous ||
+           detail::areStridesContiguous(shape, strides));
     // TODO: add more checks
     return create(
         type, strides, properties, std::move(buffer), std::move(transform));
@@ -537,9 +539,7 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     return !this->getImpl()->buffer;
   }
 
-  bool isContiguous() const {
-    return detail::areStridesContiguous(getShape(), getStrides());
-  }
+  bool isContiguous() const { return getProperties().isContiguous; }
 
   size_t getBufferElementBytewidth() const {
     size_t n = detail::getStridesNumElements(getShape(), getStrides());
