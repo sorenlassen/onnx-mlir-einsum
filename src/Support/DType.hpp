@@ -440,21 +440,10 @@ union IntOrFP { // TODO rename to WideIntOrFP or WideNum
   }
 };
 
-// TODO change to non-function
 template <typename T>
-constexpr bool isIntOrFPConvertible() {
-  return CppTypeTrait<T>::dtype != DType::UNDEFINED &&
-         CppTypeTrait<T>::isIntOrFloat;
-}
-
-template <>
-constexpr bool isIntOrFPConvertible<llvm::APFloat>() {
-  return true;
-}
-
-template <>
-constexpr bool isIntOrFPConvertible<llvm::APInt>() {
-  return true;
-}
+constexpr bool isIntOrFPConvertible =
+    (CppTypeTrait<T>::dtype != DType::UNDEFINED &&
+        CppTypeTrait<T>::isIntOrFloat) ||
+    std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
 
 } // namespace onnx_mlir
