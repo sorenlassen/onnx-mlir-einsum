@@ -401,19 +401,16 @@ public:
   using OverloadToken = typename Super::template OverloadToken<X>;
 
   template <typename X>
-  std::enable_if_t<onnx_mlir::isIntOrFPConvertible<X>, FailureOr<iterator<X>>>
-  try_value_begin_impl(OverloadToken<X>) const {
-    DisposableElementsAttr attr = *this;
-    return detail::begin<X>(getNumElements(), [attr](size_t flatIndex) -> X {
-      return attr.readFlatIndex(flatIndex).to<X>(attr.getElementType());
-    });
-  }
-
-  // TODO: support iteration over Attribute
-  template <typename X>
-  std::enable_if_t<!onnx_mlir::isIntOrFPConvertible<X>, FailureOr<iterator<X>>>
-  try_value_begin_impl(OverloadToken<X>) const {
-    return failure();
+  FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const {
+    if constexpr (onnx_mlir::isIntOrFPConvertible<X>) {
+      DisposableElementsAttr attr = *this;
+      return detail::begin<X>(getNumElements(), [attr](size_t flatIndex) -> X {
+        return attr.readFlatIndex(flatIndex).to<X>(attr.getElementType());
+      });
+    } else {
+      // TODO: support iteration over Attribute
+      return failure();
+    }
   }
 
   // equivalent to getValues<X>().end(), which is probably slower?
