@@ -109,7 +109,8 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
         resourcePool->createResource(std::move(blob));
     return DenseResourceElementsAttr::get(type, r);
   }
-  std::vector<char> bytes(size, 0);
+  SmallVector<char> bytes;
+  bytes.resize_for_overwrite(size);
   filler(bytes);
   return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
