@@ -335,18 +335,16 @@ template <typename U>
 using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
 
 // Union of 64-bit integers and double precision floating point numbers.
-// It is tagless and should always be used in a conjunction
-// with a DType or a corresponding int or float mlir Type.
+// It is tagless and should always be used in a conjunction with a DType.
 // The dtype tags which field of the union is populated:
 // dbl if isFloat(dtype), i64 or u64 if isSigned/UnsignedInt(dtype).
 //
-// IntOrFP satisfies the property
+// IntOrFP satisfies for all cpp types X and Y values x of type X
 //
 //   static_cast<Y>(x) == IntOrFP::from<X>(dtype, x).To<Y>(dtype)
 //
-// for all cpp types X and Y value x of type X, provided the wide type of
-// dtype (double, int64_t, uint64_t) has enough precision and range to
-// represent x up to the precision and range of Y.
+// provided the wide type of dtype (double, int64_t, uint64_t) has enough
+// precision and range to represent x up to the precision and range of Y.
 //
 // TODO: rename IntOrFP to WideNum
 //
@@ -356,8 +354,11 @@ union IntOrFP {
   uint64_t u64; // Unsigned ints up to bitwidth 64, including bool.
 
   llvm::APFloat toAPFloat(DType tag) const;
-  llvm::APInt toAPInt(DType tag) const;
+
   static IntOrFP fromAPFloat(DType tag, llvm::APFloat x);
+
+  llvm::APInt toAPInt(DType tag) const;
+
   static IntOrFP fromAPInt(DType tag, llvm::APInt x);
 
   template <typename T>
