@@ -469,12 +469,13 @@ Value ConstPropElementwiseUnary(
 
 Value ConstPropTranspose(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
-  ArrayRef<int64_t> replacingShape =
-      replacingValue.getType().cast<ShapedType>().getShape();
-  ArrayRef<int64_t> constShape =
-      constValue.getType().cast<ShapedType>().getShape();
-  Type elementType =
-      replacingValue.getType().cast<ShapedType>().getElementType();
+  ShapedType constType = constValue.getType().cast<ShapedType>();
+  ShapedType replacingType = replacingValue.getType().cast<ShapedType>();
+  Type elementType = replacingType.getElementType();
+  assert(constType.getElementType() == elementType && "element type mismatch");
+
+  ArrayRef<int64_t> replacingShape = replacingType.getShape();
+  ArrayRef<int64_t> constShape = constType.getShape();
 
   // Get perm attribute.
   SmallVector<uint64_t, 4> perm;
