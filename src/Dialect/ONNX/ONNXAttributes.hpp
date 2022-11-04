@@ -134,24 +134,6 @@ auto end(int64_t numElements, const std::function<T(size_t)> &fun) {
 
 } // namespace detail
 
-using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
-
-namespace detail {
-
-template <onnx_mlir::DType DTYPE>
-void copyIntOrFP(
-    StringRef s, size_t pos, char *dst, const ElementsTransform &transform) {
-  using X = onnx_mlir::CppType<DTYPE>;
-  *reinterpret_cast<X *>(dst) = transform(s, pos).to<X>(DTYPE);
-}
-inline void copyIntOrFP(Type t, StringRef s, size_t pos, char *dst,
-    const ElementsTransform &transform) {
-  onnx_mlir::dispatchByMlirType(
-      t, [&](auto dtype) { copyIntOrFP<dtype>(s, pos, dst, transform); });
-}
-
-} // namespace detail
-
 struct DisposableElementsAttributeProperties {
   // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
   onnx_mlir::DType dtype;
@@ -168,6 +150,8 @@ struct DisposableElementsAttributeProperties {
   // Is the transform the identity?
   bool isTransformed;
 };
+
+using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
@@ -395,7 +379,7 @@ public:
   llvm::Optional<X> tryGetSplatValue() const {
     if (!isSplat())
       return llvm::None;
-    return readPos(0).to<X>(getElementType());
+    return readBufferPos(0).to<X>(getElementType());
   }
   template <typename X>
   X getSplatValue() const {
@@ -449,15 +433,26 @@ public:
       return toDenseElementsAttrByType<APFloat>();
   }
 
+  using Reader = std::function<void(size_t, onnx_mlir::IntOrFP)>;
+
+  void read(const Reader &sink) const {
+    onnx_mlir::dispatchByDType(getDType(), [&sink, this](auto dtype) {
+      traverse(this->getType(), this->getStrides(),
+          [&](size_t pos, size_t flatIndex) {
+            sink(flatIndex, this->readBufferPos(pos));
+          });
+    });
+  }
+
   onnx_mlir::RawBuffer getRawBuffer() const {
-    Type elementType = getElementType();
-    unsigned bytewidth = onnx_mlir::getIntOrFloatByteWidth(elementType);
-    StringRef s = getBuffer()->getBuffer();
-    const auto &transform = getTransform();
+    onnx_mlir::DType dtype = getDType();
+    unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
     if (isSplat()) {
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(bytewidth);
-      detail::copyIntOrFP(elementType, s, 0, vec.data(), transform);
+      onnx_mlir::dispatchByDType(dtype, [&](auto staticDType) {
+        writeIntOrFP<staticDType>(vec, 0, readBufferPos(0));
+      });
       return onnx_mlir::RawBuffer(std::move(vec));
     }
     const Properties &properties = getProperties();
@@ -465,29 +460,40 @@ public:
       ShapedType type = getType();
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(type.getNumElements() * bytewidth);
-      Strides strides = getStrides();
-      onnx_mlir::dispatchByMlirType(elementType, [&](auto dtype) {
-        traverse(type, strides, [&](size_t pos, size_t flatIndex) {
-          detail::copyIntOrFP<dtype>(
-              s, pos, vec.data() + flatIndex * bytewidth, transform);
-        });
-      });
+      read(dispatchByDType(dtype, [&vec](auto staticDType) -> Reader {
+        using cpptype = onnx_mlir::CppType<staticDType>;
+        return [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) {
+          writeIntOrFP<onnx_mlir::toDType<cpptype>>(vec, flatIndex, n);
+        };
+      }));
       return onnx_mlir::RawBuffer(std::move(vec));
     } else {
-      return llvm::makeArrayRef(s.data(), s.size());
+      return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
     }
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
-  onnx_mlir::IntOrFP readPos(size_t pos) const {
+  onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
     return getTransform()(getBuffer()->getBuffer(), pos);
   }
 
+  // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
   onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
     SmallVector<int64_t, 4> indices;
     detail::unflattenIndex(getShape(), flatIndex, indices);
     size_t pos = detail::getStridesPosition(indices, getStrides());
-    return readPos(pos);
+    return readBufferPos(pos);
+  }
+
+  // This is like the inverse of getIdentityTransform. Whereas identity
+  // transform returns an IntOrFP which it reads from a given read-only buffer
+  // and pos, writeIntOrFP writes an IntOrFP argument to a given mutable array
+  // and index.
+  template <onnx_mlir::DType DTYPE>
+  static void writeIntOrFP(
+      llvm::MutableArrayRef<char> dst, size_t index, onnx_mlir::IntOrFP n) {
+    using cpptype = onnx_mlir::CppType<DTYPE>;
+    onnx_mlir::castMutableArrayRef<cpptype>(dst)[index] = n.to<cpptype>(DTYPE);
   }
 
   template <typename Act>

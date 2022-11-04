@@ -123,8 +123,21 @@ RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
 }
 
 namespace {
+
+// D is a 64 bit "wide" type of the same kind (int or float) as the underlying
+// elements' data type.
 template <typename D>
 void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    disposable.read([dst](size_t flatIndex, IntOrFP n) {
+      // Since D is the "wide" type of the elements' data type it's ok to use
+      // the corresponding "wideDType" (INT64/UINT64/DOUBLE) to access n
+      // even if n was encoded (in i64/u64/dbl) using a narrower dtype.
+      constexpr DType wideDType = toDType<D>;
+      dst[flatIndex] = n.to<D>(wideDType);
+    });
+    return;
+  }
   RawBuffer src = getDenseIntOrFPRawData(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
@@ -132,13 +145,16 @@ void readDense(ElementsAttr elements, MutableArrayRef<D> dst) {
         castArrayRef<S>(src.get()), dst, [](S v) { return static_cast<D>(v); });
   });
 }
+
 } // namespace
 
 void readDenseInts(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
+  assert(elements.getType().getElementType().isa<IntegerType>());
   readDense(elements, ints);
 }
 
 void readDenseFPs(ElementsAttr elements, MutableArrayRef<double> fps) {
+  assert(elements.getType().getElementType().isa<FloatType>());
   readDense(elements, fps);
 }
 
