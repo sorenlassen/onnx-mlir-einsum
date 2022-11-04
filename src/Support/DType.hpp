@@ -150,9 +150,11 @@ enum class DType : int8_t {
 // in #include "onnx/onnx_pb.h".
 
 // Returns a value from enum onnx::TensorProto_DataType.
-inline int onnxDataTypeOfDType(DType dtype) { return static_cast<int>(dtype); }
+constexpr int onnxDataTypeOfDType(DType dtype) {
+  return static_cast<int>(dtype);
+}
 // Precondition: onnxDataType must be from enum onnx::TensorProto_DataType.
-inline DType dtypeOfOnnxDataType(int onnxDataType) {
+constexpr DType dtypeOfOnnxDataType(int onnxDataType) {
   return static_cast<DType>(onnxDataType);
 }
 
@@ -162,11 +164,12 @@ struct DTypeTraitBase {
   static constexpr DType dtype = DTYPE;
   static constexpr bool isFloat =
       std::is_floating_point_v<CPPTY> || isFP16Type<CPPTY>;
+  static constexpr bool isIntOrFloat = std::is_integral_v<CPPTY> || isFloat;
   static constexpr bool isSignedInt =
       std::is_integral_v<CPPTY> && std::is_signed_v<CPPTY>;
   static constexpr bool isUnsignedInt =
       std::is_integral_v<CPPTY> && !std::is_signed_v<CPPTY>;
-  static constexpr unsigned width =
+  static constexpr unsigned width = // TODO: rename to bitwidth
       std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
   static constexpr unsigned bytewidth = (width + 1) / 8;
   using cpptype = CPPTY;
@@ -232,7 +235,7 @@ mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
 // helpful alternatives to DTypeTrait<dtype>::isFloat/width/etc
 // when dtype isn't known at compile.
 
-// == isa<FloatType>(mlirTypeOf(dtype, ctx))
+// == mlirTypeOf(dtype, ctx).isa<FloatType>()
 bool isFloatDType(DType);
 
 // == mlirTypeOf(dtype, ctx).isSignlessInteger()
@@ -242,7 +245,7 @@ bool isSignedIntDType(DType);
 bool isUnsignedIntDType(DType);
 
 // == mlirTypeOf(dtype, ctx).getIntOrFloatBitWidth()
-bool widthOfDType(DType);
+bool widthOfDType(DType); // TODO: rename to bitwidth
 
 // == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
 bool bytewidthOfDType(DType);
@@ -365,6 +368,13 @@ union IntOrFP { // TODO rename to WideIntOrFP or WideNum
     }
   }
 
+  // TODO: consider adding to<DTYPE>() = to<CppType<DTYPE>>(DTYPE)
+
+  // TODO: add write and read methods
+  // void write<DTYPE>(char *dst) const { reinterpret_cast<CppType<DTYPE>
+  // *>(dst) = to<...>(...); } static IntOrFP read<DTYPE>(const char *dst) {
+  // return from(*reinterpret_cast...) }
+
   template <typename T>
   std::enable_if_t<
       !std::is_same_v<T, llvm::APInt> && !std::is_same_v<T, llvm::APFloat>, T>
@@ -430,11 +440,11 @@ union IntOrFP { // TODO rename to WideIntOrFP or WideNum
   }
 };
 
+// TODO change to non-function
 template <typename T>
 constexpr bool isIntOrFPConvertible() {
-  // TODO: change to check it's a simple scalar once CppTypeTrait
-  // becomes defined for string and complex types
-  return CppTypeTrait<T>::dtype != DType::UNDEFINED;
+  return CppTypeTrait<T>::dtype != DType::UNDEFINED &&
+         CppTypeTrait<T>::isIntOrFloat;
 }
 
 template <>
