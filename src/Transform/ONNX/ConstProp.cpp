@@ -86,26 +86,32 @@ const StringRef BUFFER_ID_ATTR = "buffer_id";
 SmallVector<char *, 4> bufferPtrs;
 
 template <typename S>
-struct CastIntsOrFPs {
-  template <typename DstDTy, typename... Args>
-  struct Cast {
-    using D = typename DstDTy::cpptype;
-    static void eval(ArrayRef<char> src, char *dst) {
-      D *rs = reinterpret_cast<D *>(dst);
-      ArrayRef<S> vs = castArrayRef<S>(src);
-      std::transform(
-          vs.begin(), vs.end(), rs, [](S v) { return static_cast<D>(v); });
-    }
-  };
-};
-
-template <typename S>
 void castAndCopy(Type dstElemType, ArrayRef<S> src, MutableArrayRef<char> dst) {
   dispatchByMlirType(dstElemType, [&](auto dstDType) {
     using D = CppType<dstDType>;
     fillOrTransform(src, castMutableArrayRef<D>(dst),
         [](S v) { return static_cast<D>(v); });
   });
+}
+
+template <typename T>
+SmallVector<T, 4> createIntVectorFromArrayAttr(ArrayAttr a) {
+  SmallVector<T, 4> vec;
+  for (auto val : a.getValue())
+    vec.push_back(val.cast<IntegerAttr>().getInt());
+  return vec;
+}
+
+ElementsAttr getConstValueElements(Value constValue) {
+  ONNXConstantOp constOp = getONNXConstantOp(constValue);
+  return constOp.valueAttr().cast<ElementsAttr>();
+}
+
+ONNXConstantOp createConstantOp(
+    PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
+  return rewriter.create<ONNXConstantOp>(replacingValue.getLoc(),
+      replacingValue.getType(), Attribute(), elements, FloatAttr(), ArrayAttr(),
+      IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
 }
 
 RawBuffer getRawBytesFromConstOp(ONNXConstantOp constOp, ShapedType type) {
@@ -466,31 +472,6 @@ Value ConstPropElementwiseUnary(
 // Code to perform constant propagation for transpose.
 //===----------------------------------------------------------------------===//
 
-#if 0
-namespace {
-template <typename T>
-SmallVector<T, 4> createIntVectorFromArrayAttr(ArrayAttr a) {
-  SmallVector<T, 4> vec;
-  for (auto val : a.getValue())
-    vec.push_back(val.cast<IntegerAttr>().getInt());
-  return vec;
-}
-
-ElementsAttr getConstValueElements(Value constValue) {
-  ONNXConstantOp constOp = getONNXConstantOp(constValue);
-  return constOp.valueAttr().cast<ElementsAttr>();
-}
-
-ONNXConstantOp createConstantOp(
-    PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
-  return rewriter.create<ONNXConstantOp>(replacingValue.getLoc(),
-      replacingValue.getType(), Attribute(), elements, FloatAttr(), ArrayAttr(),
-      IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
-}
-} // namespace
-
-Value ConstPropTranspose(
-    PatternRewriter &rewriter, Value replacingValue, Value constValue) {
 Value ConstPropTranspose(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
   // TODO: figure out if default may be omitted and what to do in that case
@@ -503,42 +484,6 @@ Value ConstPropTranspose(
   ElementsAttr elements = transposeElements(constElements, perm);
   return createConstantOp(rewriter, replacingValue, elements).getResult();
 }
-#else
-Value ConstPropTranspose(
-    PatternRewriter &rewriter, Value replacingValue, Value constValue) {
-  ShapedType constType = constValue.getType().cast<ShapedType>();
-  ShapedType replacingType = replacingValue.getType().cast<ShapedType>();
-  Type elementType = replacingType.getElementType();
-  assert(constType.getElementType() == elementType && "element type mismatch");
-
-  ArrayRef<int64_t> replacingShape = replacingType.getShape();
-  ArrayRef<int64_t> constShape = constType.getShape();
-
-  // Get perm attribute.
-  SmallVector<uint64_t, 4> perm;
-  Attribute permAttr = replacingValue.getDefiningOp()->getAttr("perm");
-  assert(permAttr && "permute attribute expected to be defined here");
-  for (auto permVal : permAttr.cast<ArrayAttr>().getValue())
-    perm.emplace_back(permVal.cast<IntegerAttr>().getInt());
-
-  // Get the const value.
-  char *constArray =
-      getArrayFromAttributeOrBuffer(rewriter, constValue.getDefiningOp());
-
-  // Do calculation.
-  // Use maximum size (double or int64_t) to avoid the precision loss.
-  char *resArray =
-      allocateBufferFor(replacingValue.getType(), /*useMaxSize=*/true);
-  ConstPropTransposeImpl(
-      elementType, constArray, constShape, perm, replacingShape, resArray);
-
-  // Construct a new ONNXConstantOp.
-  ONNXConstantOp res =
-      createConstantOpAndStoreBufferPtr(rewriter, replacingValue, resArray);
-
-  return res.getResult();
-}
-#endif
 
 //===----------------------------------------------------------------------===//
 // Code to perform constant propagation for unsqueeze.
