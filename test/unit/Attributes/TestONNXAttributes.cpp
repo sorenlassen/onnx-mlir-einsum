@@ -254,8 +254,8 @@ public:
     auto b = i.value_begin<float>();
     auto x = *b;
     llvm::errs() << "x " << x << "\n";
-    // auto f = i.getSplatValue<APFloat>();
-    // assert(fabs(f.convertToDouble() - 4.2) < 1e-6);
+    auto f = i.getSplatValue<APFloat>();
+    assert(fabs(f.convertToDouble() - 4.2) < 1e-6);
     auto d = i.toDenseElementsAttr();
     d = i.toDenseElementsAttr();
     llvm::errs() << "as DenseElementsAttr " << d << "\n";
@@ -359,9 +359,9 @@ public:
     assert(i.cast<ElementsAttr>().try_value_begin<uint64_t>());
     std::cerr << "empty:" << i.empty() << "\n";
 
-    // auto apbegin = i.value_begin<APInt>();
-    // auto api = *apbegin;
-    // assert(api.getZExtValue() == 7);
+    auto apbegin = i.value_begin<APInt>();
+    auto api = *apbegin;
+    assert(api.getZExtValue() == 7);
 
     ElementsAttr e = i; // i.cast<ElementsAttr>();
     t = e.getType();
