@@ -47,8 +47,6 @@ constexpr size_t ALIGN = std::max(alignof(int64_t), alignof(double));
 
 ElementsAttr makeDenseIntOrFPElementsAttrFromRawBuffer(
     ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
-  // llvm::errs() << "makeDenseIntOrFPElementsAttrFromRawBuffer " << type << ","
-  //     << bytes.size() << "\n";
   size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
   assert(bytes.size() == type.getNumElements() * bytewidth &&
          "data size must match type");
@@ -86,8 +84,6 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
     ShapedType type, FillDenseRawBufferFn fill) {
   size_t size =
       type.getNumElements() * getIntOrFloatByteWidth(type.getElementType());
-  // llvm::errs() << "makeDenseIntOrFPElementsAttrWithRawBuffer " << type << ","
-  //     << size << "\n";
   if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
       disposablePool && disposablePool->isActive()) {
     std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
@@ -110,7 +106,6 @@ ElementsAttr makeDenseIntOrFPElementsAttrWithRawBuffer(
 }
 
 RawBuffer getDenseIntOrFPRawData(ElementsAttr elements) {
-  // llvm::errs() << "getDenseIntOrFPRawData " << elements.getType() << "\n";
   if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
     return dense.getRawData(); // Single splat value or a full array.
   }

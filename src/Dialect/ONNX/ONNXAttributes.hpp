@@ -232,7 +232,6 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 // 1. The memory can be heap allocated or mmap'ed from a file and will be
 // released (heap allocation freed or file closed) between compiler passes
 // when it is no longer reachable from the operation graph.
-// TODO: Implement garbage collector that does that.
 //
 // 2. The data can be represented with higher precision than the element
 // data type to avoid cumulative precision loss during constant propagation.
@@ -250,7 +249,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 // DisposableElementsAttr and DenseElementsAttr interchangeably, and
 // DisposableElementsAttr prints the same as DenseElementsAttr so
 // we can switch between them without changing lit tests.
-// TODO: Make DisposableElementsAttr print the same as DenseElementsAttr.
+// TODO: explain caveats...
 //
 // NOTE: DenseResourceElementsAttr is an alternative for heap allocated memory
 //       (but without garbage collection or the other features listed above).
@@ -426,7 +425,7 @@ public:
             return getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
           });
     } else {
-      // TODO: support iteration over Attribute
+      // TODO: support iteration over X == Attribute/IntegerAttr/FloatAttr
       return failure();
     }
   }
