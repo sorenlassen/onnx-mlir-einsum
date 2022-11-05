@@ -316,13 +316,15 @@ private:
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       Properties properties, const Buffer &buffer, Reader reader = nullptr) {
-    unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
-    assert(buffer->getBufferSize() % w == 0);
-    int64_t numBufferElements = buffer->getBufferSize() / w;
+    unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
+    assert(buffer->getBufferSize() % bytewidth == 0);
+    int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
     auto shape = type.getShape();
-    assert(!detail::isSplat(strides) || numBufferElements == 1);
-    assert(numBufferElements == 1 ||
-           numBufferElements == detail::getStridesNumElements(shape, strides));
+    assert(detail::isSplat(strides) == (numBufferElements == 1));
+    assert(properties.isBufferSplat == (numBufferElements == 1));
+    // TODO: decide if isBufferSplat==true and numBufferElements==1
+    //       are ok when getNumElements(shape)==0
+    assert(numBufferElements == detail::getStridesNumElements(shape, strides));
     assert(!properties.isContiguous ||
            detail::areStridesContiguous(shape, strides));
     assert(reader || !properties.isTransformed);
@@ -503,7 +505,7 @@ public:
           getBuffer()->getBuffer());
     // TODO: replace everything below, instead use getReader() to copy
     //       underlying buffer to an IntOrFP array and then call
-    ///      restrideArray() to copy to ArrayBuffer 
+    ///      restrideArray() to copy to ArrayBuffer
     if (isSplat()) {
       onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec(
           1, readBufferPos(0));
@@ -574,14 +576,6 @@ private: // TODO: Figure out if any of the following would be useful publicly.
   }
 
   bool isContiguous() const { return getProperties().isContiguous; }
-
-  size_t getBufferElementBytewidth() const {
-    size_t n = detail::getStridesNumElements(getShape(), getStrides());
-    const Buffer &buffer = getBuffer();
-    assert(buffer->getBufferSize() <= n);
-    assert(n % buffer->getBufferSize() == 0);
-    return n / buffer->getBufferSize();
-  }
 
 }; // class DisposableElementsAttr
 
