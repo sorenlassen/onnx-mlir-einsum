@@ -478,17 +478,17 @@ public:
     if (isSplat()) {
       onnx_mlir::RawBuffer::Vector vec;
       vec.resize_for_overwrite(bytewidth);
-      onnx_mlir::dispatchByDType(dtype, [&](auto staticDType) {
-        writeIntOrFP<staticDType>(vec, 0, readBufferPos(0));
-      });
+      readBufferPos(0).store(dtype, vec);
       return std::move(vec);
     }
     onnx_mlir::RawBuffer::Vector vec;
     vec.resize_for_overwrite(getNumElements() * bytewidth);
     read(dispatchByDType(dtype, [&vec](auto staticDType) -> ElementReader {
       using cpptype = onnx_mlir::CppType<staticDType>;
-      return [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) {
-        writeIntOrFP<onnx_mlir::toDType<cpptype>>(vec, flatIndex, n);
+      MutableArrayRef<char> ref(vec);
+      auto dst = onnx_mlir::castMutableArrayRef<cpptype>(ref);
+      return [dst](size_t flatIndex, onnx_mlir::IntOrFP n) {
+        dst[flatIndex] = n.to<cpptype>(onnx_mlir::toDType<cpptype>);
       };
     }));
     return std::move(vec);
@@ -501,6 +501,9 @@ public:
             sizeof(onnx_mlir::IntOrFP))
       return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
           getBuffer()->getBuffer());
+    // TODO: replace everything below, instead use getReader() to copy
+    //       underlying buffer to an IntOrFP array and then call
+    ///      restrideArray() to copy to ArrayBuffer 
     if (isSplat()) {
       onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec(
           1, readBufferPos(0));
@@ -531,17 +534,6 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     detail::unflattenIndex(getShape(), flatIndex, indices);
     size_t pos = detail::getStridesPosition(indices, getStrides());
     return readBufferPos(pos);
-  }
-
-  // This is like the inverse of getIdentityReader. Whereas identity
-  // reader returns an IntOrFP which it reads from a given read-only buffer
-  // and pos, writeIntOrFP writes an IntOrFP argument to a given mutable array
-  // and index.
-  template <onnx_mlir::DType DTYPE>
-  static void writeIntOrFP(
-      llvm::MutableArrayRef<char> dst, size_t index, onnx_mlir::IntOrFP n) {
-    using cpptype = onnx_mlir::CppType<DTYPE>;
-    onnx_mlir::castMutableArrayRef<cpptype>(dst)[index] = n.to<cpptype>(DTYPE);
   }
 
   template <typename Act>
