@@ -124,11 +124,13 @@ using MappedIndexIterator =
     llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
         std::function<T(size_t)>>;
 template <typename T>
-auto begin(int64_t numElements, const std::function<T(size_t)> &fun) {
+MappedIndexIterator<T> beginMappedIndexIterator(
+    size_t numElements, const std::function<T(size_t)> &fun) {
   return llvm::map_iterator(seq(numElements).begin(), fun);
 }
 template <typename T>
-auto end(int64_t numElements, const std::function<T(size_t)> &fun) {
+MappedIndexIterator<T> endMappedIndexIterator(
+    size_t numElements, const std::function<T(size_t)> &fun) {
   return llvm::map_iterator(seq(numElements).end(), fun);
 }
 
@@ -413,7 +415,7 @@ public:
     if constexpr (isIntOrFPConvertible<X>) {
       onnx_mlir::DType dtype = getDType();
       DisposableElementsAttr attr = *this;
-      return detail::begin<X>(
+      return detail::beginMappedIndexIterator<X>(
           getNumElements(), [dtype, attr](size_t flatIndex) -> X {
             return getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
           });
@@ -426,7 +428,7 @@ public:
   // equivalent to getValues<X>().end(), which is probably slower?
   template <typename X>
   iterator<X> value_end() const {
-    return detail::end<X>(getNumElements(), nullptr);
+    return detail::endMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
   void printWithoutType(raw_ostream &os) const;
