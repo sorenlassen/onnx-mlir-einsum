@@ -10,11 +10,16 @@
 
 #pragma once
 
-#include "src/Support/DType.hpp"
-
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
+
+namespace mlir {
+class Type;
+}
 
 namespace onnx_mlir {
+
+union IntOrFP;
 
 // Light-weight version of MemoryBuffer. Can either point to external memory or
 // hold internal memory. An ArrayBuffer can only be moved, not copied.

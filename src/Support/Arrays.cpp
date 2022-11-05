@@ -10,6 +10,10 @@
 
 #include "src/Support/Arrays.hpp"
 
+#include "src/Support/DType.hpp"
+
+#include "mlir/IR/Types.h"
+
 using namespace mlir;
 
 namespace onnx_mlir {

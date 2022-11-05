@@ -10,11 +10,46 @@
 
 #include "src/Support/Strides.hpp"
 
+#include "src/Support/Arrays.hpp"
+
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 
 using namespace mlir;
 
 namespace onnx_mlir {
+
+namespace {
+
+// clang-format off
+template <unsigned Bytewidth>
+using BitcastType =
+    std::conditional_t<Bytewidth == 1, std::uint8_t,
+    std::conditional_t<Bytewidth == 2, std::uint16_t,
+    std::conditional_t<Bytewidth == 4, std::uint32_t,
+    std::conditional_t<Bytewidth == 8, std::uint64_t,
+    void>>>>;
+// clang-format on
+
+template <unsigned Bytewidth>
+struct BytewidthToken {
+  constexpr BytewidthToken() {}
+  constexpr operator unsigned() const { return Bytewidth; }
+};
+
+template <typename Action, typename... Args>
+auto dispatchByBytewidth(unsigned bytewidth, Action &&act, Args &&...args) {
+  // clang-format off
+  switch (bytewidth) {
+  case 1: return act(BytewidthToken<1>{}, std::forward<Args>(args)...);
+  case 2: return act(BytewidthToken<2>{}, std::forward<Args>(args)...);
+  case 4: return act(BytewidthToken<4>{}, std::forward<Args>(args)...);
+  case 8: return act(BytewidthToken<8>{}, std::forward<Args>(args)...);
+  default: llvm_unreachable("unsupported bytewidth");
+  }
+  // clang-format on
+}
+
+} // namespace
 
 int64_t getStridesNumElements(
     ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
@@ -27,8 +62,7 @@ int64_t getStridesNumElements(
   return last + 1;
 }
 
-bool areStridesContiguous(
-    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+bool areStridesContiguous(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   assert(shape.size() >= strides.size());
   if (shape.size() != strides.size())
     return false;
@@ -88,7 +122,8 @@ void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
   indices[0] = flatIndex;
 }
 
-SmallVector<int64_t, 4> padStrides(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
+SmallVector<int64_t, 4> padStrides(
+    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   int64_t skip = shape.size() - strides.size();
   assert(skip >= 0);
   SmallVector<int64_t, 4> padded(skip, 0);
@@ -99,6 +134,42 @@ SmallVector<int64_t, 4> padStrides(ArrayRef<int64_t> shape, ArrayRef<int64_t> st
 SmallVector<int64_t, 4> paddedStridesOfShape(ArrayRef<int64_t> shape) {
   SmallVector<int64_t, 4> strides = getDefaultStrides(shape);
   return padStrides(shape, strides);
+}
+
+namespace {
+template <typename T>
+void restrideArray(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
+    ArrayRef<T> src, ArrayRef<int64_t> dstStrides, MutableArrayRef<T> dst) {
+  assert(srcStrides.size() == shape.size() && "src strides must be padded");
+  assert(dstStrides.size() == shape.size() && "dst strides must be padded");
+  int64_t rank = shape.size();
+  auto traverse = [=](int64_t axis, size_t srcPos, size_t dstPos,
+                      const auto &recurse) -> void {
+    if (axis == rank) {
+      dst[dstPos] = src[srcPos];
+    } else {
+      size_t srcStride = srcStrides[axis];
+      size_t dstStride = dstStrides[axis];
+      size_t dimSize = shape[axis];
+      for (size_t i = 0; i < dimSize; ++i) {
+        recurse(axis + 1, srcPos, dstPos, recurse);
+        srcPos += srcStride;
+        dstPos += dstStride;
+      }
+    }
+  };
+  traverse(0, 0, 0, traverse);
+}
+} // namespace
+
+void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
+    ArrayRef<int64_t> srcStrides, ArrayRef<char> src,
+    ArrayRef<int64_t> dstStrides, MutableArrayRef<char> dst) {
+  dispatchByBytewidth(bytewidth, [&](auto staticBytewidth) {
+    using T = BitcastType<staticBytewidth>;
+    restrideArray<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
+        castMutableArrayRef<T>(dst));
+  });
 }
 
 } // namespace onnx_mlir

@@ -19,35 +19,6 @@ namespace onnx_mlir {
 
 namespace {
 
-// clang-format off
-template <unsigned Bytewidth>
-using BitcastType =
-    std::conditional_t<Bytewidth == 1, std::uint8_t,
-    std::conditional_t<Bytewidth == 2, std::uint16_t,
-    std::conditional_t<Bytewidth == 4, std::uint32_t,
-    std::conditional_t<Bytewidth == 8, std::uint64_t,
-    void>>>>;
-// clang-format on
-
-template <unsigned Bytewidth>
-struct BytewidthToken {
-  constexpr BytewidthToken() {}
-  constexpr operator unsigned() const { return Bytewidth; }
-};
-
-template <typename Action, typename... Args>
-auto dispatchByBytewidth(unsigned bytewidth, Action &&act, Args &&...args) {
-  // clang-format off
-  switch (bytewidth) {
-  case 1: return act(BytewidthToken<1>{}, std::forward<Args>(args)...);
-  case 2: return act(BytewidthToken<2>{}, std::forward<Args>(args)...);
-  case 4: return act(BytewidthToken<4>{}, std::forward<Args>(args)...);
-  case 8: return act(BytewidthToken<8>{}, std::forward<Args>(args)...);
-  default: llvm_unreachable("unsupported bytewidth");
-  }
-  // clang-format on
-}
-
 using DimsVector = SmallVector<int64_t, 4>;
 using Shape = ArrayRef<int64_t>;
 using Strides = ArrayRef<int64_t>;
@@ -68,39 +39,6 @@ DimsVector untransposeDims(ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
   for (size_t i = 0; i < perm.size(); ++i)
     unpermutedDims[perm[i]] = dims[i];
   return unpermutedDims;
-}
-
-template <typename T>
-void restrideArray(Shape shape, Strides srcStrides, ArrayRef<T> src,
-    Strides dstStrides, MutableArrayRef<T> dst) {
-  assert(srcStrides.size() == shape.size() && "src strides must be padded");
-  assert(dstStrides.size() == shape.size() && "dst strides must be padded");
-  int64_t rank = shape.size();
-  auto traverse = [=](int64_t axis, size_t srcPos, size_t dstPos,
-                      const auto &recurse) -> void {
-    if (axis == rank) {
-      dst[dstPos] = src[srcPos];
-    } else {
-      size_t srcStride = srcStrides[axis];
-      size_t dstStride = dstStrides[axis];
-      size_t dimSize = shape[axis];
-      for (size_t i = 0; i < dimSize; ++i) {
-        recurse(axis + 1, srcPos, dstPos, recurse);
-        srcPos += srcStride;
-        dstPos += dstStride;
-      }
-    }
-  };
-  traverse(0, 0, 0, traverse);
-}
-
-void restrideArray(unsigned bytewidth, Shape shape, Strides srcStrides,
-    ArrayRef<char> src, Strides dstStrides, MutableArrayRef<char> dst) {
-  dispatchByBytewidth(bytewidth, [&](auto staticBytewidth) {
-    using T = BitcastType<staticBytewidth>;
-    restrideArray<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
-        castMutableArrayRef<T>(dst));
-  });
 }
 
 void transformArray(Type srcElementType, ArrayRef<IntOrFP> src,

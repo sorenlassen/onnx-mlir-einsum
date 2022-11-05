@@ -30,8 +30,14 @@ llvm::SmallVector<int64_t, 4> getDefaultStrides(llvm::ArrayRef<int64_t> shape);
 void unflattenIndex(llvm::ArrayRef<int64_t> shape, int64_t flatIndex,
     llvm::SmallVectorImpl<int64_t> &indices);
 
-llvm::SmallVector<int64_t, 4> padStrides(llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
+llvm::SmallVector<int64_t, 4> padStrides(
+    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
 
-llvm::SmallVector<int64_t, 4> paddedStridesOfShape(llvm::ArrayRef<int64_t> shape);
+llvm::SmallVector<int64_t, 4> paddedStridesOfShape(
+    llvm::ArrayRef<int64_t> shape);
+
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    llvm::ArrayRef<int64_t> srcStrides, llvm::ArrayRef<char> src,
+    llvm::ArrayRef<int64_t> dstStrides, llvm::MutableArrayRef<char> dst);
 
 } // namespace onnx_mlir
