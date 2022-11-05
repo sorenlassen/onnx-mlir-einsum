@@ -473,7 +473,8 @@ public:
 
   onnx_mlir::RawBuffer getRawBytes() const {
     const Properties &properties = getProperties();
-    if (!properties.isTransformed && properties.isContiguous)
+    if (!properties.isTransformed &&
+        properties.dtype == properties.bufferDType && properties.isContiguous)
       return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
     onnx_mlir::DType dtype = getDType();
     unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
@@ -499,7 +500,7 @@ public:
   onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
     const Properties &properties = getProperties();
     if (!properties.isTransformed && properties.isContiguous &&
-        onnx_mlir::bytewidthOfDType(properties.dtype) ==
+        onnx_mlir::bytewidthOfDType(properties.bufferDType) ==
             sizeof(onnx_mlir::IntOrFP))
       return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
           getBuffer()->getBuffer());
