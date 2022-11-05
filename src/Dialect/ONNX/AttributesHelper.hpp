@@ -20,17 +20,18 @@ class raw_ostream;
 
 namespace onnx_mlir {
 
-// Light-weigh version of MemoryBuffer. Can either point to external
+// Light-weight version of MemoryBuffer. Can either point to external
 // memory or hold internal memory.
-class RawBuffer {
+template <typename T>
+class ArrayBuffer {
 public:
   using Vector = llvm::SmallVector<char, 8>;
 
-  RawBuffer(Vector &&vec) : vec(std::move(vec)), ref(this->vec) {}
-  RawBuffer(llvm::ArrayRef<char> ref) : vec(), ref(ref) {}
-  RawBuffer() = delete;
-  RawBuffer(const RawBuffer &) = delete;
-  RawBuffer(RawBuffer &&other)
+  ArrayBuffer(Vector &&vec) : vec(std::move(vec)), ref(this->vec) {}
+  ArrayBuffer(llvm::ArrayRef<char> ref) : vec(), ref(ref) {}
+  ArrayBuffer() = delete;
+  ArrayBuffer(const ArrayBuffer &) = delete;
+  ArrayBuffer(ArrayBuffer &&other)
       : vec(std::move(other.vec)),
         ref(vec.empty() ? other.ref : llvm::makeArrayRef(vec)) {}
 
@@ -55,6 +56,8 @@ mlir::ElementsAttr makeElementsAttr(
   return makeElementsAttrFromRawBytes(
       type, castArrayRef<char>(numbers), mustCopy);
 }
+
+using RawBuffer = ArrayBuffer<char>;
 
 typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 
