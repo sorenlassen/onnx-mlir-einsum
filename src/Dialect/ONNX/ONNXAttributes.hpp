@@ -390,9 +390,19 @@ public:
   }
 
   void readElements(MutableArrayRef<onnx_mlir::IntOrFP> dst) const {
-    if (isContiguous())
+    if (isContiguous()) {
       getReader()(getBuffer()->getBuffer(), dst);
-    // TODO: read into a buffer and then copy into dst with restrideArray()
+    }
+    SmallVector<onnx_mlir::IntOrFP, 1> wideBufferData;
+    wideBufferData.resize_for_overwrite(getNumBufferElements());
+    getReader()(getBuffer()->getBuffer(), wideBufferData);
+    ArrayRef<int64_t> shape = getShape();
+    ArrayRef<int64_t> srcStrides = getStrides();
+    ArrayRef<onnx_mlir::IntOrFP> src(wideBufferData);
+    SmallVector<int64_t, 4> dstStrides = onnx_mlir::getDefaultStrides(shape);
+    onnx_mlir::restrideArray(sizeof(onnx_mlir::IntOrFP), shape, srcStrides,
+        onnx_mlir::castArrayRef<char>(src), dstStrides,
+        onnx_mlir::castMutableArrayRef<char>(dst));
   }
 
   onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
@@ -433,6 +443,11 @@ public:
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.
+  int64_t getNumBufferElements() const {
+    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
+    return getBuffer()->getBufferSize() / bytewidth;
+  }
+
   onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
     onnx_mlir::IntOrFP n;
     StringRef s = getBuffer()->getBuffer();
