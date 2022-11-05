@@ -474,8 +474,13 @@ public:
   onnx_mlir::RawBuffer getRawBytes() const {
     const Properties &properties = getProperties();
     if (!properties.isTransformed &&
-        properties.dtype == properties.bufferDType && properties.isContiguous)
-      return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
+        properties.dtype == properties.bufferDType) {
+      if (properties.isContiguous)
+        return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
+      // TODO: copy to array with restrideArray()
+    }
+    // TODO: replace everything below with a call to getIntOrFPs,
+    //       followed by a cast to dtype if needed
     onnx_mlir::DType dtype = getDType();
     unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
     if (isSplat()) {
@@ -505,8 +510,11 @@ public:
       return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
           getBuffer()->getBuffer());
     // TODO: replace everything below, instead use getReader() to copy
-    //       underlying buffer to an IntOrFP array and then call
-    ///      restrideArray() to copy to ArrayBuffer
+    //       underlying buffer to an IntOrFP array, followed by calling
+    //       restrideArray() to copy to ArrayBuffer if needed
+    //
+    //       optimize to just restrideArray() in the special case where
+    //       !isTransformed and bytewidthOf(bufferDType)
     if (isSplat()) {
       onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec(
           1, readBufferPos(0));
