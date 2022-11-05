@@ -14,6 +14,7 @@
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/Support/ErrorHandling.h"
 
 namespace onnx_mlir {
@@ -291,41 +292,6 @@ template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
   return dispatchByDType(
       dtypeOf(type), std::forward<Action>(act), std::forward<Args>(args)...);
-}
-
-// Helper functions frequently used together with dispatch.
-
-template <typename New, typename Old = char>
-llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
-  return llvm::makeArrayRef(reinterpret_cast<const New *>(a.data()),
-      (a.size() * sizeof(Old)) / sizeof(New));
-}
-
-template <typename New = char>
-llvm::ArrayRef<New> asArrayRef(llvm::StringRef s) {
-  return llvm::makeArrayRef(
-      reinterpret_cast<const New *>(s.data()), s.size() / sizeof(New));
-}
-
-template <typename Old = char>
-llvm::StringRef asStringRef(llvm::ArrayRef<Old> a) {
-  llvm::ArrayRef<char> c = castArrayRef<char>(a);
-  return llvm::StringRef(c.begin(), c.size());
-}
-
-template <typename New, typename Old = char>
-llvm::MutableArrayRef<New> castMutableArrayRef(llvm::MutableArrayRef<Old> a) {
-  return llvm::makeMutableArrayRef(reinterpret_cast<New *>(a.data()),
-      (a.size() * sizeof(Old)) / sizeof(New));
-}
-
-template <typename Src, typename Dst, typename Fn>
-void fillOrTransform(
-    llvm::ArrayRef<Src> src, llvm::MutableArrayRef<Dst> dst, Fn fn) {
-  if (src.size() == 1)
-    std::fill(dst.begin(), dst.end(), fn(src.front()));
-  else
-    std::transform(src.begin(), src.end(), dst.begin(), fn);
 }
 
 template <typename U>

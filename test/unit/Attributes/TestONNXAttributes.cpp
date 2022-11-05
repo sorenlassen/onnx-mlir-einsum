@@ -11,6 +11,7 @@
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXOpsHelper.hpp"
+#include "src/Support/DType.hpp"
 
 #include "mlir/IR/Builders.h"
 #include "llvm/Support/MemoryBuffer.h"

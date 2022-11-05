@@ -22,6 +22,7 @@
 #include "llvm/Support/MemoryBuffer.h"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp" // RawBuffer
+#include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 
 #include <memory>

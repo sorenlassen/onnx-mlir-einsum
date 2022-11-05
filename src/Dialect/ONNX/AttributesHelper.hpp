@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 
 #include "mlir/IR/BuiltinAttributes.h"
@@ -20,48 +21,6 @@ class raw_ostream;
 }
 
 namespace onnx_mlir {
-
-// Light-weight version of MemoryBuffer. Can either point to external memory or
-// hold internal memory. An ArrayBuffer can only be moved, not copied.
-template <typename T>
-class ArrayBuffer {
-public:
-  using Vector = llvm::SmallVector<T, 8 / sizeof(T)>;
-
-  ArrayBuffer() = default; // empty
-  ArrayBuffer(Vector &&vec) : vec(std::move(vec)), ref(this->vec) {}
-  ArrayBuffer(llvm::ArrayRef<T> ref) : vec(), ref(ref) {}
-  ArrayBuffer(const ArrayBuffer &) = delete;
-  ArrayBuffer(ArrayBuffer &&other)
-      : vec(std::move(other.vec)),
-        ref(vec.empty() ? other.ref : llvm::makeArrayRef(vec)) {}
-
-  llvm::ArrayRef<T> get() const { return ref; }
-
-  static ArrayBuffer make(size_t length,
-      const std::function<void(llvm::MutableArrayRef<T>)> &filler) {
-    Vector vec;
-    vec.resize_for_overwrite(length);
-    filler(llvm::makeMutableArrayRef(vec.begin(), length));
-    return std::move(vec);
-  }
-
-private:
-  const Vector vec;
-  const llvm::ArrayRef<T> ref;
-};
-
-void widenArray(mlir::Type elementType, llvm::ArrayRef<char> bytes,
-    llvm::MutableArrayRef<IntOrFP> wideData);
-
-void narrowArray(mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData,
-    llvm::MutableArrayRef<char> bytes);
-
-ArrayBuffer<IntOrFP> widenOrReturnArray(
-    mlir::Type elementType, llvm::ArrayRef<char> bytes);
-
-ArrayBuffer<char> narrowOrReturnArray(
-    mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData);
 
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
@@ -75,8 +34,6 @@ mlir::ElementsAttr makeElementsAttr(
   return makeElementsAttrFromRawBytes(
       type, castArrayRef<char>(numbers), mustCopy);
 }
-
-using RawBuffer = ArrayBuffer<char>;
 
 typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 

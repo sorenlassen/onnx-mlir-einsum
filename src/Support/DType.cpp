@@ -10,6 +10,8 @@
 
 #include "src/Support/DType.hpp"
 
+#include "src/Support/Arrays.hpp"
+
 #include "mlir/IR/Builders.h"
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
