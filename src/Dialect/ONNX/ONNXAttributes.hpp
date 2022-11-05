@@ -462,13 +462,22 @@ public:
       return toDenseElementsAttrByType<APFloat>();
   }
 
-  using ElementReader = std::function<void(size_t, onnx_mlir::IntOrFP)>;
+  void readElements(MutableArrayRef<onnx_mlir::IntOrFP> dst) const {
+    getReader()(getBuffer()->getBuffer(), dst);
+  }
 
-  void read(const ElementReader &sink) const {
-    traverse(
-        this->getType(), this->getStrides(), [&](size_t pos, size_t flatIndex) {
-          sink(flatIndex, this->readBufferPos(pos));
-        });
+  onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
+    const Properties &properties = getProperties();
+    if (!properties.isTransformed && properties.isContiguous &&
+        onnx_mlir::bytewidthOfDType(properties.bufferDType) ==
+            sizeof(onnx_mlir::IntOrFP)) {
+      return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
+          getBuffer()->getBuffer());
+    }
+    onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec;
+    vec.resize_for_overwrite(getNumElements());
+    readElements(vec);
+    return std::move(vec);
   }
 
   onnx_mlir::RawBuffer getRawBytes() const {
@@ -477,54 +486,21 @@ public:
         properties.dtype == properties.bufferDType) {
       if (properties.isContiguous)
         return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
-      // TODO: copy to array with restrideArray()
+      // TODO: copy to vector with restrideArray()
     }
-    // TODO: replace everything below with a call to getIntOrFPs,
-    //       followed by a cast to dtype if needed
-    onnx_mlir::DType dtype = getDType();
-    unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
-    if (isSplat()) {
-      onnx_mlir::RawBuffer::Vector vec;
-      vec.resize_for_overwrite(bytewidth);
-      readBufferPos(0).store(dtype, vec);
-      return std::move(vec);
-    }
-    onnx_mlir::RawBuffer::Vector vec;
+    unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
+    onnx_mlir::ArrayBuffer<char>::Vector vec;
     vec.resize_for_overwrite(getNumElements() * bytewidth);
-    read(dispatchByDType(dtype, [&vec](auto staticDType) -> ElementReader {
-      using cpptype = onnx_mlir::CppType<staticDType>;
-      MutableArrayRef<char> ref(vec);
-      auto dst = onnx_mlir::castMutableArrayRef<cpptype>(ref);
-      return [dst](size_t flatIndex, onnx_mlir::IntOrFP n) {
-        dst[flatIndex] = n.to<cpptype>(onnx_mlir::toDType<cpptype>);
-      };
-    }));
-    return std::move(vec);
-  }
-
-  onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
-    const Properties &properties = getProperties();
-    if (!properties.isTransformed && properties.isContiguous &&
-        onnx_mlir::bytewidthOfDType(properties.bufferDType) ==
-            sizeof(onnx_mlir::IntOrFP))
-      return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
-          getBuffer()->getBuffer());
-    // TODO: replace everything below, instead use getReader() to copy
-    //       underlying buffer to an IntOrFP array, followed by calling
-    //       restrideArray() to copy to ArrayBuffer if needed
-    //
-    //       optimize to just restrideArray() in the special case where
-    //       !isTransformed and bytewidthOf(bufferDType)
-    if (isSplat()) {
-      onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec(
-          1, readBufferPos(0));
-      return std::move(vec);
+    MutableArrayRef<char> bytes(vec);
+    if (bytewidth == sizeof(onnx_mlir::IntOrFP)) {
+      readElements(onnx_mlir::castMutableArrayRef<onnx_mlir::IntOrFP>(bytes));
+    } else {
+      SmallVector<onnx_mlir::IntOrFP, 1> wideData;
+      wideData.resize_for_overwrite(getNumElements());
+      readElements(wideData);
+      onnx_mlir::narrowArray(getElementType(), wideData, bytes);
     }
-    onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec;
-    vec.resize_for_overwrite(getNumElements());
-    read(
-        [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) { vec[flatIndex] = n; });
-    return std::move(vec);
+    return std::move(bytes);
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.

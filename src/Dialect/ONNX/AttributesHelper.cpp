@@ -134,23 +134,49 @@ RawBuffer getElementsRawBytes(ElementsAttr elements) {
   llvm_unreachable("unexpected ElementsAttr instance");
 }
 
-namespace {
-ArrayBuffer<IntOrFP> widen(Type elementType, ArrayRef<char> rawData) {
+void widenArray(
+    Type elementType, ArrayRef<char> bytes, MutableArrayRef<IntOrFP> wideData) {
+  dispatchByMlirType(elementType, [bytes, wideData](auto dtype) {
+    using T = CppType<dtype>;
+    auto src = castArrayRef<T>(bytes);
+    std::transform(src.begin(), src.end(), wideData.begin(),
+        [](T x) -> IntOrFP { return IntOrFP::from<T>(toDType<T>, x); });
+  });
+}
+
+void narrowArray(
+    Type elementType, ArrayRef<IntOrFP> wideData, MutableArrayRef<char> bytes) {
+  dispatchByMlirType(elementType, [wideData, bytes](auto dtype) {
+    using T = CppType<dtype>;
+    auto dst = castMutableArrayRef<T>(bytes);
+    std::transform(wideData.begin(), wideData.end(), dst.begin(),
+        [](IntOrFP n) -> T { return n.to<T>(toDType<T>); });
+  });
+}
+
+ArrayBuffer<IntOrFP> widenOrReturnArray(
+    Type elementType, ArrayRef<char> bytes) {
   unsigned bytewidth = getIntOrFloatByteWidth(elementType);
-  if (bytewidth == 8) {
-    return castArrayRef<IntOrFP>(rawData);
+  if (bytewidth == sizeof(IntOrFP)) {
+    return castArrayRef<IntOrFP>(bytes);
   }
   ArrayBuffer<IntOrFP>::Vector vec;
-  vec.resize_for_overwrite(rawData.size() / bytewidth);
-  dispatchByMlirType(elementType, [&](auto dtype) {
-    using T = CppType<dtype>;
-    auto src = castArrayRef<T>(rawData);
-    std::transform(src.begin(), src.end(), vec.begin(),
-        [](T x) { return IntOrFP::from<T>(toDType<T>, x); });
-  });
+  vec.resize_for_overwrite(bytes.size() / bytewidth);
+  widenArray(elementType, bytes, vec);
   return std::move(vec);
 }
-} // namespace
+
+ArrayBuffer<char> narrowOrReturnArray(
+    Type elementType, ArrayRef<IntOrFP> wideData) {
+  unsigned bytewidth = getIntOrFloatByteWidth(elementType);
+  if (bytewidth == sizeof(IntOrFP)) {
+    return castArrayRef<char>(wideData);
+  }
+  ArrayBuffer<char>::Vector vec;
+  vec.resize_for_overwrite(wideData.size() * bytewidth);
+  narrowArray(elementType, wideData, vec);
+  return std::move(vec);
+}
 
 ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
@@ -165,19 +191,14 @@ ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
   } else {
     llvm_unreachable("unexpected ElementsAttr instance");
   }
-  return widen(elements.getElementType(), rawData);
+  return widenOrReturnArray(elements.getElementType(), rawData);
 }
 
 namespace {
 
 void readElements(ElementsAttr elements, MutableArrayRef<IntOrFP> dst) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
-    disposable.read([dst](size_t flatIndex, IntOrFP n) {
-      // Since D is the "wide" type of the elements' data type it's ok to use
-      // the corresponding "wideDType" (INT64/UINT64/DOUBLE) to access n
-      // even if n was encoded (in i64/u64/dbl) using a narrower dtype.
-      dst[flatIndex] = n;
-    });
+    disposable.readElements(dst);
     return;
   }
   RawBuffer src = getElementsRawBytes(elements);

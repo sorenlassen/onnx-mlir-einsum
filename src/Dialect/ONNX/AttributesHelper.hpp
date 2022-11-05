@@ -51,6 +51,18 @@ private:
   const llvm::ArrayRef<T> ref;
 };
 
+void widenArray(mlir::Type elementType, llvm::ArrayRef<char> bytes,
+    llvm::MutableArrayRef<IntOrFP> wideData);
+
+void narrowArray(mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData,
+    llvm::MutableArrayRef<char> bytes);
+
+ArrayBuffer<IntOrFP> widenOrReturnArray(
+    mlir::Type elementType, llvm::ArrayRef<char> bytes);
+
+ArrayBuffer<char> narrowOrReturnArray(
+    mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData);
+
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
 
