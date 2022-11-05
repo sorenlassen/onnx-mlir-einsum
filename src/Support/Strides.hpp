@@ -36,8 +36,14 @@ llvm::SmallVector<int64_t, 4> padStrides(
 llvm::SmallVector<int64_t, 4> paddedStridesOfShape(
     llvm::ArrayRef<int64_t> shape);
 
+// Requires srcStrides and dstStrides are padded.
 void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
-    llvm::ArrayRef<int64_t> srcStrides, llvm::ArrayRef<char> src,
-    llvm::ArrayRef<int64_t> dstStrides, llvm::MutableArrayRef<char> dst);
+    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
+    llvm::MutableArrayRef<char> dst, llvm::ArrayRef<int64_t> dstStrides);
+
+// Computes dstStrides from shape, and pads them and srcStrides.
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
+    llvm::MutableArrayRef<char> dst);
 
 } // namespace onnx_mlir

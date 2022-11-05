@@ -76,8 +76,8 @@ ElementsAttr transposeElements(ElementsAttr elements, ArrayRef<uint64_t> perm) {
       untransposeDims(paddedStridesOfShape(transposedShape), perm);
   return makeElementsAttrWithRawBytesFiller(
       transposedType, [&](MutableArrayRef<char> dst) {
-        restrideArray(getIntOrFloatByteWidth(elementType), shape,
-            elementsStrides, src.get(), transposedStrides, dst);
+        restrideArray(getIntOrFloatByteWidth(elementType), shape, src.get(),
+            elementsStrides, dst, transposedStrides);
       });
 }
 

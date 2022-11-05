@@ -399,9 +399,8 @@ public:
     ArrayRef<int64_t> shape = getShape();
     ArrayRef<int64_t> srcStrides = getStrides();
     ArrayRef<onnx_mlir::IntOrFP> src(wideBufferData);
-    SmallVector<int64_t, 4> dstStrides = onnx_mlir::getDefaultStrides(shape);
-    onnx_mlir::restrideArray(sizeof(onnx_mlir::IntOrFP), shape, srcStrides,
-        onnx_mlir::castArrayRef<char>(src), dstStrides,
+    onnx_mlir::restrideArray(sizeof(onnx_mlir::IntOrFP), shape,
+        onnx_mlir::castArrayRef<char>(src), srcStrides,
         onnx_mlir::castMutableArrayRef<char>(dst));
   }
 

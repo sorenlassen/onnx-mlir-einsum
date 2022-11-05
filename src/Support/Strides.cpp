@@ -163,13 +163,23 @@ void restrideArray(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
 } // namespace
 
 void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
-    ArrayRef<int64_t> srcStrides, ArrayRef<char> src,
-    ArrayRef<int64_t> dstStrides, MutableArrayRef<char> dst) {
+    ArrayRef<char> src, ArrayRef<int64_t> srcStrides, MutableArrayRef<char> dst,
+    ArrayRef<int64_t> dstStrides) {
   dispatchByBytewidth(bytewidth, [&](auto staticBytewidth) {
     using T = BitcastType<staticBytewidth>;
     restrideArray<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
         castMutableArrayRef<T>(dst));
   });
+}
+
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
+    llvm::MutableArrayRef<char> dst) {
+  llvm::SmallVector<int64_t, 4> paddedSrcStrides =
+      padStrides(shape, srcStrides);
+  llvm::SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
+  restrideArray(
+      elementBytewidth, shape, src, paddedSrcStrides, dst, dstStrides);
 }
 
 } // namespace onnx_mlir
