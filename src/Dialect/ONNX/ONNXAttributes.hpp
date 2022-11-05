@@ -149,29 +149,32 @@ struct DisposableElementsAttributeProperties {
   // Do the strides match the type's shape?
   bool isContiguous;
 
-  // Is the transform the identity?
+  // Is the reader just casting the underlying bufferDType to IntOrFP?
+  // In this case dtypeBuffer and dtype must have the same widetype.
   bool isTransformed;
 };
 
-using ElementsTransform = std::function<onnx_mlir::IntOrFP(StringRef, size_t)>;
+using DisposableElementsAttributeReader =
+    std::function<void(StringRef, MutableArrayRef<onnx_mlir::IntOrFP>)>;
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Properties = DisposableElementsAttributeProperties;
+  using Reader = DisposableElementsAttributeReader;
   using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 
-  // Constructs only type and strides while the caller sets buffer and transform
+  // Constructs only type and strides while the caller sets buffer and reader
   // after construction to minimize copying.
   DisposableElementsAttributeStorage(
       ShapedType type, Strides strides, Properties properties)
       : type(type), strides(strides), properties(properties) {}
 
   // Equality and hashKey are engineered to defeat the storage uniquer.
-  // We don't want uniqueing because we can't compare transforms for equality
+  // We don't want uniqueing because we can't compare readers for equality
   // and we could be in a sitation later where we have the same data or the
   // same buffer address but there is an undetectable mismatch because the
-  // buffer and transform were disposed by garbage collection.
+  // buffer and reader were disposed by garbage collection.
   bool operator==(const KeyTy &key) const { return false; }
   static llvm::hash_code hashKey(const KeyTy &key) {
     return detail::uniqueNumber();
@@ -219,13 +222,13 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // file closed) when no one points to it anymore.
   Buffer buffer;
 
-  // Element wise transform of the buffer elements to values of type's
+  // Reads the buffer elements to IntOrFPs corresponding to type's
   // element type. Is set to the identity reader function if data is not
   // transformed, namely when properties.isTransformed is false.
   //
-  // Garbage collection clears the transform when the DisposableElementsAttr is
+  // Garbage collection clears the reader when the DisposableElementsAttr is
   // disposed.
-  ElementsTransform transform;
+  Reader reader;
 }; // struct DisposableElementsAttributeStorage
 
 // DisposableElementsAttr is an alternative to DenseElementsAttr
@@ -272,6 +275,7 @@ public:
   using Strides = typename Storage::Strides;
   using Buffer = typename Storage::Buffer;
   using Properties = DisposableElementsAttributeProperties;
+  using Reader = DisposableElementsAttributeReader;
 
 private:
   using Super = Attribute::AttrBase<DisposableElementsAttr, Attribute,
@@ -282,18 +286,21 @@ private:
   // Checks the buffer contents to detect if it's splat.
   // To bypass this check, e.g. if the buffer mmaps a file and you don't
   // want to read it here, call get(type, bufferDType, /*isBufferSplat=*/false,
-  // buffer, transform). It's ok to not detect splatness.
+  // buffer, reader). It's ok to not detect splatness.
+  //
+  // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(
-      ShapedType type, Buffer buffer, ElementsTransform transform = nullptr) {
+      ShapedType type, const Buffer &buffer, Reader reader = nullptr) {
     ArrayRef<char> rawBuffer = onnx_mlir::asArrayRef(buffer->getBuffer());
     bool isBufferSplat = false;
     if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
       llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
-    return get(type, isBufferSplat, buffer, transform);
+    return get(type, isBufferSplat, buffer, std::move(reader));
   }
 
+  // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
-      Buffer buffer, ElementsTransform transform = nullptr) {
+      const Buffer &buffer, Reader reader = nullptr) {
     onnx_mlir::DType dtype = onnx_mlir::dtypeOf(type.getElementType());
     SmallVector<int64_t, 4> strides;
     if (!isBufferSplat)
@@ -303,14 +310,12 @@ private:
         .bufferDType = dtype,
         .isBufferSplat = isBufferSplat,
         .isContiguous = isContiguous,
-        .isTransformed = transform != nullptr};
-    return create(
-        type, strides, properties, std::move(buffer), std::move(transform));
+        .isTransformed = reader != nullptr};
+    return create(type, strides, properties, buffer, std::move(reader));
   }
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,
-      Properties properties, Buffer buffer,
-      ElementsTransform transform = nullptr) {
+      Properties properties, const Buffer &buffer, Reader reader = nullptr) {
     unsigned w = onnx_mlir::getIntOrFloatByteWidth(type.getElementType());
     assert(buffer->getBufferSize() % w == 0);
     int64_t numBufferElements = buffer->getBufferSize() / w;
@@ -320,24 +325,38 @@ private:
            numBufferElements == detail::getStridesNumElements(shape, strides));
     assert(!properties.isContiguous ||
            detail::areStridesContiguous(shape, strides));
+    assert(reader || !properties.isTransformed);
+    assert(
+        properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
+                                        wideDTypeOfDType(properties.dtype));
     // TODO: add more checks
     return create(
-        type, strides, properties, std::move(buffer), std::move(transform));
+        type, strides, properties, std::move(buffer), std::move(reader));
   }
 
   static DisposableElementsAttr create(ShapedType type, Strides strides,
-      Properties properties, Buffer buffer,
-      ElementsTransform transform = nullptr) {
+      Properties properties, const Buffer &buffer, Reader reader = nullptr) {
     DisposableElementsAttr a =
         Super::Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();
-    s.buffer = std::move(buffer);
-    s.transform = transform ? std::move(transform)
-                            : getIdentityTransform(properties.dtype);
+    s.buffer = buffer;
+    if (reader) {
+      s.reader = std::move(reader);
+    } else {
+      assert(wideDTypeOfDType(properties.bufferDType) ==
+                 wideDTypeOfDType(properties.dtype) &&
+             "buffer wide type mismatch requires transforming reader");
+      if (properties.isBufferSplat) {
+        s.reader = getSplatReader(properties.bufferDType, buffer->getBuffer());
+      }
+      s.reader = getIdentityReader(properties.bufferDType);
+    }
     return a;
   }
 
-  static ElementsTransform getIdentityTransform(onnx_mlir::DType);
+  static Reader getIdentityReader(onnx_mlir::DType);
+
+  static Reader getSplatReader(onnx_mlir::DType, StringRef rawBytes);
 
   template <typename X>
   static X getNumber(onnx_mlir::DType tag, onnx_mlir::IntOrFP n) {
@@ -370,13 +389,13 @@ public:
     assert(!isDisposed());
     return this->getImpl()->buffer;
   }
-  const ElementsTransform &getTransform() const {
+  const Reader &getReader() const {
     assert(!isDisposed());
-    return this->getImpl()->transform;
+    return this->getImpl()->reader;
   }
   onnx_mlir::DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
-  // no splat check is done to verify if the transform function maps all
+  // no splat check is done to verify if the reader function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
   bool isSplat() const { return getProperties().isBufferSplat; }
   template <typename X>
@@ -441,9 +460,9 @@ public:
       return toDenseElementsAttrByType<APFloat>();
   }
 
-  using Reader = std::function<void(size_t, onnx_mlir::IntOrFP)>;
+  using ElementReader = std::function<void(size_t, onnx_mlir::IntOrFP)>;
 
-  void read(const Reader &sink) const {
+  void read(const ElementReader &sink) const {
     traverse(
         this->getType(), this->getStrides(), [&](size_t pos, size_t flatIndex) {
           sink(flatIndex, this->readBufferPos(pos));
@@ -466,7 +485,7 @@ public:
     }
     onnx_mlir::RawBuffer::Vector vec;
     vec.resize_for_overwrite(getNumElements() * bytewidth);
-    read(dispatchByDType(dtype, [&vec](auto staticDType) -> Reader {
+    read(dispatchByDType(dtype, [&vec](auto staticDType) -> ElementReader {
       using cpptype = onnx_mlir::CppType<staticDType>;
       return [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) {
         writeIntOrFP<onnx_mlir::toDType<cpptype>>(vec, flatIndex, n);
@@ -496,7 +515,14 @@ public:
 
 private: // TODO: Figure out if any of the following would be useful publicly.
   onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
-    return getTransform()(getBuffer()->getBuffer(), pos);
+    onnx_mlir::IntOrFP n;
+    StringRef s = getBuffer()->getBuffer();
+    // TODO: consider precomputing bytewidth in properties so
+    //       we don't need to compute it all the time
+    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
+    StringRef bytes = s.substr(pos * bytewidth, bytewidth);
+    getReader()(bytes, llvm::makeMutableArrayRef(n));
+    return n;
   }
 
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
@@ -507,8 +533,8 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     return readBufferPos(pos);
   }
 
-  // This is like the inverse of getIdentityTransform. Whereas identity
-  // transform returns an IntOrFP which it reads from a given read-only buffer
+  // This is like the inverse of getIdentityReader. Whereas identity
+  // reader returns an IntOrFP which it reads from a given read-only buffer
   // and pos, writeIntOrFP writes an IntOrFP argument to a given mutable array
   // and index.
   template <onnx_mlir::DType DTYPE>
@@ -550,8 +576,8 @@ private: // TODO: Figure out if any of the following would be useful publicly.
 
   bool isDisposed() const {
     //  TODO: Decide if a splat value can be represented with a constant
-    //        transform with no buffer; in that case isDisposed should
-    //        only return true if both buffer and transform are null.
+    //        reader with no buffer; in that case isDisposed should
+    //        only return true if both buffer and reader are null.
     return !this->getImpl()->buffer;
   }
 

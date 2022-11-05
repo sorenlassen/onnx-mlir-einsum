@@ -14,8 +14,7 @@
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
 
-using llvm::APFloat;
-using llvm::APInt;
+using namespace mlir;
 
 namespace onnx_mlir {
 
@@ -27,7 +26,7 @@ uint64_t detail::bitcastAPFloat(
   return i.getZExtValue();
 }
 
-DType dtypeOf(mlir::Type type) {
+DType dtypeOf(Type type) {
   // clang-format off
   if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
   if (type.isa<mlir::Float32Type>())  return DType::FLOAT;
@@ -45,9 +44,9 @@ DType dtypeOf(mlir::Type type) {
   // clang-format on
 }
 
-mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx) {
+Type mlirTypeOf(DType dtype, MLIRContext *ctx) {
   constexpr bool isUnsigned = false;
-  mlir::Builder b(ctx);
+  Builder b(ctx);
   // clang-format off
   switch (dtype) {
     case DType::BOOL     : return b.getI1Type();
@@ -98,12 +97,17 @@ unsigned bytewidthOfDType(DType d) {
       d, [](auto dtype) { return DTypeTrait<dtype>::bytewidth; });
 }
 
-llvm::APFloat IntOrFP::toAPFloat(DType tag) const {
+DType wideDTypeOfDType(DType d) {
+  return dispatchByDType(d,
+      [](auto dtype) { return toDType<typename DTypeTrait<dtype>::widetype>; });
+}
+
+APFloat IntOrFP::toAPFloat(DType tag) const {
   switch (tag) {
   case DType::DOUBLE:
-    return llvm::APFloat(dbl);
+    return APFloat(dbl);
   case DType::FLOAT:
-    return llvm::APFloat(static_cast<float>(dbl));
+    return APFloat(static_cast<float>(dbl));
   case DType::FLOAT16:
     return float_16(dbl).toAPFloat();
   case DType::BFLOAT16:
@@ -113,29 +117,46 @@ llvm::APFloat IntOrFP::toAPFloat(DType tag) const {
   }
 }
 
-llvm::APInt IntOrFP::toAPInt(DType tag) const {
+APInt IntOrFP::toAPInt(DType tag) const {
   unsigned bitwidth = bitwidthOfDType(tag);
   if (isSignedIntDType(tag))
     // Actually, isSigned flag is ignored because bitwidth <= 64.
-    return llvm::APInt(bitwidth, i64, /*isSigned=*/true);
+    return APInt(bitwidth, i64, /*isSigned=*/true);
   if (isUnsignedIntDType(tag))
-    return llvm::APInt(bitwidth, u64);
+    return APInt(bitwidth, u64);
   llvm_unreachable("DType must be an integer");
 }
 
 /*static*/
-IntOrFP IntOrFP::fromAPFloat(DType tag, llvm::APFloat x) {
+IntOrFP IntOrFP::fromAPFloat(DType tag, APFloat x) {
   assert(isFloatDType(tag) && "DType must be an integer");
   return {.dbl = x.convertToDouble()};
 }
 
 /*static*/
-IntOrFP IntOrFP::fromAPInt(DType tag, llvm::APInt x) {
+IntOrFP IntOrFP::fromAPInt(DType tag, APInt x) {
   if (isSignedIntDType(tag))
     return {.i64 = x.getSExtValue()};
   if (isUnsignedIntDType(tag))
     return {.u64 = x.getZExtValue()};
   llvm_unreachable("DType must be an integer");
+}
+
+void IntOrFP::store(DType dtag, MutableArrayRef<char> memory) const {
+  dispatchByDType(dtag, [memory, this](auto dtype) {
+    using X = CppType<dtype>;
+    assert(memory.size() == sizeof(X));
+    *castMutableArrayRef<X>(memory).begin() = this->to<X>(dtype);
+  });
+}
+
+/*static*/
+IntOrFP IntOrFP::load(DType dtag, ArrayRef<char> memory) {
+  return dispatchByDType(dtag, [memory](auto dtype) {
+    using X = CppType<dtype>;
+    assert(memory.size() == sizeof(X));
+    return from<X>(dtype, *castArrayRef<X>(memory).begin());
+  });
 }
 
 } // namespace onnx_mlir

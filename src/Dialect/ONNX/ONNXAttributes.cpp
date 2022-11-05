@@ -28,17 +28,31 @@ size_t detail::uniqueNumber() {
 
 namespace {
 template <DType DTYPE>
-IntOrFP identityTransform(StringRef s, size_t pos) {
-  using cpptype = CppType<DTYPE>;
-  cpptype x = asArrayRef<cpptype>(s)[pos];
-  return IntOrFP::from(DTYPE, x);
+void identityReader(StringRef s, MutableArrayRef<IntOrFP> dst) {
+  using X = CppType<DTYPE>;
+  auto src = asArrayRef<X>(s);
+  assert(src.size() == dst.size());
+  std::transform(src.begin(), src.end(), dst.begin(),
+      [](X x) { return IntOrFP::from<X>(DTYPE, x); });
 }
 } // namespace
 
-ElementsTransform DisposableElementsAttr::getIdentityTransform(
-    onnx_mlir::DType d) {
+auto DisposableElementsAttr::getIdentityReader(onnx_mlir::DType dtype)
+    -> Reader {
   return dispatchByDType(
-      d, [](auto dtype) { return identityTransform<dtype>; });
+      dtype, [](auto staticDType) { return identityReader<staticDType>; });
+}
+
+auto DisposableElementsAttr::getSplatReader(
+    onnx_mlir::DType dtype, StringRef rawBytes) -> Reader {
+  unsigned bytewidth = bytewidthOfDType(dtype);
+  ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
+  IntOrFP splatValue = IntOrFP::load(dtype, memory);
+  return [=](StringRef s, MutableArrayRef<IntOrFP> dst) {
+    assert(s.size() == bytewidth);
+    assert(dst.size() == 1);
+    *dst.begin() = splatValue;
+  };
 }
 
 void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
@@ -102,7 +116,7 @@ void DisposablePool::eraseUnreachable(const Pool &reachable) {
       // which decreases the reference count and, if it reached zero,
       // frees or closes the underlying MemoryBuffer's heap allocation or file.
       p->buffer.reset();
-      p->transform = nullptr;
+      p->reader = nullptr;
       it = pool.erase(it);
     } else {
       ++it;

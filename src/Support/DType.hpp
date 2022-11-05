@@ -171,7 +171,7 @@ struct DTypeTraitBase {
       std::is_integral_v<CPPTY> && !std::is_signed_v<CPPTY>;
   static constexpr unsigned bitwidth =
       std::is_same_v<CPPTY, bool> ? 1 : (8 * sizeof(CPPTY));
-  static constexpr unsigned bytewidth = (bitwidth + 1) / 8;
+  static constexpr unsigned bytewidth = (bitwidth + 7) / 8;
   using cpptype = CPPTY;
   using widetype = std::conditional_t<isFloat, double,
       std::conditional_t<isSignedInt, int64_t, uint64_t>>;
@@ -249,6 +249,9 @@ unsigned bitwidthOfDType(DType);
 
 // == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
 unsigned bytewidthOfDType(DType);
+
+// == toDType<DTypeTrait<dtype>::widetype> if dtype is constexpr
+DType wideDTypeOfDType(DType dtype);
 
 inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
   return (t.getIntOrFloatBitWidth() + 7) / 8;
@@ -405,6 +408,10 @@ union IntOrFP {
       llvm_unreachable("from unsupported dtype");
     }
   }
+
+  void store(DType dtag, llvm::MutableArrayRef<char> memory) const;
+
+  static IntOrFP load(DType dtag, llvm::ArrayRef<char> memory);
 };
 
 } // namespace onnx_mlir

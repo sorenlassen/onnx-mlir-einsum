@@ -224,12 +224,9 @@ public:
   int test_splat() {
     llvm::errs() << "test_splat:\n";
     ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
-    auto fun = [](StringRef s, size_t p) -> IntOrFP {
-      return {.dbl = asArrayRef<float>(s)[p]};
-    };
     bool isSplat = true;
-    Attribute a = disposablePool.createElementsAttr(
-        type, isSplat, buffer<float>({4.2}), fun);
+    Attribute a =
+        disposablePool.createElementsAttr(type, isSplat, buffer<float>({4.2}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -256,12 +253,9 @@ public:
     llvm::errs() << "test_f16:\n";
     assert(fabs(float_16::fromFloat(4.2).toFloat() - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
-    auto fun = [](StringRef s, size_t p) -> IntOrFP {
-      return {.dbl = asArrayRef<float_16>(s)[p].toFloat()};
-    };
     bool isSplat = true;
     Attribute a = disposablePool.createElementsAttr(
-        type, isSplat, buffer<float_16>({float_16::fromFloat(4.2)}), fun);
+        type, isSplat, buffer<float_16>({float_16::fromFloat(4.2)}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -282,12 +276,9 @@ public:
   int test_bool() {
     llvm::errs() << "test_bool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    auto fun = [](StringRef s, size_t p) -> IntOrFP {
-      return {.u64 = asArrayRef<bool>(s)[p]};
-    };
     bool isSplat = true;
-    Attribute a = disposablePool.createElementsAttr(
-        type, isSplat, buffer<bool>({true}), fun);
+    Attribute a =
+        disposablePool.createElementsAttr(type, isSplat, buffer<bool>({true}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -308,11 +299,8 @@ public:
   int test_attributes() {
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
-    auto fun = [](StringRef s, size_t p) -> IntOrFP {
-      return {.u64 = asArrayRef<uint64_t>(s)[p]};
-    };
     Attribute a;
-    a = disposablePool.createElementsAttr(type, buffer<uint64_t>({7, 9}), fun);
+    a = disposablePool.createElementsAttr(type, buffer<uint64_t>({7, 9}));
     assert(a);
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
