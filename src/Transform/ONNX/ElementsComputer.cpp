@@ -115,11 +115,14 @@ void restrideArray(Shape shape, Strides srcStrides, ArrayRef<T> src,
     if (axis == rank) {
       dst[dstPos] = src[srcPos];
     } else {
-      size_t srcStride = srcStrides[axis], dstStride = dstStrides[axis];
+      size_t srcStride = srcStrides[axis];
+      size_t dstStride = dstStrides[axis];
       size_t dimSize = shape[axis];
-      for (size_t i = 0; i < dimSize;
-           ++i, srcPos += srcStride, dstPos += dstStride)
+      for (size_t i = 0; i < dimSize; ++i) {
         recurse(axis + 1, srcPos, dstPos, recurse);
+        srcPos += srcStride;
+        dstPos += dstStride;
+      }
     }
   };
   traverse(0, 0, 0, traverse);
@@ -137,6 +140,7 @@ void restrideArray(unsigned bytewidth, Shape shape, Strides srcStrides,
 void transformArray(Type srcElementType, ArrayRef<char> src,
     Type dstElementType, MutableArrayRef<char> dst,
     const Transformation &transformation) {
+  // Note that the double dispatch generates many compile time variants.
   dispatchByMlirType(srcElementType, [&](auto srcDType) {
     using S = CppType<srcDType>;
     dispatchByMlirType(dstElementType, [&](auto dstDType) {
