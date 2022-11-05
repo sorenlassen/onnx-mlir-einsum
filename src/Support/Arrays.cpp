@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===----------------------------- Arrays.hpp -----------------------------===//
+//===----------------------------- Arrays.cpp -----------------------------===//
 //
 // Arrays helper functions and data structures.
 //

@@ -11,6 +11,7 @@
 #include "src/Transform/ONNX/ElementsComputer.hpp"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Support/Strides.hpp"
 
 using namespace mlir;
 
@@ -50,41 +51,6 @@ auto dispatchByBytewidth(unsigned bytewidth, Action &&act, Args &&...args) {
 using DimsVector = SmallVector<int64_t, 4>;
 using Shape = ArrayRef<int64_t>;
 using Strides = ArrayRef<int64_t>;
-
-// TODO: reuse with DisposableElementsAttr
-inline DimsVector getDefaultStrides(Shape shape) {
-  DimsVector strides;
-  int64_t rank = shape.size();
-  if (rank == 0)
-    return strides;
-  int64_t skip = 0;
-  while (shape[skip] == 1) {
-    ++skip;
-    if (skip == rank)
-      return strides;
-  }
-  strides.resize_for_overwrite(rank - skip);
-  int64_t mult = 1;
-  for (int64_t axis = rank - 1; axis >= skip; --axis) {
-    int64_t dimSize = shape[axis];
-    strides[axis - skip] = dimSize == 1 ? 0 : mult;
-    mult *= dimSize;
-  }
-  return strides;
-}
-
-DimsVector padStrides(Shape shape, Strides strides) {
-  int64_t skip = shape.size() - strides.size();
-  assert(skip >= 0);
-  DimsVector padded(skip, 0);
-  padded.append(strides.begin(), strides.end());
-  return padded;
-}
-
-DimsVector paddedStridesOfShape(Shape shape) {
-  DimsVector strides = getDefaultStrides(shape);
-  return padStrides(shape, strides);
-}
 
 DimsVector transposeDims(ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
   assert(dims.size() == perm.size());

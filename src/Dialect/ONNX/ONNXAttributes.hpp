@@ -24,6 +24,7 @@
 #include "src/Dialect/ONNX/AttributesHelper.hpp" // RawBuffer
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
+#include "src/Support/Strides.hpp"
 
 #include <memory>
 #include <unordered_set>
@@ -37,84 +38,6 @@ namespace detail {
 // Generates a unique number each time it is called. Is used as hash function
 // to defeat the storage uniquer.
 size_t uniqueNumber();
-
-inline bool isSplat(ArrayRef<int64_t> strides) {
-  return llvm::all_of(strides, [](int64_t s) { return s == 0; });
-}
-
-inline int64_t getStridesNumElements(
-    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
-  if (ShapedType::getNumElements(shape) == 0)
-    return 0;
-  assert(shape.size() >= strides.size());
-  int64_t last = 0;
-  for (int a = shape.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-    last += (shape[a] - 1) * strides[s];
-  return last + 1;
-}
-
-inline bool areStridesContiguous(
-    ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
-  assert(shape.size() >= strides.size());
-  if (shape.size() != strides.size())
-    return false;
-  int64_t x = 1;
-  for (int s = strides.size() - 1; s >= 0; --s) {
-    if (strides[s] != x)
-      return false;
-    x *= shape[s];
-  }
-  return true;
-}
-
-inline size_t getStridesPosition(
-    ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
-  assert(indices.size() >= strides.size());
-  size_t pos = 0;
-  for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-    pos += indices[a] * strides[s];
-  return pos;
-}
-
-inline SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {
-  SmallVector<int64_t, 4> strides;
-  int64_t rank = shape.size();
-  if (rank == 0)
-    return strides;
-  int64_t skip = 0;
-  while (shape[skip] == 1) {
-    ++skip;
-    if (skip == rank)
-      return strides;
-  }
-  strides.resize_for_overwrite(rank - skip);
-  int64_t mult = 1;
-  for (int64_t axis = rank - 1; axis >= skip; --axis) {
-    int64_t dimSize = shape[axis];
-    strides[axis - skip] = dimSize == 1 ? 0 : mult;
-    mult *= dimSize;
-  }
-  return strides;
-}
-
-// TODO: re-structure DisposableElementsAttr implementation so we don't need
-// this expensive function
-inline void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
-    SmallVectorImpl<int64_t> &indices) {
-  int64_t rank = shape.size();
-  indices.resize_for_overwrite(rank);
-  if (rank == 0)
-    return;
-  for (int64_t axis = rank - 1; axis >= 1; --axis) {
-    int64_t dimSize = shape[axis];
-    assert(dimSize > 0 && "cannot unflatten shape with zeros");
-    int64_t rem = flatIndex % dimSize;
-    flatIndex /= dimSize;
-    indices[axis] = rem;
-  }
-  assert(flatIndex < shape[0]);
-  indices[0] = flatIndex;
-}
 
 inline llvm::iota_range<size_t> seq(size_t numElements) {
   return llvm::seq(size_t(0), numElements);
@@ -305,7 +228,7 @@ private:
     onnx_mlir::DType dtype = onnx_mlir::dtypeOf(type.getElementType());
     SmallVector<int64_t, 4> strides;
     if (!isBufferSplat)
-      strides = detail::getDefaultStrides(type.getShape());
+      strides = onnx_mlir::getDefaultStrides(type.getShape());
     bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
     Properties properties = {.dtype = dtype,
         .bufferDType = dtype,
@@ -317,17 +240,20 @@ private:
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       Properties properties, const Buffer &buffer, Reader reader = nullptr) {
+    assert((strides.empty() || strides.front() != 0) &&
+           "non-padded strides shouldn't have leading zeros");
     unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
     assert(buffer->getBufferSize() % bytewidth == 0);
     int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
     auto shape = type.getShape();
-    assert(detail::isSplat(strides) == (numBufferElements == 1));
+    assert(strides.empty() == (numBufferElements == 1));
     assert(properties.isBufferSplat == (numBufferElements == 1));
     // TODO: decide if isBufferSplat==true and numBufferElements==1
     //       are ok when getNumElements(shape)==0
-    assert(numBufferElements == detail::getStridesNumElements(shape, strides));
+    assert(
+        numBufferElements == onnx_mlir::getStridesNumElements(shape, strides));
     assert(!properties.isContiguous ||
-           detail::areStridesContiguous(shape, strides));
+           onnx_mlir::areStridesContiguous(shape, strides));
     assert(reader || !properties.isTransformed);
     assert(
         properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
@@ -521,8 +447,8 @@ private: // TODO: Figure out if any of the following would be useful publicly.
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
   onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
     SmallVector<int64_t, 4> indices;
-    detail::unflattenIndex(getShape(), flatIndex, indices);
-    size_t pos = detail::getStridesPosition(indices, getStrides());
+    onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
+    size_t pos = onnx_mlir::getStridesPosition(indices, getStrides());
     return readBufferPos(pos);
   }
 
