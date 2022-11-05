@@ -170,25 +170,21 @@ ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
 
 namespace {
 
-// D is a 64 bit "wide" type of the same kind (int or float) as the underlying
-// elements' data type.
-template <typename D>
-void readElements(ElementsAttr elements, MutableArrayRef<D> dst) {
+void readElements(ElementsAttr elements, MutableArrayRef<IntOrFP> dst) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
     disposable.read([dst](size_t flatIndex, IntOrFP n) {
       // Since D is the "wide" type of the elements' data type it's ok to use
       // the corresponding "wideDType" (INT64/UINT64/DOUBLE) to access n
       // even if n was encoded (in i64/u64/dbl) using a narrower dtype.
-      constexpr DType wideDType = toDType<D>;
-      dst[flatIndex] = n.to<D>(wideDType);
+      dst[flatIndex] = n;
     });
     return;
   }
   RawBuffer src = getElementsRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
-    fillOrTransform(
-        castArrayRef<S>(src.get()), dst, [](S v) { return static_cast<D>(v); });
+    fillOrTransform(castArrayRef<S>(src.get()), dst,
+        [](S v) { return IntOrFP::from<S>(toDType<S>, v); });
   });
 }
 
@@ -196,12 +192,12 @@ void readElements(ElementsAttr elements, MutableArrayRef<D> dst) {
 
 void readIntElements(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
   assert(elements.getType().getElementType().isa<IntegerType>());
-  readElements(elements, ints);
+  readElements(elements, castMutableArrayRef<IntOrFP>(ints));
 }
 
 void readFPElements(ElementsAttr elements, MutableArrayRef<double> fps) {
   assert(elements.getType().getElementType().isa<FloatType>());
-  readElements(elements, fps);
+  readElements(elements, castMutableArrayRef<IntOrFP>(fps));
 }
 
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
