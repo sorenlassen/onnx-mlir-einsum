@@ -116,17 +116,56 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
 }
 
 RawBuffer getElementsRawBytes(ElementsAttr elements) {
-  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
-    // TODO: copy out contents if bool, because raw data is bit packed
-    assert(!dense.getElementType().isInteger(1) && "bool unsupported");
-    return dense.getRawData(); // Single splat value or a full array.
-  }
-  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
     return disposable.getRawBytes();
-  }
   if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>())
     return denseResrc.getRawHandle().getResource()->getBlob()->getData();
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    if (dense.getElementType().isInteger(1)) {
+      // bool is bit packed in dense, so we copy it out
+      size_t size = dense.isSplat() ? 1 : dense.getNumElements();
+      RawBuffer::Vector vec;
+      vec.resize_for_overwrite(size);
+      std::copy_n(dense.value_begin<bool>(), size, vec.begin());
+      return std::move(vec);
+    }
+    return dense.getRawData(); // Single splat value or a full array.
+  }
   llvm_unreachable("unexpected ElementsAttr instance");
+}
+
+namespace {
+ArrayBuffer<IntOrFP> widen(Type elementType, ArrayRef<char> rawData) {
+  unsigned bytewidth = getIntOrFloatByteWidth(elementType);
+  if (bytewidth == 8) {
+    return castArrayRef<IntOrFP>(rawData);
+  }
+  ArrayBuffer<IntOrFP>::Vector vec;
+  vec.resize_for_overwrite(rawData.size() / bytewidth);
+  dispatchByMlirType(elementType, [&](auto dtype) {
+    using T = CppType<dtype>;
+    auto src = castArrayRef<T>(rawData);
+    std::transform(src.begin(), src.end(), vec.begin(),
+        [](T x) { return IntOrFP::from<T>(toDType<T>, x); });
+  });
+  return std::move(vec);
+}
+} // namespace
+
+ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
+    return disposable.getIntOrFPs();
+  ArrayRef<char> rawData;
+  if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>()) {
+    rawData = denseResrc.getRawHandle().getResource()->getBlob()->getData();
+  } else if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
+    // TODO: copy out contents if bool, because raw data is bit packed
+    assert(!dense.getElementType().isInteger(1) && "bool unsupported");
+    rawData = dense.getRawData(); // Single splat value or a full array.
+  } else {
+    llvm_unreachable("unexpected ElementsAttr instance");
+  }
+  return widen(elements.getElementType(), rawData);
 }
 
 namespace {

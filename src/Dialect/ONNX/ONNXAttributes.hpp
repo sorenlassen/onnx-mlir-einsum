@@ -442,15 +442,16 @@ public:
   using Reader = std::function<void(size_t, onnx_mlir::IntOrFP)>;
 
   void read(const Reader &sink) const {
-    onnx_mlir::dispatchByDType(getDType(), [&sink, this](auto dtype) {
-      traverse(this->getType(), this->getStrides(),
-          [&](size_t pos, size_t flatIndex) {
-            sink(flatIndex, this->readBufferPos(pos));
-          });
-    });
+    traverse(
+        this->getType(), this->getStrides(), [&](size_t pos, size_t flatIndex) {
+          sink(flatIndex, this->readBufferPos(pos));
+        });
   }
 
   onnx_mlir::RawBuffer getRawBytes() const {
+    const Properties &properties = getProperties();
+    if (!properties.isTransformed && properties.isContiguous)
+      return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
     onnx_mlir::DType dtype = getDType();
     unsigned bytewidth = onnx_mlir::bytewidthOfDType(dtype);
     if (isSplat()) {
@@ -459,23 +460,36 @@ public:
       onnx_mlir::dispatchByDType(dtype, [&](auto staticDType) {
         writeIntOrFP<staticDType>(vec, 0, readBufferPos(0));
       });
-      return onnx_mlir::RawBuffer(std::move(vec));
+      return std::move(vec);
     }
+    onnx_mlir::RawBuffer::Vector vec;
+    vec.resize_for_overwrite(getNumElements() * bytewidth);
+    read(dispatchByDType(dtype, [&vec](auto staticDType) -> Reader {
+      using cpptype = onnx_mlir::CppType<staticDType>;
+      return [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) {
+        writeIntOrFP<onnx_mlir::toDType<cpptype>>(vec, flatIndex, n);
+      };
+    }));
+    return std::move(vec);
+  }
+
+  onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
     const Properties &properties = getProperties();
-    if (properties.isTransformed || !properties.isContiguous) {
-      ShapedType type = getType();
-      onnx_mlir::RawBuffer::Vector vec;
-      vec.resize_for_overwrite(type.getNumElements() * bytewidth);
-      read(dispatchByDType(dtype, [&vec](auto staticDType) -> Reader {
-        using cpptype = onnx_mlir::CppType<staticDType>;
-        return [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) {
-          writeIntOrFP<onnx_mlir::toDType<cpptype>>(vec, flatIndex, n);
-        };
-      }));
-      return onnx_mlir::RawBuffer(std::move(vec));
-    } else {
-      return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
+    if (!properties.isTransformed && properties.isContiguous &&
+        onnx_mlir::bytewidthOfDType(properties.dtype) ==
+            sizeof(onnx_mlir::IntOrFP))
+      return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
+          getBuffer()->getBuffer());
+    if (isSplat()) {
+      onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec(
+          1, readBufferPos(0));
+      return std::move(vec);
     }
+    onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec;
+    vec.resize_for_overwrite(getNumElements());
+    read(
+        [&vec](size_t flatIndex, onnx_mlir::IntOrFP n) { vec[flatIndex] = n; });
+    return std::move(vec);
   }
 
 private: // TODO: Figure out if any of the following would be useful publicly.

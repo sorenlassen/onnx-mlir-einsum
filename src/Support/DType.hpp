@@ -217,18 +217,15 @@ constexpr DType dtypeOf(CPPTY = CPPTY()) {
   return toDType<CPPTY>;
 }
 
+// TODO: rename to dtypeOfMlirType
 DType dtypeOf(mlir::Type type);
 
+// TODO: rename to mlirTypeOfDType
 mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx);
 
 template <typename CPPTY>
-mlir::Type toMlirType(mlir::MLIRContext *ctx) {
-  return dtypeOf(toDType<CPPTY>, ctx);
-}
-
-template <typename T>
 mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
-  return mlirTypeOfDType(dtypeOf<T>(), ctx);
+  return mlirTypeOf(toDType<CPPTY>, ctx);
 }
 
 // The following functions isFloatDType(dtype), bitwidthOfDType(dtype), etc are

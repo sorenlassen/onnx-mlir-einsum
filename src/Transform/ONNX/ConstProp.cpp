@@ -378,11 +378,11 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
 
   ArrayRef<int64_t> splatShape = {};
   RawBuffer lhs = getRawBytesFromConstValue(lhsValue);
-  if (lhs.size() == eltSizeInBytes) {
+  if (lhs.get().size() == eltSizeInBytes) {
     lhsShape = splatShape;
   }
   RawBuffer rhs = getRawBytesFromConstValue(rhsValue);
-  if (rhs.size() == eltSizeInBytes) {
+  if (rhs.get().size() == eltSizeInBytes) {
     rhsShape = splatShape;
   }
 
@@ -483,7 +483,8 @@ Value ConstPropTranspose(
 
   ElementsAttr constElements = getConstValueElements(constValue);
   ElementsAttr elements = transposeElements(constElements, perm);
-  return createReplacingConstantOp(rewriter, replacingValue, elements).getResult();
+  return createReplacingConstantOp(rewriter, replacingValue, elements)
+      .getResult();
 }
 
 //===----------------------------------------------------------------------===//

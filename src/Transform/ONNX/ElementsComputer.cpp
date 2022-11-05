@@ -137,20 +137,14 @@ void restrideArray(unsigned bytewidth, Shape shape, Strides srcStrides,
   });
 }
 
-void transformArray(Type srcElementType, ArrayRef<char> src,
+void transformArray(Type srcElementType, ArrayRef<IntOrFP> src,
     Type dstElementType, MutableArrayRef<char> dst,
     const Transformation &transformation) {
-  // Note that the double dispatch generates many compile time variants.
-  dispatchByMlirType(srcElementType, [&](auto srcDType) {
-    using S = CppType<srcDType>;
-    dispatchByMlirType(dstElementType, [&](auto dstDType) {
-      using D = CppType<dstDType>;
-      auto s = castArrayRef<S>(src);
-      auto d = castMutableArrayRef<D>(dst);
-      std::transform(s.begin(), s.end(), d.begin(), [&](S x) -> D {
-        return transformation(IntOrFP::from<S>(toDType<S>, x))
-            .template to<D>(dstDType);
-      });
+  dispatchByMlirType(dstElementType, [&](auto dtype) {
+    using D = CppType<dtype>;
+    auto dbegin = castMutableArrayRef<D>(dst).begin();
+    std::transform(src.begin(), src.end(), dbegin, [&](IntOrFP n) -> D {
+      return transformation(n).template to<D>(toDType<D>);
     });
   });
 }
@@ -188,7 +182,7 @@ ElementsAttr transformElements(ElementsAttr elements,
   ShapedType transformedType = elements.getType().clone(transformedElementType);
   // TODO: if elements is disposable just compose transformation with its
   // transform
-  RawBuffer src = getElementsRawBytes(elements);
+  ArrayBuffer<IntOrFP> src = getElementsIntOrFPs(elements);
   return makeElementsAttrWithRawBytesFiller(
       transformedType, [&](MutableArrayRef<char> dst) {
         transformArray(elements.getElementType(), src.get(),
