@@ -463,7 +463,9 @@ public:
   }
 
   void readElements(MutableArrayRef<onnx_mlir::IntOrFP> dst) const {
-    getReader()(getBuffer()->getBuffer(), dst);
+    if (isContiguous())
+      getReader()(getBuffer()->getBuffer(), dst);
+    // TODO: read into a buffer and then copy into dst with restrideArray()
   }
 
   onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
@@ -521,25 +523,6 @@ private: // TODO: Figure out if any of the following would be useful publicly.
     detail::unflattenIndex(getShape(), flatIndex, indices);
     size_t pos = detail::getStridesPosition(indices, getStrides());
     return readBufferPos(pos);
-  }
-
-  template <typename Act>
-  static size_t traverse(ShapedType type, ArrayRef<int64_t> strides,
-      const Act &act, int64_t axis = 0, size_t offset = 0,
-      size_t flatIndex = 0) {
-    ArrayRef<int64_t> shape = type.getShape();
-    int64_t rank = shape.size();
-    if (axis == rank) {
-      act(offset, flatIndex);
-      return flatIndex + 1;
-    }
-    int64_t skip = rank - strides.size();
-    size_t stride = axis < skip ? 0 : strides[axis - skip];
-    size_t dimSize = shape[axis];
-    for (size_t pos = offset, idx = 0; idx < dimSize; ++idx, pos += stride) {
-      flatIndex = traverse(type, strides, act, axis + 1, pos, flatIndex);
-    }
-    return flatIndex;
   }
 
   template <typename X>
