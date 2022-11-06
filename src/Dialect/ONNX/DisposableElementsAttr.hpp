@@ -32,13 +32,9 @@
 
 namespace mlir {
 
-// TODO: move implementation to .cpp
+// TODO: move more implementation to .cpp
 
 namespace detail {
-
-// Generates a unique number each time it is called. Is used as hash function
-// to defeat the storage uniquer.
-size_t uniqueNumber();
 
 inline llvm::iota_range<size_t> seq(size_t numElements) {
   return llvm::seq(size_t(0), numElements);
@@ -82,79 +78,7 @@ struct DisposableElementsAttributeProperties {
 using DisposableElementsAttributeReader =
     std::function<void(StringRef, MutableArrayRef<onnx_mlir::WideNum>)>;
 
-struct DisposableElementsAttributeStorage : public AttributeStorage {
-  using Strides = ArrayRef<int64_t>;
-  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Properties = DisposableElementsAttributeProperties;
-  using Reader = DisposableElementsAttributeReader;
-  using KeyTy = std::tuple<ShapedType, Strides, Properties>;
-
-  // Constructs only type and strides while the caller sets buffer and reader
-  // after construction to minimize copying.
-  DisposableElementsAttributeStorage(
-      ShapedType type, Strides strides, Properties properties)
-      : type(type), strides(strides), properties(properties) {}
-
-  // Equality and hashKey are engineered to defeat the storage uniquer.
-  // We don't want uniqueing because we can't compare readers for equality
-  // and we could be in a sitation later where we have the same data or the
-  // same buffer address but there is an undetectable mismatch because the
-  // buffer and reader were disposed by garbage collection.
-  bool operator==(const KeyTy &key) const { return false; }
-  static llvm::hash_code hashKey(const KeyTy &key) {
-    return detail::uniqueNumber();
-  }
-
-  static DisposableElementsAttributeStorage *construct(
-      AttributeStorageAllocator &allocator, const KeyTy &key) {
-    ShapedType type = std::get<0>(key);
-    Strides strides = std::get<1>(key);
-    Properties properties = std::get<2>(key);
-    return new (allocator.allocate<DisposableElementsAttributeStorage>())
-        DisposableElementsAttributeStorage(
-            type, allocator.copyInto(strides), properties);
-  }
-
-  // The tensor shape and element type that this object represents.
-  // The template type T (a Cpp type bool, float, int8_t, etc) may not match
-  // the element type and the caller must cast T to the element type to read
-  // the underlying data.
-  ShapedType type;
-
-  // Specifies how to map positions expressed in type's shape to the flat
-  // indices in buffer. strides can express that buffer is not in the default
-  // row-major order (maybe as a result of a transpose) or requires broadcast
-  // to fill in type's shape. A special case is when the buffer holds a single
-  // splat value that broadcasts to shape's size with all-zero strides.
-  Strides strides;
-
-  Properties properties;
-
-  // shared_ptr to an underlying MemoryBuffer which can be either heap allocated
-  // or a mmap'ed file or point to the raw data of a DenseElementsAttr.
-  //
-  // The buffer elements' data type may not match T, namely when the transform
-  // function transforms the buffer data type to another data type.
-  // The buffer elements' data type is not knowable, but you can compute the
-  // number of elements from strides and type's shape and then deduce the
-  // data type bytewidth from the buffer's size in bytes.
-  //
-  // Garbage collection clears the buffer when the DisposableElementsAttr is
-  // disposed.
-  //
-  // Multiple DisposableElementsAttr can point to the same MemoryBuffer.
-  // The MemoryBuffer is destroyed (and heap allocated data freed or mmap'ed
-  // file closed) when no one points to it anymore.
-  Buffer buffer;
-
-  // Reads the buffer elements to WideNums corresponding to type's
-  // element type. Is set to the identity reader function if data is not
-  // transformed, namely when properties.isTransformed is false.
-  //
-  // Garbage collection clears the reader when the DisposableElementsAttr is
-  // disposed.
-  Reader reader;
-}; // struct DisposableElementsAttributeStorage
+struct DisposableElementsAttributeStorage;
 
 // DisposableElementsAttr is an alternative to DenseElementsAttr
 // with the following features:
@@ -197,8 +121,8 @@ class DisposableElementsAttr
 public:
   friend class DisposablePool;
   using Storage = DisposableElementsAttributeStorage;
-  using Strides = typename Storage::Strides;
-  using Buffer = typename Storage::Buffer;
+  using Strides = ArrayRef<int64_t>;
+  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Properties = DisposableElementsAttributeProperties;
   using Reader = DisposableElementsAttributeReader;
   using DType = onnx_mlir::DType;     // For convenience.
@@ -264,24 +188,7 @@ private:
   }
 
   static DisposableElementsAttr create(ShapedType type, Strides strides,
-      Properties properties, const Buffer &buffer, Reader reader = nullptr) {
-    DisposableElementsAttr a =
-        Base::get(type.getContext(), type, strides, properties);
-    Storage &s = *a.getImpl();
-    s.buffer = buffer;
-    if (reader) {
-      s.reader = std::move(reader);
-    } else {
-      assert(wideDTypeOfDType(properties.bufferDType) ==
-                 wideDTypeOfDType(properties.dtype) &&
-             "buffer wide type mismatch requires transforming reader");
-      if (properties.isBufferSplat) {
-        s.reader = getSplatReader(properties.bufferDType, buffer->getBuffer());
-      }
-      s.reader = getIdentityReader(properties.bufferDType);
-    }
-    return a;
-  }
+      Properties properties, const Buffer &buffer, Reader reader = nullptr);
 
   static Reader getIdentityReader(DType);
 
@@ -302,12 +209,7 @@ private:
   // Instance properties.
   //===----------------------------------------------------------------------===//
 
-  bool isDisposed() const {
-    //  TODO: Decide if a splat value can be represented with a constant
-    //        reader with no buffer; in that case isDisposed should
-    //        only return true if both buffer and reader are null.
-    return !getImpl()->buffer;
-  }
+  bool isDisposed() const;
 
   bool isContiguous() const { return getProperties().isContiguous; }
 
@@ -317,26 +219,22 @@ private:
   }
 
 public:
-  ShapedType getType() const { return getImpl()->type; }
-  Type getElementType() const { return getType().getElementType(); }
-  ArrayRef<int64_t> getShape() const { return getType().getShape(); }
-  int64_t getRank() const { return getType().getRank(); }
-  int64_t getNumElements() const { return getType().getNumElements(); }
-  ArrayRef<int64_t> getStrides() const { return getImpl()->strides; }
-  const Properties &getProperties() const { return getImpl()->properties; }
-  const Buffer &getBuffer() const {
-    assert(!isDisposed());
-    return getImpl()->buffer;
-  }
-  const Reader &getReader() const {
-    assert(!isDisposed());
-    return getImpl()->reader;
-  }
+  ShapedType getType() const;
+  Strides getStrides() const;
+  const Properties &getProperties() const;
+  const Buffer &getBuffer() const;
+  const Reader &getReader() const;
+
   DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the reader function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
   bool isSplat() const { return getProperties().isBufferSplat; }
+
+  Type getElementType() const { return getType().getElementType(); }
+  ArrayRef<int64_t> getShape() const { return getType().getShape(); }
+  int64_t getRank() const { return getType().getRank(); }
+  int64_t getNumElements() const { return getType().getNumElements(); }
 
 private:
   //===----------------------------------------------------------------------===//

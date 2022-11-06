@@ -156,6 +156,8 @@ void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
 #define GET_ATTRDEF_CLASSES
 #include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
 
+#include "src/Dialect/ONNX/DisposableElementsAttr.cpp"
+
 //===----------------------------------------------------------------------===//
 // ONNXDialect initialization
 //===----------------------------------------------------------------------===//
