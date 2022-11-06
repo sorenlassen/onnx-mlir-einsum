@@ -19,7 +19,7 @@
 
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
-#include "src/Dialect/Mlir/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Support/TypeUtilities.hpp"
 
 using namespace mlir;
