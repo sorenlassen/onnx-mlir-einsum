@@ -39,8 +39,11 @@ std::ostream &operator<<(std::ostream &os, const ArrayRef<int64_t> &v) {
   os << ")";
   return os;
 }
-inline raw_ostream &operator<<(raw_ostream &os, FP16Type fp16) {
-  return os << "FP16(" << fp16.bitcastToU16() << ")";
+inline raw_ostream &operator<<(raw_ostream &os, float_16 f16) {
+  return os << "F16(" << f16.toFloat() << ")";
+}
+inline raw_ostream &operator<<(raw_ostream &os, bfloat_16 bf16) {
+  return os << "BF16(" << bf16.toFloat() << ")";
 }
 inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
   return os << "APFloat(" << af.convertToDouble() << ")";

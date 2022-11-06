@@ -96,5 +96,6 @@ union WideNum {
 
   static WideNum load(DType dtag, llvm::ArrayRef<char> memory);
 };
+static_assert(sizeof(WideNum) * CHAR_BIT == 64, "WideNum is 64 bits wide");
 
 } // namespace onnx_mlir

@@ -18,37 +18,22 @@
 
 namespace onnx_mlir {
 
+namespace detail {
+
+uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
+
 // Base class for float_16, bfloat_16.
-class FP16Type {
+template <typename FP16> // FP16 is the derived class, float_16 or bfloat_16.
+class FP16Base {
 public:
   using bitcasttype = uint16_t;
 
-  // Substitute for reinterpret_cast<uint16_t>(*this), which C++ doesn't allow.
-  constexpr bitcasttype bitcastToU16() const { return u16; }
-
-protected:
-  constexpr FP16Type() : u16(){};
-  constexpr explicit FP16Type(uint16_t u16) : u16(u16) {}
-
-  bitcasttype u16;
-};
-
-template <class T>
-inline constexpr bool isFP16Type = std::is_base_of_v<FP16Type, T>;
-
-namespace detail {
-uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
-
-template <typename FP16> // FP16 is the derived class, float_16 or bfloat_16.
-class FP16Base : public FP16Type {
-public:
-  constexpr FP16Base() : FP16Type() {}
-
-  constexpr explicit FP16Base(FP16 f16) : FP16Type(f16.u16) {}
+  constexpr FP16Base() : u16() {}
+  constexpr explicit FP16Base(FP16 f16) : u16(f16.u16) {}
   // Support static_cast<FP16>(X) for any x that is convertible to float.
   template <typename T, typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
   explicit FP16Base(T x)
-      : FP16Type(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
+      : u16(fromAPFloat(llvm::APFloat(static_cast<float>(x))).u16) {}
 
   // Support static_cast<T>(*this) for any T that float converts to.
   template <typename T, typename = std::enable_if_t<!std::is_same_v<T, FP16>>>
@@ -62,6 +47,9 @@ public:
 
   // Same as static_cast<float>(*this).
   float toFloat() const { return toAPFloat().convertToFloat(); }
+
+  // Substitute for reinterpret_cast<uint16_t>(*this), which C++ doesn't allow.
+  constexpr bitcasttype bitcastToU16() const { return u16; }
 
   static FP16 fromAPFloat(llvm::APFloat a) {
     bitcasttype u16 = bitcastAPFloat(a, FP16::semantics());
@@ -77,30 +65,43 @@ public:
     f16.u16 = u;
     return f16;
   }
+
+private:
+  bitcasttype u16;
 };
+
 } // namespace detail
+
+template <class T>
+inline constexpr bool isFP16Type = std::is_base_of_v<detail::FP16Base<T>, T>;
 
 // Represents a FLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
-struct float_16 : public detail::FP16Base<float_16> {
+class float_16 : public detail::FP16Base<float_16> {
   using Base = detail::FP16Base<float_16>;
+
+public:
   using Base::Base;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::IEEEhalf();
   }
 };
+static_assert(sizeof(float_16) * CHAR_BIT == 16, "float_16 is 16 bits wide");
 
 // Represents a BFLOAT16 value with the correct bitwidth and in a form that
 // is unambiguous when used as a template parameter alongside the other basic
 // Cpp data types uint16_t, float, etc.
-struct bfloat_16 : public detail::FP16Base<bfloat_16> {
+class bfloat_16 : public detail::FP16Base<bfloat_16> {
   using Base = detail::FP16Base<bfloat_16>;
+
+public:
   using Base::Base;
   static const llvm::fltSemantics &semantics() {
     return llvm::APFloat::BFloat();
   }
 };
+static_assert(sizeof(bfloat_16) * CHAR_BIT == 16, "bfloat_16 is 16 bits wide");
 
 template <typename T>
 using toArithmetic = std::conditional_t<std::is_arithmetic_v<T>, T, float>;
