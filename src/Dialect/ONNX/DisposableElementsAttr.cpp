@@ -198,11 +198,9 @@ void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   SmallVector<WideNum, 1> wideBufferData;
   wideBufferData.resize_for_overwrite(getNumBufferElements());
   getReader()(getBuffer()->getBuffer(), wideBufferData);
-  ArrayRef<int64_t> shape = getShape();
-  ArrayRef<int64_t> srcStrides = getStrides();
   ArrayRef<WideNum> src(wideBufferData);
-  restrideArray(sizeof(WideNum), shape, castArrayRef<char>(src), srcStrides,
-      castMutableArrayRef<char>(dst));
+  restrideArray(sizeof(WideNum), getShape(), castArrayRef<char>(src),
+      getStrides(), castMutableArrayRef<char>(dst));
 }
 
 ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
@@ -219,16 +217,18 @@ ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
 
 ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
   const Properties &properties = getProperties();
-  if (!properties.isTransformed && properties.dtype == properties.bufferDType) {
-    if (properties.isContiguous)
-      return asArrayRef(getBuffer()->getBuffer());
-    // TODO: copy to vector with restrideArray()
-  }
+  bool requiresNoElementwiseTransformOrCast =
+      !properties.isTransformed && properties.dtype == properties.bufferDType;
+  if (requiresNoElementwiseTransformOrCast && properties.isContiguous)
+    return asArrayRef(getBuffer()->getBuffer());
   unsigned bytewidth = bytewidthOfDType(properties.bufferDType);
   ArrayBuffer<char>::Vector vec;
   vec.resize_for_overwrite(getNumElements() * bytewidth);
   MutableArrayRef<char> bytes(vec);
-  if (bytewidth == sizeof(WideNum)) {
+  if (requiresNoElementwiseTransformOrCast) {
+    auto src = asArrayRef(getBuffer()->getBuffer());
+    restrideArray(bytewidth, getShape(), src, getStrides(), bytes);
+  } else if (bytewidth == sizeof(WideNum)) {
     readElements(castMutableArrayRef<WideNum>(bytes));
   } else {
     SmallVector<WideNum, 1> wideData;
