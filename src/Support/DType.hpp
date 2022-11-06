@@ -14,8 +14,6 @@
 
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Types.h"
-#include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/APInt.h"
 #include "llvm/Support/ErrorHandling.h"
 
 namespace onnx_mlir {
