@@ -202,10 +202,7 @@ public:
   using Reader = DisposableElementsAttributeReader;
 
 private:
-  using Super = Attribute::AttrBase<DisposableElementsAttr, Attribute,
-      DisposableElementsAttributeStorage, ElementsAttr::Trait,
-      TypedAttr::Trait>;
-  using Super::Base::Base;
+  using Base::Base;
 
   // Checks the buffer contents to detect if it's splat.
   // To bypass this check, e.g. if the buffer mmaps a file and you don't
@@ -266,7 +263,7 @@ private:
   static DisposableElementsAttr create(ShapedType type, Strides strides,
       Properties properties, const Buffer &buffer, Reader reader = nullptr) {
     DisposableElementsAttr a =
-        Super::Base::get(type.getContext(), type, strides, properties);
+        Base::get(type.getContext(), type, strides, properties);
     Storage &s = *a.getImpl();
     s.buffer = buffer;
     if (reader) {
@@ -287,16 +284,6 @@ private:
 
   static Reader getSplatReader(onnx_mlir::DType, StringRef rawBytes);
 
-  template <typename X>
-  static X getNumber(onnx_mlir::DType tag, onnx_mlir::IntOrFP n) {
-    if constexpr (std::is_same_v<X, llvm::APFloat>)
-      return n.toAPFloat(tag);
-    else if constexpr (std::is_same_v<X, llvm::APInt>)
-      return n.toAPInt(tag);
-    else
-      return n.to<X>(tag);
-  }
-
 public:
   DisposableElementsAttr(std::nullptr_t) {}
 
@@ -305,6 +292,28 @@ public:
     return *this ? this->template cast<ElementsAttr>() : nullptr;
   }
 
+  void printWithoutType(raw_ostream &os) const;
+
+private:
+  //===----------------------------------------------------------------------===//
+  // Instance properties.
+  //===----------------------------------------------------------------------===//
+
+  bool isDisposed() const {
+    //  TODO: Decide if a splat value can be represented with a constant
+    //        reader with no buffer; in that case isDisposed should
+    //        only return true if both buffer and reader are null.
+    return !this->getImpl()->buffer;
+  }
+
+  bool isContiguous() const { return getProperties().isContiguous; }
+
+  int64_t getNumBufferElements() const {
+    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
+    return getBuffer()->getBufferSize() / bytewidth;
+  }
+
+public:
   ShapedType getType() const { return this->getImpl()->type; }
   Type getElementType() const { return getType().getElementType(); }
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
@@ -327,16 +336,41 @@ public:
   // no splat check is done to verify if the reader function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
   bool isSplat() const { return getProperties().isBufferSplat; }
+
+private:
+  //===----------------------------------------------------------------------===//
+  // Iteration:
+  //===----------------------------------------------------------------------===//
+
+  // True for the types T in NonContiguousIterableTypesT.
+  template <typename T>
+  static constexpr bool isIterableType =
+      (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
+          onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
+      std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
+
+  // Supports all the types T in NonContiguousIterableTypesT.
   template <typename X>
-  llvm::Optional<X> tryGetSplatValue() const {
-    if (!isSplat())
-      return llvm::None;
-    return getNumber<X>(getDType(), readBufferPos(0));
+  static X getNumber(onnx_mlir::DType tag, onnx_mlir::IntOrFP n) {
+    static_assert(isIterableType<X>);
+    if constexpr (std::is_same_v<X, llvm::APFloat>)
+      return n.toAPFloat(tag);
+    else if constexpr (std::is_same_v<X, llvm::APInt>)
+      return n.toAPInt(tag);
+    else
+      return n.to<X>(tag);
   }
-  template <typename X>
-  X getSplatValue() const {
-    return *tryGetSplatValue<X>();
-  }
+
+public:
+  // All the iterable types are listed as NonContiguous here as no type
+  // is guaranteed to be represented contiguously in the underlying buffer
+  // because of strides and the possibility that bufferDType != dtype.
+  //
+  // (We could add Attribute, IntegerAttr, FloatAttr, if getNumber adds
+  // support for those.)
+  using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
+      uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
+      onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
 
   template <typename X>
   using iterator = detail::MappedIndexIterator<X>;
@@ -344,23 +378,9 @@ public:
   template <typename X>
   using iterator_range = llvm::iterator_range<iterator<X>>;
 
-  // TODO: add Attribute
-  using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
-      uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
-      onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
-
-  template <typename T>
-  static constexpr bool isIntOrFPConvertible =
-      (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
-          onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
-      std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
-
-  template <typename X>
-  using OverloadToken = typename Super::template OverloadToken<X>;
-
   template <typename X>
   FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const {
-    if constexpr (isIntOrFPConvertible<X>) {
+    if constexpr (isIterableType<X>) {
       onnx_mlir::DType dtype = getDType();
       DisposableElementsAttr attr = *this;
       return detail::beginMappedIndexIterator<X>(
@@ -379,7 +399,52 @@ public:
     return detail::endMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
-  void printWithoutType(raw_ostream &os) const;
+private:
+  //===----------------------------------------------------------------------===//
+  // Other access to the elements:
+  //===----------------------------------------------------------------------===//
+
+  onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
+    onnx_mlir::IntOrFP n;
+    StringRef s = getBuffer()->getBuffer();
+    // TODO: consider precomputing bytewidth in properties so
+    //       we don't need to compute it all the time
+    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
+    StringRef bytes = s.substr(pos * bytewidth, bytewidth);
+    getReader()(bytes, llvm::makeMutableArrayRef(n));
+    return n;
+  }
+
+  // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
+  onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
+    SmallVector<int64_t, 4> indices;
+    onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
+    size_t pos = onnx_mlir::getStridesPosition(indices, getStrides());
+    return readBufferPos(pos);
+  }
+
+  template <typename X>
+  DenseElementsAttr toDenseElementsAttrByType() const {
+    if (isSplat())
+      return DenseElementsAttr::get(getType(), getSplatValue<X>());
+    std::vector<X> xs;
+    xs.reserve(getNumElements());
+    for (X x : getValues<X>())
+      xs.emplace_back(x);
+    return DenseElementsAttr::get(getType(), xs);
+  }
+
+public:
+  template <typename X>
+  llvm::Optional<X> tryGetSplatValue() const {
+    if (!isSplat())
+      return llvm::None;
+    return getNumber<X>(getDType(), readBufferPos(0));
+  }
+  template <typename X>
+  X getSplatValue() const {
+    return *tryGetSplatValue<X>();
+  }
 
   // TODO: remove this or reimplement using getRawBytes
   DenseElementsAttr toDenseElementsAttr() const {
@@ -440,51 +505,6 @@ public:
     }
     return std::move(bytes);
   }
-
-private: // TODO: Figure out if any of the following would be useful publicly.
-  int64_t getNumBufferElements() const {
-    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
-    return getBuffer()->getBufferSize() / bytewidth;
-  }
-
-  onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
-    onnx_mlir::IntOrFP n;
-    StringRef s = getBuffer()->getBuffer();
-    // TODO: consider precomputing bytewidth in properties so
-    //       we don't need to compute it all the time
-    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
-    StringRef bytes = s.substr(pos * bytewidth, bytewidth);
-    getReader()(bytes, llvm::makeMutableArrayRef(n));
-    return n;
-  }
-
-  // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
-  onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
-    SmallVector<int64_t, 4> indices;
-    onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
-    size_t pos = onnx_mlir::getStridesPosition(indices, getStrides());
-    return readBufferPos(pos);
-  }
-
-  template <typename X>
-  DenseElementsAttr toDenseElementsAttrByType() const {
-    if (isSplat())
-      return DenseElementsAttr::get(getType(), getSplatValue<X>());
-    std::vector<X> xs;
-    xs.reserve(getNumElements());
-    for (X x : getValues<X>())
-      xs.emplace_back(x);
-    return DenseElementsAttr::get(getType(), xs);
-  }
-
-  bool isDisposed() const {
-    //  TODO: Decide if a splat value can be represented with a constant
-    //        reader with no buffer; in that case isDisposed should
-    //        only return true if both buffer and reader are null.
-    return !this->getImpl()->buffer;
-  }
-
-  bool isContiguous() const { return getProperties().isContiguous; }
 
 }; // class DisposableElementsAttr
 
