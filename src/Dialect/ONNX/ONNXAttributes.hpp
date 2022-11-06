@@ -289,7 +289,7 @@ public:
 
   // Allow implicit conversion to ElementsAttr.
   operator ElementsAttr() const {
-    return *this ? this->template cast<ElementsAttr>() : nullptr;
+    return *this ? cast<ElementsAttr>() : nullptr;
   }
 
   void printWithoutType(raw_ostream &os) const;
@@ -303,7 +303,7 @@ private:
     //  TODO: Decide if a splat value can be represented with a constant
     //        reader with no buffer; in that case isDisposed should
     //        only return true if both buffer and reader are null.
-    return !this->getImpl()->buffer;
+    return !getImpl()->buffer;
   }
 
   bool isContiguous() const { return getProperties().isContiguous; }
@@ -314,22 +314,20 @@ private:
   }
 
 public:
-  ShapedType getType() const { return this->getImpl()->type; }
+  ShapedType getType() const { return getImpl()->type; }
   Type getElementType() const { return getType().getElementType(); }
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
   int64_t getRank() const { return getType().getRank(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
-  ArrayRef<int64_t> getStrides() const { return this->getImpl()->strides; }
-  const Properties &getProperties() const {
-    return this->getImpl()->properties;
-  }
+  ArrayRef<int64_t> getStrides() const { return getImpl()->strides; }
+  const Properties &getProperties() const { return getImpl()->properties; }
   const Buffer &getBuffer() const {
     assert(!isDisposed());
-    return this->getImpl()->buffer;
+    return getImpl()->buffer;
   }
   const Reader &getReader() const {
     assert(!isDisposed());
-    return this->getImpl()->reader;
+    return getImpl()->reader;
   }
   onnx_mlir::DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
