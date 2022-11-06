@@ -203,6 +203,16 @@ public:
 
   //===----------------------------------------------------------------------===//
   // Iteration:
+  //
+  // Use value_begin<X>(), value_end(), or getValues<X>() to iterate over the
+  // the elements, where X can be any scalar cpp type, or APFloat (if element
+  // type is floating point) or APInt (if element type is integer).
+  //
+  // Note that iteration is slow because it invokes getReader() for every
+  // element and, furthermore, performs a slow calculation from flat index to
+  // buffer position if the underlying buffer is not contiguous, namely when its
+  // strides are not the default strides for the type shape. It's more efficient
+  // to copy out data in bulk with readElements().
   //===----------------------------------------------------------------------===//
 private:
   // True for the types T in NonContiguousIterableTypesT.
@@ -217,9 +227,9 @@ private:
   static X getNumber(DType tag, WideNum n) {
     static_assert(isIterableType<X>);
     if constexpr (std::is_same_v<X, llvm::APFloat>)
-      return n.toAPFloat(tag);
+      return n.toAPFloat(tag); // fails unless isFloatDType(tag)
     else if constexpr (std::is_same_v<X, llvm::APInt>)
-      return n.toAPInt(tag);
+      return n.toAPInt(tag); // fails unless is[Un]SignedIntDType(tag)
     else
       return n.to<X>(tag);
   }
@@ -291,10 +301,15 @@ public:
 
   DenseElementsAttr toDenseElementsAttr() const;
 
+  // Copies out the elements in a flat array in row-major order.
   void readElements(MutableArrayRef<WideNum> dst) const;
 
+  // Returns a pointer to the underlying data, if everything aligns,
+  // otherwise makes and returns a copy.
   onnx_mlir::ArrayBuffer<WideNum> getWideNums() const;
 
+  // Returns a pointer to the underlying data, if everything aligns,
+  // otherwise makes and returns a copy.
   onnx_mlir::ArrayBuffer<char> getRawBytes() const;
 
   void printWithoutType(raw_ostream &os) const;
