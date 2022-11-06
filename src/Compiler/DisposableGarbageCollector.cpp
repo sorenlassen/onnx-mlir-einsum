@@ -12,7 +12,7 @@
 
 #include "mlir/IR/BuiltinOps.h"
 
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 
 using namespace mlir;
 

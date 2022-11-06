@@ -2,13 +2,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===-------- ONNXAttributes.cpp -- ONNX attributes implementation --------===//
+//===---------------------- DisposableElementsAttr.cpp --------------------===//
 //
-// ONNX attributes implementation.
+// DisposableElementsAttr, garbage collectible alternative to DenseElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp" // ONNXConstantOp

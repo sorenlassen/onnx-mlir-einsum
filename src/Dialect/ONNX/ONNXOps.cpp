@@ -27,7 +27,7 @@
 #include "llvm/Support/FormatVariadic.h"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/ONNXLayoutHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"

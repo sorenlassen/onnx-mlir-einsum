@@ -35,7 +35,7 @@
 #include "src/Compiler/DisposableGarbageCollector.hpp"
 #include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Transform/ResourceGarbageCollector.hpp"
 #include "src/Version/Version.hpp"

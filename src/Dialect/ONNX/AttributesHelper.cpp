@@ -18,7 +18,7 @@
 #include "llvm/Support/raw_os_ostream.h"
 
 #include "src/Dialect/Mlir/ResourcePool.hpp"
-#include "src/Dialect/ONNX/ONNXAttributes.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 #include "src/Support/WideNum.hpp"

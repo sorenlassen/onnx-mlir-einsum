@@ -2,9 +2,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===---------------- ONNXAttributes.hpp - ONNX Attributes ----------------===//
+//===---------------------- DisposableElementsAttr.hpp --------------------===//
 //
-// This file defines attributes in the ONNX Dialect.
+// DisposableElementsAttr, garbage collectible alternative to DenseElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 
