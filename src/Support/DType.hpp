@@ -206,23 +206,34 @@ DEFINE_DTypeCppTypeTraits(DType::BFLOAT16, bfloat_16);
 
 #undef DEFINE_DTypeCppTypeTraits
 
+// Compile time mapping from DType to cpp type.
 template <DType DTYPE>
 using CppType = typename DTypeTrait<DTYPE>::cpptype;
 
+// Compile time mapping from cpp type to DType. It is "compile time" because
+// it's a constexpr which can be used in template arguments like
+//
+//   using T = DTypeTrait<toDType<cpptype>>::widetype;
+//
+// and in constexpr expressions like
+//
+//   constexpr WideNum n = WideNum::from(toDType<cpptype>, true);
+//
+// Note: decay_t strips reference, const, and volatile qualifiers,
+// otherwise e.g. toDType<decltype(x)> easily fails because decltype
+// picks up these qualifiers in ways that are easy to overlook.
 template <typename CPPTY>
-constexpr DType toDType = CppTypeTrait<CPPTY>::dtype;
+constexpr DType toDType = CppTypeTrait<std::decay_t<CPPTY>>::dtype;
 
-template <typename CPPTY>
-constexpr DType dtypeOf(CPPTY = CPPTY()) {
-  return toDType<CPPTY>;
-}
-
+// Runtime mapping from mlir type to DType.
 DType dtypeOfMlirType(mlir::Type type);
 
+// Runtime mapping from DType to mlir type.
 mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
 
+// Runtime mapping from cpp type to mlir type.
 template <typename CPPTY>
-mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
+mlir::Type toMlirType(mlir::MLIRContext *ctx) {
   return mlirTypeOfDType(toDType<CPPTY>, ctx);
 }
 

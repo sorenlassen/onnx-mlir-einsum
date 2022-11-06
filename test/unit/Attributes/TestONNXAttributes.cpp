@@ -113,10 +113,9 @@ public:
         using cpptype = CppType<dtype>;
         constexpr cpptype x{};
         constexpr DType d1 = dtype;
-        constexpr DType d2 = dtypeOf(x);
+        constexpr DType d2 = toDType<cpptype>;
         assert(d1 == d2);
-        constexpr DType dtypeO = dtypeOf(x);
-        llvm::errs() << "dtypeOf " << dtypeO << ", x=" << x << "\n";
+        llvm::errs() << "dtype " << dtype << ", x=" << x << "\n";
       });
     }
     return 0;
@@ -124,6 +123,9 @@ public:
 
   int test_float_16() {
     llvm::errs() << "test_float_16:\n";
+    using cpptype = float_16;
+    constexpr WideNum n = WideNum::from(toDType<cpptype>, true);
+    assert(n.dbl == 1.0);
     float_16 f9984(9984);
     bfloat_16 fminus1(-1);
     float_16 bfminus1(fminus1);
@@ -147,13 +149,13 @@ public:
     constexpr bfloat_16 bf16z2 = bf16z;
     constexpr uint16_t f16zu = f16z2.bitcastToU16();
     constexpr uint16_t bf16zu = bf16z2.bitcastToU16();
-    constexpr DType df16 = dtypeOf(f16z);
-    constexpr DType dbf16 = dtypeOf(bf16z);
-    assert(df16 == dtypeOf<float_16>());
-    assert(dbf16 == dtypeOf<bfloat_16>());
+    constexpr DType df16 = toDType<decltype(f16z)>;
+    constexpr DType dbf16 = toDType<decltype(bf16z)>;
+    assert(df16 == toDType<float_16>);
+    assert(dbf16 == toDType<bfloat_16>);
     assert((std::is_same_v<CppType<df16>, float_16>));
     assert((std::is_same_v<CppType<dbf16>, bfloat_16>));
-    assert((std::is_same_v<CppType<dtypeOf<float>()>, float>));
+    assert((std::is_same_v<CppType<toDType<float>>, float>));
     llvm::errs() << "float16 " << f16z.toFloat() << " as uint " << f16zu
                  << ", dtype=" << df16 << "\n";
     llvm::errs() << "bfloat16 " << bf16z.toFloat() << " as uint " << bf16zu
