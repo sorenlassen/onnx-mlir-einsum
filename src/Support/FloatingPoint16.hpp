@@ -11,13 +11,13 @@
 #pragma once
 
 #include "llvm/ADT/APFloat.h"
-#include "llvm/ADT/APInt.h"
 
 namespace onnx_mlir {
 
-namespace detail {
+class float_16;
+class bfloat_16;
 
-uint64_t bitcastAPFloat(llvm::APFloat, const llvm::fltSemantics &semantics);
+namespace detail {
 
 // Base class for float_16, bfloat_16.
 template <typename FP16> // FP16 is the derived class, float_16 or bfloat_16.
@@ -38,9 +38,7 @@ public:
     return static_cast<float>(toFloat());
   }
 
-  llvm::APFloat toAPFloat() const {
-    return llvm::APFloat(FP16::semantics(), llvm::APInt(16, u16));
-  }
+  llvm::APFloat toAPFloat() const;
 
   // Same as static_cast<float>(*this).
   float toFloat() const { return toAPFloat().convertToFloat(); }
@@ -48,15 +46,12 @@ public:
   // Substitute for reinterpret_cast<uint16_t>(*this), which C++ doesn't allow.
   constexpr bitcasttype bitcastToU16() const { return u16; }
 
-  static FP16 fromAPFloat(llvm::APFloat a) {
-    bitcasttype u16 = bitcastAPFloat(a, FP16::semantics());
-    return bitcastFromU16(u16);
-  }
+  static FP16 fromAPFloat(llvm::APFloat a);
 
   // Substitute for reinterpret_cast<FP16>(f), which C++ doesn't allow.
   static FP16 fromFloat(float f) { return fromAPFloat(llvm::APFloat(f)); }
 
-  // Same as reinterpret_cast<FP16>(u).
+  // Substitute for reinterpret_cast<FP16>(u), which C++ doesn't allow.
   static constexpr FP16 bitcastFromU16(bitcasttype u) {
     FP16 f16;
     f16.u16 = u;
@@ -66,6 +61,9 @@ public:
 private:
   bitcasttype u16;
 };
+
+extern template class FP16Base<float_16>;
+extern template class FP16Base<bfloat_16>;
 
 } // namespace detail
 
