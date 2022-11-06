@@ -117,7 +117,7 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
   return makeDenseElementsAttrFromRawBytes(type, bytes);
 }
 
-RawBuffer getElementsRawBytes(ElementsAttr elements) {
+ArrayBuffer<char> getElementsRawBytes(ElementsAttr elements) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
     return disposable.getRawBytes();
   if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>())
@@ -126,7 +126,7 @@ RawBuffer getElementsRawBytes(ElementsAttr elements) {
     if (dense.getElementType().isInteger(1)) {
       // bool is bit packed in dense, so we copy it out
       size_t size = dense.isSplat() ? 1 : dense.getNumElements();
-      RawBuffer::Vector vec;
+      ArrayBuffer<char>::Vector vec;
       vec.resize_for_overwrite(size);
       std::copy_n(dense.value_begin<bool>(), size, vec.begin());
       return std::move(vec);
@@ -159,7 +159,7 @@ void readElements(ElementsAttr elements, MutableArrayRef<WideNum> dst) {
     disposable.readElements(dst);
     return;
   }
-  RawBuffer src = getElementsRawBytes(elements);
+  ArrayBuffer<char> src = getElementsRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
     fillOrTransform(castArrayRef<S>(src.get()), dst,

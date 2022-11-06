@@ -21,7 +21,7 @@
 #include "llvm/ADT/Sequence.h"
 #include "llvm/Support/MemoryBuffer.h"
 
-#include "src/Dialect/ONNX/AttributesHelper.hpp" // RawBuffer
+#include "src/Dialect/ONNX/AttributesHelper.hpp" // ArrayBuffer<char>
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 #include "src/Support/Strides.hpp"
@@ -483,7 +483,7 @@ public:
     return std::move(vec);
   }
 
-  onnx_mlir::RawBuffer getRawBytes() const {
+  onnx_mlir::ArrayBuffer<char> getRawBytes() const {
     const Properties &properties = getProperties();
     if (!properties.isTransformed &&
         properties.dtype == properties.bufferDType) {

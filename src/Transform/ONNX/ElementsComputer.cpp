@@ -64,7 +64,7 @@ ElementsAttr transposeElements(ElementsAttr elements, ArrayRef<uint64_t> perm) {
   DimsVector transposedShape = transposeDims(shape, perm);
   ShapedType transposedType =
       RankedTensorType::get(transposedShape, elementType);
-  RawBuffer src = getElementsRawBytes(elements);
+  ArrayBuffer<char> src = getElementsRawBytes(elements);
   if (elements.isSplat()) {
     return makeElementsAttrFromRawBytes(
         transposedType, src.get(), /*mustCopy=*/true);

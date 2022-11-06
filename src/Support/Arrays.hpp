@@ -51,8 +51,6 @@ private:
   const llvm::ArrayRef<T> ref;
 };
 
-using RawBuffer = ArrayBuffer<char>; // TODO: remove this
-
 template <typename New, typename Old = char>
 llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
   return llvm::makeArrayRef(reinterpret_cast<const New *>(a.data()),

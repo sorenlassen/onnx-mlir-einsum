@@ -42,7 +42,7 @@ typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 mlir::ElementsAttr makeElementsAttrWithRawBytesFiller(
     mlir::ShapedType type, RawBytesFiller filler);
 
-RawBuffer getElementsRawBytes(mlir::ElementsAttr elements);
+ArrayBuffer<char> getElementsRawBytes(mlir::ElementsAttr elements);
 
 ArrayBuffer<WideNum> getElementsWideNums(mlir::ElementsAttr elements);
 

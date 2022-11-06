@@ -121,7 +121,8 @@ ONNXConstantOp createReplacingConstantOp(
       IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
 }
 
-RawBuffer getRawBytesFromConstOp(ONNXConstantOp constOp, ShapedType type) {
+ArrayBuffer<char> getRawBytesFromConstOp(
+    ONNXConstantOp constOp, ShapedType type) {
   Attribute bufferIDAttr =
       constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
   if (bufferIDAttr) {
@@ -149,7 +150,7 @@ RawBuffer getRawBytesFromConstOp(ONNXConstantOp constOp, ShapedType type) {
   return getElementsRawBytes(elements);
 }
 
-RawBuffer getRawBytesFromConstValue(Value constValue) {
+ArrayBuffer<char> getRawBytesFromConstValue(Value constValue) {
   ONNXConstantOp constOp = getONNXConstantOp(constValue);
   return getRawBytesFromConstOp(constOp, constValue.getType());
 }
@@ -383,11 +384,11 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
   ArrayRef<int64_t> rhsShape = rhsType.getShape();
 
   ArrayRef<int64_t> splatShape = {};
-  RawBuffer lhs = getRawBytesFromConstValue(lhsValue);
+  ArrayBuffer<char> lhs = getRawBytesFromConstValue(lhsValue);
   if (lhs.get().size() == eltSizeInBytes) {
     lhsShape = splatShape;
   }
-  RawBuffer rhs = getRawBytesFromConstValue(rhsValue);
+  ArrayBuffer<char> rhs = getRawBytesFromConstValue(rhsValue);
   if (rhs.get().size() == eltSizeInBytes) {
     rhsShape = splatShape;
   }
@@ -454,7 +455,7 @@ Value ConstPropElementwiseUnary(
 
   Type elementType = replacingType.getElementType();
 
-  RawBuffer src = getRawBytesFromConstValue(constValue);
+  ArrayBuffer<char> src = getRawBytesFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
@@ -757,7 +758,7 @@ Value ConstPropCast(
   Type srcElemType = srcType.getElementType();
   Type dstElemType = dstType.getElementType();
 
-  RawBuffer src = getRawBytesFromConstValue(constValue);
+  ArrayBuffer<char> src = getRawBytesFromConstValue(constValue);
 
   // TODO: make single element splat dst buffer if src isSplat
 
