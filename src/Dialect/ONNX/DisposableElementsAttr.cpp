@@ -233,6 +233,31 @@ auto DisposableElementsAttr::getReader() const -> const Reader & {
   return getImpl()->reader;
 }
 
+WideNum DisposableElementsAttr::readBufferPos(size_t pos) const {
+  StringRef s = getBuffer()->getBuffer();
+  // TODO: consider precomputing bytewidth in properties so
+  //       we don't need to compute it all the time
+  unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
+  StringRef bytes = s.substr(pos * bytewidth, bytewidth);
+  WideNum n;
+  getReader()(bytes, llvm::makeMutableArrayRef(n));
+  return n;
+}
+
+WideNum DisposableElementsAttr::readFlatIndex(size_t flatIndex) const {
+  return readBufferPos(flatIndexToBufferPos(flatIndex));
+}
+
+size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
+  if (isContiguous())
+    return flatIndex;
+  if (isSplat())
+    return 0;
+  SmallVector<int64_t, 4> indices;
+  onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
+  return onnx_mlir::getStridesPosition(indices, getStrides());
+}
+
 void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
   printIntOrFPElementsAttrAsDenseWithoutType(*this, os);
 }

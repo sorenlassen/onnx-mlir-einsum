@@ -268,34 +268,13 @@ public:
 private:
   // Warning: this is somewhat inefficient because it invokes getReader().
   // It's more efficient to copy out data in bulk with readElements().
-  WideNum readBufferPos(size_t pos) const {
-    StringRef s = getBuffer()->getBuffer();
-    // TODO: consider precomputing bytewidth in properties so
-    //       we don't need to compute it all the time
-    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
-    StringRef bytes = s.substr(pos * bytewidth, bytewidth);
-    WideNum n;
-    getReader()(bytes, llvm::makeMutableArrayRef(n));
-    return n;
-  }
+  WideNum readBufferPos(size_t pos) const;
 
   // Warning: this is inefficient unless isContiguous() or isSplat().
-  WideNum readFlatIndex(size_t flatIndex) const {
-    return readBufferPos(flatIndexToBufferPos(flatIndex));
-  }
+  WideNum readFlatIndex(size_t flatIndex) const;
 
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
-  size_t flatIndexToBufferPos(size_t flatIndex) const {
-    if (isContiguous()) {
-      return flatIndex;
-    } else if (isSplat()) {
-      return 0;
-    } else {
-      SmallVector<int64_t, 4> indices;
-      onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
-      return onnx_mlir::getStridesPosition(indices, getStrides());
-    }
-  }
+  size_t flatIndexToBufferPos(size_t flatIndex) const;
 
   template <typename X>
   DenseElementsAttr toDenseElementsAttrByType() const {
