@@ -299,12 +299,14 @@ public:
     return *tryGetSplatValue<X>();
   }
 
-  // TODO: remove this or reimplement using getRawBytes
   DenseElementsAttr toDenseElementsAttr() const {
-    if (getElementType().isa<IntegerType>())
-      return toDenseElementsAttrByType<APInt>();
-    else
-      return toDenseElementsAttrByType<APFloat>();
+    onnx_mlir::ArrayBuffer<char> bytes = getRawBytes();
+    if (!getElementType().isInteger(1))
+      return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
+    // DenseElementsAttr::getFromRawBuffer bit packs bools so we
+    // cannot use it, so we pass as ArrayRef<bool> instead:
+    auto bools = onnx_mlir::castArrayRef<bool>(bytes.get());
+    return DenseElementsAttr::get(getType(), bools);
   }
 
   void readElements(MutableArrayRef<WideNum> dst) const {
