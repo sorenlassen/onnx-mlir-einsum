@@ -148,54 +148,14 @@ private:
   //
   // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(
-      ShapedType type, const Buffer &buffer, Reader reader = nullptr) {
-    ArrayRef<char> rawBuffer = onnx_mlir::asArrayRef(buffer->getBuffer());
-    bool isBufferSplat = false;
-    if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
-      llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
-    return get(type, isBufferSplat, buffer, std::move(reader));
-  }
+      ShapedType type, const Buffer &buffer, Reader reader = nullptr);
 
   // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
-      const Buffer &buffer, Reader reader = nullptr) {
-    DType dtype = onnx_mlir::dtypeOfMlirType(type.getElementType());
-    SmallVector<int64_t, 4> strides;
-    if (!isBufferSplat)
-      strides = onnx_mlir::getDefaultStrides(type.getShape());
-    bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
-    Properties properties = {.dtype = dtype,
-        .bufferDType = dtype,
-        .isBufferSplat = isBufferSplat,
-        .isContiguous = isContiguous,
-        .isTransformed = reader != nullptr};
-    return create(type, strides, properties, buffer, std::move(reader));
-  }
+      const Buffer &buffer, Reader reader = nullptr);
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,
-      Properties properties, const Buffer &buffer, Reader reader = nullptr) {
-    assert((strides.empty() || strides.front() != 0) &&
-           "non-padded strides shouldn't have leading zeros");
-    unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
-    assert(buffer->getBufferSize() % bytewidth == 0);
-    int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
-    auto shape = type.getShape();
-    assert(strides.empty() == (numBufferElements == 1));
-    assert(properties.isBufferSplat == (numBufferElements == 1));
-    // TODO: decide if isBufferSplat==true and numBufferElements==1
-    //       are ok when getNumElements(shape)==0
-    assert(
-        numBufferElements == onnx_mlir::getStridesNumElements(shape, strides));
-    assert(!properties.isContiguous ||
-           onnx_mlir::areStridesContiguous(shape, strides));
-    assert(reader || !properties.isTransformed);
-    assert(
-        properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
-                                        wideDTypeOfDType(properties.dtype));
-    // TODO: add more checks
-    return create(
-        type, strides, properties, std::move(buffer), std::move(reader));
-  }
+      Properties properties, const Buffer &buffer, Reader reader = nullptr);
 
   // Internal method called by get(..) methods.
   static DisposableElementsAttr create(ShapedType type, Strides strides,
