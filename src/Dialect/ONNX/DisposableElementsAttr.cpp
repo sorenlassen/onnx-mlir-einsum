@@ -38,13 +38,13 @@ void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
       [](X x) { return WideNum::from<X>(DTYPE, x); });
 }
 
-DisposableElementsAttributeReader getIdentityReader(onnx_mlir::DType dtype) {
+DisposableElementsAttributeReader getIdentityReader(DType dtype) {
   return dispatchByDType(
       dtype, [](auto staticDType) { return identityReader<staticDType>; });
 }
 
 DisposableElementsAttributeReader getSplatReader(
-    onnx_mlir::DType dtype, StringRef rawBytes) {
+    DType dtype, StringRef rawBytes) {
   unsigned bytewidth = bytewidthOfDType(dtype);
   ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
   WideNum splatValue = WideNum::load(dtype, memory);
@@ -60,7 +60,7 @@ DisposableElementsAttributeReader getSplatReader(
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::get(
     ShapedType type, const Buffer &buffer, Reader reader) {
-  ArrayRef<char> rawBuffer = onnx_mlir::asArrayRef(buffer->getBuffer());
+  ArrayRef<char> rawBuffer = asArrayRef(buffer->getBuffer());
   bool isBufferSplat = false;
   if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
     llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
@@ -70,10 +70,10 @@ DisposableElementsAttr DisposableElementsAttr::get(
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::get(
     ShapedType type, bool isBufferSplat, const Buffer &buffer, Reader reader) {
-  DType dtype = onnx_mlir::dtypeOfMlirType(type.getElementType());
+  DType dtype = dtypeOfMlirType(type.getElementType());
   SmallVector<int64_t, 4> strides;
   if (!isBufferSplat)
-    strides = onnx_mlir::getDefaultStrides(type.getShape());
+    strides = getDefaultStrides(type.getShape());
   bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
   Properties properties = {.dtype = dtype,
       .bufferDType = dtype,
@@ -89,7 +89,7 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
     Reader reader) {
   assert((strides.empty() || strides.front() != 0) &&
          "non-padded strides shouldn't have leading zeros");
-  unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
+  unsigned bytewidth = bytewidthOfDType(properties.bufferDType);
   assert(buffer->getBufferSize() % bytewidth == 0);
   int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
   auto shape = type.getShape();
@@ -97,9 +97,8 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
   assert(properties.isBufferSplat == (numBufferElements == 1));
   // TODO: decide if isBufferSplat==true and numBufferElements==1
   //       are ok when getNumElements(shape)==0
-  assert(numBufferElements == onnx_mlir::getStridesNumElements(shape, strides));
-  assert(!properties.isContiguous ||
-         onnx_mlir::areStridesContiguous(shape, strides));
+  assert(numBufferElements == getStridesNumElements(shape, strides));
+  assert(!properties.isContiguous || areStridesContiguous(shape, strides));
   assert(reader || !properties.isTransformed);
   assert(properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
                                          wideDTypeOfDType(properties.dtype));
@@ -178,8 +177,66 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
   if (isSplat())
     return 0;
   SmallVector<int64_t, 4> indices;
-  onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
-  return onnx_mlir::getStridesPosition(indices, getStrides());
+  unflattenIndex(getShape(), flatIndex, indices);
+  return getStridesPosition(indices, getStrides());
+}
+
+DenseElementsAttr DisposableElementsAttr::toDenseElementsAttr() const {
+  ArrayBuffer<char> bytes = getRawBytes();
+  if (!getElementType().isInteger(1))
+    return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
+  // DenseElementsAttr::getFromRawBuffer bit packs bools so we
+  // cannot use it, so we pass as ArrayRef<bool> instead:
+  auto bools = castArrayRef<bool>(bytes.get());
+  return DenseElementsAttr::get(getType(), bools);
+}
+
+void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
+  if (isContiguous()) {
+    getReader()(getBuffer()->getBuffer(), dst);
+  }
+  SmallVector<WideNum, 1> wideBufferData;
+  wideBufferData.resize_for_overwrite(getNumBufferElements());
+  getReader()(getBuffer()->getBuffer(), wideBufferData);
+  ArrayRef<int64_t> shape = getShape();
+  ArrayRef<int64_t> srcStrides = getStrides();
+  ArrayRef<WideNum> src(wideBufferData);
+  restrideArray(sizeof(WideNum), shape, castArrayRef<char>(src), srcStrides,
+      castMutableArrayRef<char>(dst));
+}
+
+ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
+  const Properties &properties = getProperties();
+  if (!properties.isTransformed && properties.isContiguous &&
+      bytewidthOfDType(properties.bufferDType) == sizeof(WideNum)) {
+    return asArrayRef<WideNum>(getBuffer()->getBuffer());
+  }
+  ArrayBuffer<WideNum>::Vector vec;
+  vec.resize_for_overwrite(getNumElements());
+  readElements(vec);
+  return std::move(vec);
+}
+
+ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
+  const Properties &properties = getProperties();
+  if (!properties.isTransformed && properties.dtype == properties.bufferDType) {
+    if (properties.isContiguous)
+      return asArrayRef(getBuffer()->getBuffer());
+    // TODO: copy to vector with restrideArray()
+  }
+  unsigned bytewidth = bytewidthOfDType(properties.bufferDType);
+  ArrayBuffer<char>::Vector vec;
+  vec.resize_for_overwrite(getNumElements() * bytewidth);
+  MutableArrayRef<char> bytes(vec);
+  if (bytewidth == sizeof(WideNum)) {
+    readElements(castMutableArrayRef<WideNum>(bytes));
+  } else {
+    SmallVector<WideNum, 1> wideData;
+    wideData.resize_for_overwrite(getNumElements());
+    readElements(wideData);
+    narrowArray(getElementType(), wideData, bytes);
+  }
+  return std::move(bytes);
 }
 
 void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {

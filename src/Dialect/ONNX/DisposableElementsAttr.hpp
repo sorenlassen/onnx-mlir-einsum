@@ -288,66 +288,13 @@ public:
     return *tryGetSplatValue<X>();
   }
 
-  DenseElementsAttr toDenseElementsAttr() const {
-    onnx_mlir::ArrayBuffer<char> bytes = getRawBytes();
-    if (!getElementType().isInteger(1))
-      return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
-    // DenseElementsAttr::getFromRawBuffer bit packs bools so we
-    // cannot use it, so we pass as ArrayRef<bool> instead:
-    auto bools = onnx_mlir::castArrayRef<bool>(bytes.get());
-    return DenseElementsAttr::get(getType(), bools);
-  }
+  DenseElementsAttr toDenseElementsAttr() const;
 
-  void readElements(MutableArrayRef<WideNum> dst) const {
-    if (isContiguous()) {
-      getReader()(getBuffer()->getBuffer(), dst);
-    }
-    SmallVector<WideNum, 1> wideBufferData;
-    wideBufferData.resize_for_overwrite(getNumBufferElements());
-    getReader()(getBuffer()->getBuffer(), wideBufferData);
-    ArrayRef<int64_t> shape = getShape();
-    ArrayRef<int64_t> srcStrides = getStrides();
-    ArrayRef<WideNum> src(wideBufferData);
-    onnx_mlir::restrideArray(sizeof(WideNum), shape,
-        onnx_mlir::castArrayRef<char>(src), srcStrides,
-        onnx_mlir::castMutableArrayRef<char>(dst));
-  }
+  void readElements(MutableArrayRef<WideNum> dst) const;
 
-  onnx_mlir::ArrayBuffer<WideNum> getWideNums() const {
-    const Properties &properties = getProperties();
-    if (!properties.isTransformed && properties.isContiguous &&
-        onnx_mlir::bytewidthOfDType(properties.bufferDType) ==
-            sizeof(WideNum)) {
-      return onnx_mlir::asArrayRef<WideNum>(getBuffer()->getBuffer());
-    }
-    onnx_mlir::ArrayBuffer<WideNum>::Vector vec;
-    vec.resize_for_overwrite(getNumElements());
-    readElements(vec);
-    return std::move(vec);
-  }
+  onnx_mlir::ArrayBuffer<WideNum> getWideNums() const;
 
-  onnx_mlir::ArrayBuffer<char> getRawBytes() const {
-    const Properties &properties = getProperties();
-    if (!properties.isTransformed &&
-        properties.dtype == properties.bufferDType) {
-      if (properties.isContiguous)
-        return onnx_mlir::asArrayRef(getBuffer()->getBuffer());
-      // TODO: copy to vector with restrideArray()
-    }
-    unsigned bytewidth = onnx_mlir::bytewidthOfDType(properties.bufferDType);
-    onnx_mlir::ArrayBuffer<char>::Vector vec;
-    vec.resize_for_overwrite(getNumElements() * bytewidth);
-    MutableArrayRef<char> bytes(vec);
-    if (bytewidth == sizeof(WideNum)) {
-      readElements(onnx_mlir::castMutableArrayRef<WideNum>(bytes));
-    } else {
-      SmallVector<WideNum, 1> wideData;
-      wideData.resize_for_overwrite(getNumElements());
-      readElements(wideData);
-      onnx_mlir::narrowArray(getElementType(), wideData, bytes);
-    }
-    return std::move(bytes);
-  }
+  onnx_mlir::ArrayBuffer<char> getRawBytes() const;
 
   void printWithoutType(raw_ostream &os) const;
 
