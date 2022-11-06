@@ -10,9 +10,9 @@
 
 #include "src/Compiler/DisposableGarbageCollector.hpp"
 
-#include "mlir/IR/BuiltinOps.h"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
 
-#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
+#include "mlir/IR/BuiltinOps.h"
 
 using namespace mlir;
 

@@ -37,7 +37,7 @@
 #include "src/Compiler/LineForwardingRawOstream.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/Mlir/ResourcePool.hpp"
-#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/InitMLIRPasses.hpp"
 #include "src/InitOMPasses.hpp"

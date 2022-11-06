@@ -12,7 +12,7 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
-#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
 
 using namespace mlir;
 

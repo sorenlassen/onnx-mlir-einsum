@@ -10,25 +10,26 @@
 
 #pragma once
 
-#include "mlir/IR/AttributeSupport.h"
-#include "mlir/IR/Attributes.h"
-#include "mlir/IR/BuiltinAttributeInterfaces.h"
-#include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h" // ModuleOp
-#include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/DialectInterface.h"
-#include "mlir/IR/OpImplementation.h"
-#include "llvm/ADT/Sequence.h"
-#include "llvm/Support/MemoryBuffer.h"
-
-#include "src/Dialect/ONNX/AttributesHelper.hpp" // ArrayBuffer<char>
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 #include "src/Support/Strides.hpp"
 #include "src/Support/WideNum.hpp"
 
+#include "mlir/IR/AttributeSupport.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/BuiltinAttributeInterfaces.h"
+#include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/Sequence.h"
+#include "llvm/Support/MemoryBuffer.h"
+
 #include <memory>
-#include <unordered_set>
+
+namespace onnx_mlir {
+class DisposablePool;
+};
 
 namespace mlir {
 
@@ -138,7 +139,7 @@ public:
   // Call DisposablePool::get(..) to instantiate DisposableElementsAttr.
   //===----------------------------------------------------------------------===//
 public:
-  friend class DisposablePool;
+  friend class onnx_mlir::DisposablePool;
 
 private:
   // Checks the buffer contents to detect if it's splat.
@@ -299,46 +300,6 @@ public:
   void printWithoutType(raw_ostream &os) const;
 
 }; // class DisposableElementsAttr
-
-class DisposablePool : public mlir::DialectInterface::Base<DisposablePool> {
-public:
-  using Strides = typename DisposableElementsAttr::Strides;
-  using Buffer = typename DisposableElementsAttr::Buffer;
-
-  static DisposablePool &create(mlir::MLIRContext *context);
-
-  static DisposablePool *get(mlir::MLIRContext *context);
-
-  DisposablePool(mlir::Dialect *dialect, mlir::MLIRContext *context);
-  ~DisposablePool();
-
-  template <typename... Args>
-  DisposableElementsAttr createElementsAttr(Args &&...args) {
-    auto d = DisposableElementsAttr::get(std::forward<Args>(args)...);
-    insert(d);
-    return d;
-  }
-
-  void garbageCollectUnreachable(ModuleOp moduleOp);
-
-  void scrub(ModuleOp moduleOp);
-
-  void close() {
-    assert(pool.empty() && "pool must be scrubbed before close ");
-    active = false;
-  }
-
-  bool isActive() const { return active; }
-
-private:
-  using Pool = std::unordered_set<DisposableElementsAttributeStorage *>;
-
-  void insert(DisposableElementsAttr d);
-  void eraseUnreachable(const Pool &reachable);
-
-  Pool pool;
-  bool active = true;
-};
 
 } // namespace mlir
 
