@@ -11,19 +11,10 @@
 #include "src/Support/DType.hpp"
 
 #include "mlir/IR/Builders.h"
-#include "llvm/ADT/APFloat.h"
 
 using namespace mlir;
 
 namespace onnx_mlir {
-
-uint64_t detail::bitcastAPFloat(
-    llvm::APFloat f, const llvm::fltSemantics &semantics) {
-  bool ignored;
-  f.convert(semantics, APFloat::rmNearestTiesToEven, &ignored);
-  APInt i = f.bitcastToAPInt();
-  return i.getZExtValue();
-}
 
 DType dtypeOfMlirType(Type type) {
   // clang-format off
