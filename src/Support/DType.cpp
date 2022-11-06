@@ -25,7 +25,7 @@ uint64_t detail::bitcastAPFloat(
   return i.getZExtValue();
 }
 
-DType dtypeOf(Type type) {
+DType dtypeOfMlirType(Type type) {
   // clang-format off
   if (type.isa<mlir::Float64Type>())  return DType::DOUBLE;
   if (type.isa<mlir::Float32Type>())  return DType::FLOAT;

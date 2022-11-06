@@ -217,8 +217,7 @@ constexpr DType dtypeOf(CPPTY = CPPTY()) {
   return toDType<CPPTY>;
 }
 
-// TODO: rename to dtypeOfMlirType
-DType dtypeOf(mlir::Type type);
+DType dtypeOfMlirType(mlir::Type type);
 
 mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
 
@@ -288,8 +287,8 @@ auto dispatchByDType(DType dtype, Action &&act, Args &&...args) {
 
 template <typename Action, typename... Args>
 auto dispatchByMlirType(mlir::Type type, Action &&act, Args &&...args) {
-  return dispatchByDType(
-      dtypeOf(type), std::forward<Action>(act), std::forward<Args>(args)...);
+  return dispatchByDType(dtypeOfMlirType(type), std::forward<Action>(act),
+      std::forward<Args>(args)...);
 }
 
 } // namespace onnx_mlir

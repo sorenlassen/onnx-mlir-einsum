@@ -225,7 +225,7 @@ private:
   // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
       const Buffer &buffer, Reader reader = nullptr) {
-    DType dtype = onnx_mlir::dtypeOf(type.getElementType());
+    DType dtype = onnx_mlir::dtypeOfMlirType(type.getElementType());
     SmallVector<int64_t, 4> strides;
     if (!isBufferSplat)
       strides = onnx_mlir::getDefaultStrides(type.getShape());
