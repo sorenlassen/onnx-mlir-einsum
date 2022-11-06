@@ -347,7 +347,7 @@ public:
   // TODO: add Attribute
   using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
       uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
-      float, double, APInt, APFloat>;
+      onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
 
   template <typename T>
   static constexpr bool isIntOrFPConvertible =
