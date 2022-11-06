@@ -15,6 +15,7 @@ add_onnx_mlir_library(OMONNXOps
   # Top files for ONNX dialect
   DialectBuilder.cpp
   AttributesHelper.cpp
+  DisposableElementsAttr.cpp
   ONNXDialect.cpp
   ONNXOps.cpp
   ONNXOps/OpHelper.cpp

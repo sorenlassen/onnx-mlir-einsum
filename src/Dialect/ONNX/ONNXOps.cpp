@@ -156,7 +156,10 @@ void ONNXConstantOp::print(OpAsmPrinter &odsPrinter) {
 #define GET_ATTRDEF_CLASSES
 #include "src/Dialect/ONNX/ONNXAttributes.cpp.inc"
 
-#include "src/Dialect/ONNX/DisposableElementsAttr.cpp"
+// Hand coded attribute storage class. Needed here for the same reason as the
+// TableGen generated attributes implementation aboove: They are needed in
+// the addAttributes() call in ONNXDialect::initialize() below.
+#include "src/Dialect/ONNX/DisposableElementsAttributeStorage.hpp"
 
 //===----------------------------------------------------------------------===//
 // ONNXDialect initialization
