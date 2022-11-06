@@ -367,8 +367,8 @@ public:
   // is guaranteed to be represented contiguously in the underlying buffer
   // because of strides and the possibility that bufferDType != dtype.
   //
-  // (We could add Attribute, IntegerAttr, FloatAttr, if getNumber adds
-  // support for those.)
+  // (We could add Attribute, IntegerAttr, FloatAttr by adding support for
+  // them in getNumber<X>.)
   using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
       uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
       onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
@@ -389,7 +389,6 @@ public:
             return getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
           });
     } else {
-      // TODO: support iteration over X == Attribute/IntegerAttr/FloatAttr
       return failure();
     }
   }
@@ -405,23 +404,35 @@ private:
   // Other access to the elements:
   //===----------------------------------------------------------------------===//
 
+  // Warning: this is somewhat inefficient because it invokes getReader().
+  // It's more efficient to copy out data in bulk with readElements().
   WideNum readBufferPos(size_t pos) const {
-    WideNum n;
     StringRef s = getBuffer()->getBuffer();
     // TODO: consider precomputing bytewidth in properties so
     //       we don't need to compute it all the time
     unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
     StringRef bytes = s.substr(pos * bytewidth, bytewidth);
+    WideNum n;
     getReader()(bytes, llvm::makeMutableArrayRef(n));
     return n;
   }
 
-  // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
+  // Warning: this is inefficient unless isContiguous() or isSplat().
   WideNum readFlatIndex(size_t flatIndex) const {
-    SmallVector<int64_t, 4> indices;
-    onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
-    size_t pos = onnx_mlir::getStridesPosition(indices, getStrides());
-    return readBufferPos(pos);
+    return readBufferPos(flatIndexToBufferPos(flatIndex));
+  }
+
+  // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
+  size_t flatIndexToBufferPos(size_t flatIndex) const {
+    if (isContiguous()) {
+      return flatIndex;
+    } else if (isSplat()) {
+      return 0;
+    } else {
+      SmallVector<int64_t, 4> indices;
+      onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
+      return onnx_mlir::getStridesPosition(indices, getStrides());
+    }
   }
 
   template <typename X>
