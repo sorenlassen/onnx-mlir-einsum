@@ -220,34 +220,33 @@ constexpr DType dtypeOf(CPPTY = CPPTY()) {
 // TODO: rename to dtypeOfMlirType
 DType dtypeOf(mlir::Type type);
 
-// TODO: rename to mlirTypeOfDType
-mlir::Type mlirTypeOf(DType dtype, mlir::MLIRContext *ctx);
+mlir::Type mlirTypeOfDType(DType dtype, mlir::MLIRContext *ctx);
 
 template <typename CPPTY>
 mlir::Type mlirTypeOfCppType(mlir::MLIRContext *ctx) {
-  return mlirTypeOf(toDType<CPPTY>, ctx);
+  return mlirTypeOfDType(toDType<CPPTY>, ctx);
 }
 
 // The following functions isFloatDType(dtype), bitwidthOfDType(dtype), etc are
 // helpful alternatives to DTypeTrait<dtype>::isFloat/bitwidth/etc
 // when dtype isn't known at compile.
 
-// == mlirTypeOf(dtype, ctx).isa<FloatType>()
+// == mlirTypeOfDType(dtype, ctx).isa<FloatType>()
 bool isFloatDType(DType);
 
-// == mlirTypeOf(dtype, ctx).isIntOrFloat()
+// == mlirTypeOfDType(dtype, ctx).isIntOrFloat()
 bool isIntOrFloatDType(DType);
 
-// == mlirTypeOf(dtype, ctx).isSignlessInteger()
+// == mlirTypeOfDType(dtype, ctx).isSignlessInteger()
 bool isSignedIntDType(DType);
 
-// == mlirTypeOf(dtype, ctx).isUnsignedInteger()
+// == mlirTypeOfDType(dtype, ctx).isUnsignedInteger()
 bool isUnsignedIntDType(DType);
 
-// == mlirTypeOf(dtype, ctx).getIntOrFloatBitWidth()
+// == mlirTypeOfDType(dtype, ctx).getIntOrFloatBitWidth()
 unsigned bitwidthOfDType(DType);
 
-// == getIntOrFloatByteWidth(mlirTypeOf(dtype, ctx))
+// == getIntOrFloatByteWidth(mlirTypeOfDType(dtype, ctx))
 unsigned bytewidthOfDType(DType);
 
 // == toDType<DTypeTrait<dtype>::widetype> if dtype is constexpr

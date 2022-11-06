@@ -43,7 +43,7 @@ DType dtypeOf(Type type) {
   // clang-format on
 }
 
-Type mlirTypeOf(DType dtype, MLIRContext *ctx) {
+Type mlirTypeOfDType(DType dtype, MLIRContext *ctx) {
   constexpr bool isUnsigned = false;
   Builder b(ctx);
   // clang-format off
