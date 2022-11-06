@@ -118,19 +118,29 @@ class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr, Attribute,
           DisposableElementsAttributeStorage, ElementsAttr::Trait,
           TypedAttr::Trait> {
+  using Base::Base;
+
 public:
-  friend class DisposablePool;
   using Storage = DisposableElementsAttributeStorage;
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Properties = DisposableElementsAttributeProperties;
   using Reader = DisposableElementsAttributeReader;
-  using DType = onnx_mlir::DType;     // For convenience.
-  using WideNum = onnx_mlir::WideNum; // For convenience.
+  // DType and WideNum are ubiquitous in the class definition and these using
+  // statements are convenient as they let us omit their namespace qualifier.
+  using DType = onnx_mlir::DType;
+  using WideNum = onnx_mlir::WideNum;
+
+  //===----------------------------------------------------------------------===//
+  // Instantiation:
+  //
+  // The get methods are private and are only accessed from DisposablePool.
+  // Call DisposablePool::get(..) to instantiate DisposableElementsAttr.
+  //===----------------------------------------------------------------------===//
+public:
+  friend class DisposablePool;
 
 private:
-  using Base::Base;
-
   // Checks the buffer contents to detect if it's splat.
   // To bypass this check, e.g. if the buffer mmaps a file and you don't
   // want to read it here, call get(type, bufferDType, /*isBufferSplat=*/false,
@@ -187,12 +197,9 @@ private:
         type, strides, properties, std::move(buffer), std::move(reader));
   }
 
+  // Internal method called by get(..) methods.
   static DisposableElementsAttr create(ShapedType type, Strides strides,
       Properties properties, const Buffer &buffer, Reader reader = nullptr);
-
-  static Reader getIdentityReader(DType);
-
-  static Reader getSplatReader(DType, StringRef rawBytes);
 
 public:
   DisposableElementsAttr(std::nullptr_t) {}
@@ -202,13 +209,10 @@ public:
     return *this ? cast<ElementsAttr>() : nullptr;
   }
 
-  void printWithoutType(raw_ostream &os) const;
-
+  //===----------------------------------------------------------------------===//
+  // Instance properties:
+  //===----------------------------------------------------------------------===//
 private:
-  //===----------------------------------------------------------------------===//
-  // Instance properties.
-  //===----------------------------------------------------------------------===//
-
   bool isDisposed() const;
 
   bool isContiguous() const { return getProperties().isContiguous; }
@@ -236,11 +240,10 @@ public:
   int64_t getRank() const { return getType().getRank(); }
   int64_t getNumElements() const { return getType().getNumElements(); }
 
-private:
   //===----------------------------------------------------------------------===//
   // Iteration:
   //===----------------------------------------------------------------------===//
-
+private:
   // True for the types T in NonContiguousIterableTypesT.
   template <typename T>
   static constexpr bool isIterableType =
@@ -299,11 +302,10 @@ public:
     return detail::endMappedIndexIterator<X>(getNumElements(), nullptr);
   }
 
-private:
   //===----------------------------------------------------------------------===//
   // Other access to the elements:
   //===----------------------------------------------------------------------===//
-
+private:
   // Warning: this is somewhat inefficient because it invokes getReader().
   // It's more efficient to copy out data in bulk with readElements().
   WideNum readBufferPos(size_t pos) const {
@@ -416,6 +418,8 @@ public:
     }
     return std::move(bytes);
   }
+
+  void printWithoutType(raw_ostream &os) const;
 
 }; // class DisposableElementsAttr
 

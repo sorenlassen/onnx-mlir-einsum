@@ -104,6 +104,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
 };
 
 namespace {
+
 template <DType DTYPE>
 void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
   using X = CppType<DTYPE>;
@@ -112,6 +113,24 @@ void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
   std::transform(src.begin(), src.end(), dst.begin(),
       [](X x) { return WideNum::from<X>(DTYPE, x); });
 }
+
+DisposableElementsAttributeReader getIdentityReader(onnx_mlir::DType dtype) {
+  return dispatchByDType(
+      dtype, [](auto staticDType) { return identityReader<staticDType>; });
+}
+
+DisposableElementsAttributeReader getSplatReader(
+    onnx_mlir::DType dtype, StringRef rawBytes) {
+  unsigned bytewidth = bytewidthOfDType(dtype);
+  ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
+  WideNum splatValue = WideNum::load(dtype, memory);
+  return [=](StringRef s, MutableArrayRef<WideNum> dst) {
+    assert(s.size() == bytewidth);
+    assert(dst.size() == 1);
+    *dst.begin() = splatValue;
+  };
+}
+
 } // namespace
 
 /*static*/
@@ -134,26 +153,6 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
     s.reader = getIdentityReader(properties.bufferDType);
   }
   return a;
-}
-
-/*static*/
-auto DisposableElementsAttr::getIdentityReader(onnx_mlir::DType dtype)
-    -> Reader {
-  return dispatchByDType(
-      dtype, [](auto staticDType) { return identityReader<staticDType>; });
-}
-
-/*static*/
-auto DisposableElementsAttr::getSplatReader(
-    onnx_mlir::DType dtype, StringRef rawBytes) -> Reader {
-  unsigned bytewidth = bytewidthOfDType(dtype);
-  ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
-  WideNum splatValue = WideNum::load(dtype, memory);
-  return [=](StringRef s, MutableArrayRef<WideNum> dst) {
-    assert(s.size() == bytewidth);
-    assert(dst.size() == 1);
-    *dst.begin() = splatValue;
-  };
 }
 
 bool DisposableElementsAttr::isDisposed() const {
