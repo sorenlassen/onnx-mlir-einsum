@@ -45,8 +45,8 @@ inline raw_ostream &operator<<(raw_ostream &os, FP16Type fp16) {
 inline raw_ostream &operator<<(raw_ostream &os, APFloat af) {
   return os << "APFloat(" << af.convertToDouble() << ")";
 }
-inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::IntOrFP n) {
-  return os << "IntOrFP(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
+inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::WideNum n) {
+  return os << "WideNum(i=" << n.i64 << ",u=" << n.u64 << ",f=" << n.dbl << ")";
 }
 inline raw_ostream &operator<<(raw_ostream &os, onnx_mlir::DType dtype) {
   return os << "DType(" << static_cast<int>(dtype) << ")";
@@ -173,21 +173,21 @@ public:
     return 0;
   }
 
-  int test_IntOrFP() {
-    llvm::errs() << "test_IntOrFP:\n";
-    constexpr IntOrFP nf = IntOrFP::from(DType::DOUBLE, 42.0);
+  int test_WideNum() {
+    llvm::errs() << "test_WideNum:\n";
+    constexpr WideNum nf = WideNum::from(DType::DOUBLE, 42.0);
     llvm::errs() << "nf " << nf << "\n";
     llvm::errs() << "nf as APFloat " << nf.toAPFloat(DType::DOUBLE) << "\n";
     constexpr int64_t i = -42;
-    constexpr IntOrFP ni = IntOrFP::from(DType::INT64, i);
+    constexpr WideNum ni = WideNum::from(DType::INT64, i);
     llvm::errs() << "ni " << ni << "\n";
     llvm::errs() << "ni as APInt " << ni.toAPInt(DType::INT64) << "\n";
     constexpr uint64_t u = 1ULL << 63;
-    constexpr IntOrFP nu = IntOrFP::from(DType::UINT64, u);
+    constexpr WideNum nu = WideNum::from(DType::UINT64, u);
     llvm::errs() << "nu " << nu << "\n";
     llvm::errs() << "nu as APInt " << nu.toAPInt(DType::UINT64) << "\n";
     constexpr bool b = true;
-    constexpr IntOrFP nb = IntOrFP::from(DType::UINT64, b);
+    constexpr WideNum nb = WideNum::from(DType::UINT64, b);
     constexpr bool b3 = nb.to<bool>(DType::BOOL);
     llvm::errs() << "b3 " << b3 << "\n";
     return 0;
@@ -378,7 +378,7 @@ int main(int argc, char *argv[]) {
   failures += test.test_dispatch_DTypeToken();
   failures += test.test_float_16();
   failures += test.test_DType();
-  failures += test.test_IntOrFP();
+  failures += test.test_WideNum();
   failures += test.test_DisposablePool();
   failures += test.test_makeDense();
   failures += test.test_splat();

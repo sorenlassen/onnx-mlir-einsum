@@ -21,6 +21,7 @@
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
+#include "src/Support/WideNum.hpp"
 
 using namespace mlir;
 
@@ -135,9 +136,9 @@ RawBuffer getElementsRawBytes(ElementsAttr elements) {
   llvm_unreachable("unexpected ElementsAttr instance");
 }
 
-ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
+ArrayBuffer<WideNum> getElementsWideNums(ElementsAttr elements) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
-    return disposable.getIntOrFPs();
+    return disposable.getWideNums();
   ArrayRef<char> rawData;
   if (auto denseResrc = elements.dyn_cast<DenseResourceElementsAttr>()) {
     rawData = denseResrc.getRawHandle().getResource()->getBlob()->getData();
@@ -153,7 +154,7 @@ ArrayBuffer<IntOrFP> getElementsIntOrFPs(ElementsAttr elements) {
 
 namespace {
 
-void readElements(ElementsAttr elements, MutableArrayRef<IntOrFP> dst) {
+void readElements(ElementsAttr elements, MutableArrayRef<WideNum> dst) {
   if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
     disposable.readElements(dst);
     return;
@@ -162,7 +163,7 @@ void readElements(ElementsAttr elements, MutableArrayRef<IntOrFP> dst) {
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
     using S = CppType<dtype>;
     fillOrTransform(castArrayRef<S>(src.get()), dst,
-        [](S v) { return IntOrFP::from<S>(toDType<S>, v); });
+        [](S v) { return WideNum::from<S>(toDType<S>, v); });
   });
 }
 
@@ -170,12 +171,12 @@ void readElements(ElementsAttr elements, MutableArrayRef<IntOrFP> dst) {
 
 void readIntElements(ElementsAttr elements, MutableArrayRef<int64_t> ints) {
   assert(elements.getType().getElementType().isa<IntegerType>());
-  readElements(elements, castMutableArrayRef<IntOrFP>(ints));
+  readElements(elements, castMutableArrayRef<WideNum>(ints));
 }
 
 void readFPElements(ElementsAttr elements, MutableArrayRef<double> fps) {
   assert(elements.getType().getElementType().isa<FloatType>());
-  readElements(elements, castMutableArrayRef<IntOrFP>(fps));
+  readElements(elements, castMutableArrayRef<WideNum>(fps));
 }
 
 DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {

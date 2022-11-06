@@ -12,6 +12,7 @@
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Support/Strides.hpp"
+#include "src/Support/WideNum.hpp"
 
 using namespace mlir;
 
@@ -41,13 +42,13 @@ DimsVector untransposeDims(ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
   return unpermutedDims;
 }
 
-void transformArray(Type srcElementType, ArrayRef<IntOrFP> src,
+void transformArray(Type srcElementType, ArrayRef<WideNum> src,
     Type dstElementType, MutableArrayRef<char> dst,
     const Transformation &transformation) {
   dispatchByMlirType(dstElementType, [&](auto dtype) {
     using D = CppType<dtype>;
     auto dbegin = castMutableArrayRef<D>(dst).begin();
-    std::transform(src.begin(), src.end(), dbegin, [&](IntOrFP n) -> D {
+    std::transform(src.begin(), src.end(), dbegin, [&](WideNum n) -> D {
       return transformation(n).template to<D>(toDType<D>);
     });
   });
@@ -86,7 +87,7 @@ ElementsAttr transformElements(ElementsAttr elements,
   ShapedType transformedType = elements.getType().clone(transformedElementType);
   // TODO: if elements is disposable just compose transformation with its
   // transform
-  ArrayBuffer<IntOrFP> src = getElementsIntOrFPs(elements);
+  ArrayBuffer<WideNum> src = getElementsWideNums(elements);
   return makeElementsAttrWithRawBytesFiller(
       transformedType, [&](MutableArrayRef<char> dst) {
         transformArray(elements.getElementType(), src.get(),

@@ -28,12 +28,12 @@ size_t detail::uniqueNumber() {
 
 namespace {
 template <DType DTYPE>
-void identityReader(StringRef s, MutableArrayRef<IntOrFP> dst) {
+void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
   using X = CppType<DTYPE>;
   auto src = asArrayRef<X>(s);
   assert(src.size() == dst.size());
   std::transform(src.begin(), src.end(), dst.begin(),
-      [](X x) { return IntOrFP::from<X>(DTYPE, x); });
+      [](X x) { return WideNum::from<X>(DTYPE, x); });
 }
 } // namespace
 
@@ -47,8 +47,8 @@ auto DisposableElementsAttr::getSplatReader(
     onnx_mlir::DType dtype, StringRef rawBytes) -> Reader {
   unsigned bytewidth = bytewidthOfDType(dtype);
   ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
-  IntOrFP splatValue = IntOrFP::load(dtype, memory);
-  return [=](StringRef s, MutableArrayRef<IntOrFP> dst) {
+  WideNum splatValue = WideNum::load(dtype, memory);
+  return [=](StringRef s, MutableArrayRef<WideNum> dst) {
     assert(s.size() == bytewidth);
     assert(dst.size() == 1);
     *dst.begin() = splatValue;

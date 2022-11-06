@@ -19,7 +19,7 @@ class Type;
 
 namespace onnx_mlir {
 
-union IntOrFP;
+union WideNum;
 
 // Light-weight version of MemoryBuffer. Can either point to external memory or
 // hold internal memory. An ArrayBuffer can only be moved, not copied.
@@ -51,7 +51,7 @@ private:
   const llvm::ArrayRef<T> ref;
 };
 
-using RawBuffer = ArrayBuffer<char>;
+using RawBuffer = ArrayBuffer<char>; // TODO: remove this
 
 template <typename New, typename Old = char>
 llvm::ArrayRef<New> castArrayRef(llvm::ArrayRef<Old> a) {
@@ -87,15 +87,15 @@ void fillOrTransform(
 }
 
 void widenArray(mlir::Type elementType, llvm::ArrayRef<char> bytes,
-    llvm::MutableArrayRef<IntOrFP> wideData);
+    llvm::MutableArrayRef<WideNum> wideData);
 
-void narrowArray(mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData,
+void narrowArray(mlir::Type elementType, llvm::ArrayRef<WideNum> wideData,
     llvm::MutableArrayRef<char> bytes);
 
-ArrayBuffer<IntOrFP> widenOrReturnArray(
+ArrayBuffer<WideNum> widenOrReturnArray(
     mlir::Type elementType, llvm::ArrayRef<char> bytes);
 
 ArrayBuffer<char> narrowOrReturnArray(
-    mlir::Type elementType, llvm::ArrayRef<IntOrFP> wideData);
+    mlir::Type elementType, llvm::ArrayRef<WideNum> wideData);
 
 } // namespace onnx_mlir

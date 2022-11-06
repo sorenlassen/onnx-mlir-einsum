@@ -25,6 +25,7 @@
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 #include "src/Support/Strides.hpp"
+#include "src/Support/WideNum.hpp"
 
 #include <memory>
 #include <unordered_set>
@@ -73,13 +74,13 @@ struct DisposableElementsAttributeProperties {
   // Do the strides match the type's shape?
   bool isContiguous;
 
-  // Is the reader just casting the underlying bufferDType to IntOrFP?
+  // Is the reader just casting the underlying bufferDType to WideNum?
   // In this case dtypeBuffer and dtype must have the same widetype.
   bool isTransformed;
 };
 
 using DisposableElementsAttributeReader =
-    std::function<void(StringRef, MutableArrayRef<onnx_mlir::IntOrFP>)>;
+    std::function<void(StringRef, MutableArrayRef<onnx_mlir::WideNum>)>;
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
@@ -146,7 +147,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // file closed) when no one points to it anymore.
   Buffer buffer;
 
-  // Reads the buffer elements to IntOrFPs corresponding to type's
+  // Reads the buffer elements to WideNums corresponding to type's
   // element type. Is set to the identity reader function if data is not
   // transformed, namely when properties.isTransformed is false.
   //
@@ -200,6 +201,8 @@ public:
   using Buffer = typename Storage::Buffer;
   using Properties = DisposableElementsAttributeProperties;
   using Reader = DisposableElementsAttributeReader;
+  using DType = onnx_mlir::DType;     // For convenience.
+  using WideNum = onnx_mlir::WideNum; // For convenience.
 
 private:
   using Base::Base;
@@ -222,7 +225,7 @@ private:
   // Assumes isTransformed if reader != nullptr.
   static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
       const Buffer &buffer, Reader reader = nullptr) {
-    onnx_mlir::DType dtype = onnx_mlir::dtypeOf(type.getElementType());
+    DType dtype = onnx_mlir::dtypeOf(type.getElementType());
     SmallVector<int64_t, 4> strides;
     if (!isBufferSplat)
       strides = onnx_mlir::getDefaultStrides(type.getShape());
@@ -280,9 +283,9 @@ private:
     return a;
   }
 
-  static Reader getIdentityReader(onnx_mlir::DType);
+  static Reader getIdentityReader(DType);
 
-  static Reader getSplatReader(onnx_mlir::DType, StringRef rawBytes);
+  static Reader getSplatReader(DType, StringRef rawBytes);
 
 public:
   DisposableElementsAttr(std::nullptr_t) {}
@@ -329,7 +332,7 @@ public:
     assert(!isDisposed());
     return getImpl()->reader;
   }
-  onnx_mlir::DType getDType() const { return getProperties().dtype; }
+  DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the reader function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
@@ -343,13 +346,13 @@ private:
   // True for the types T in NonContiguousIterableTypesT.
   template <typename T>
   static constexpr bool isIterableType =
-      (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
+      (onnx_mlir::CppTypeTrait<T>::dtype != DType::UNDEFINED &&
           onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
       std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
 
   // Supports all the types T in NonContiguousIterableTypesT.
   template <typename X>
-  static X getNumber(onnx_mlir::DType tag, onnx_mlir::IntOrFP n) {
+  static X getNumber(DType tag, WideNum n) {
     static_assert(isIterableType<X>);
     if constexpr (std::is_same_v<X, llvm::APFloat>)
       return n.toAPFloat(tag);
@@ -379,7 +382,7 @@ public:
   template <typename X>
   FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const {
     if constexpr (isIterableType<X>) {
-      onnx_mlir::DType dtype = getDType();
+      DType dtype = getDType();
       DisposableElementsAttr attr = *this;
       return detail::beginMappedIndexIterator<X>(
           getNumElements(), [dtype, attr](size_t flatIndex) -> X {
@@ -402,8 +405,8 @@ private:
   // Other access to the elements:
   //===----------------------------------------------------------------------===//
 
-  onnx_mlir::IntOrFP readBufferPos(size_t pos) const {
-    onnx_mlir::IntOrFP n;
+  WideNum readBufferPos(size_t pos) const {
+    WideNum n;
     StringRef s = getBuffer()->getBuffer();
     // TODO: consider precomputing bytewidth in properties so
     //       we don't need to compute it all the time
@@ -414,7 +417,7 @@ private:
   }
 
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
-  onnx_mlir::IntOrFP readFlatIndex(size_t flatIndex) const {
+  WideNum readFlatIndex(size_t flatIndex) const {
     SmallVector<int64_t, 4> indices;
     onnx_mlir::unflattenIndex(getShape(), flatIndex, indices);
     size_t pos = onnx_mlir::getStridesPosition(indices, getStrides());
@@ -452,30 +455,29 @@ public:
       return toDenseElementsAttrByType<APFloat>();
   }
 
-  void readElements(MutableArrayRef<onnx_mlir::IntOrFP> dst) const {
+  void readElements(MutableArrayRef<WideNum> dst) const {
     if (isContiguous()) {
       getReader()(getBuffer()->getBuffer(), dst);
     }
-    SmallVector<onnx_mlir::IntOrFP, 1> wideBufferData;
+    SmallVector<WideNum, 1> wideBufferData;
     wideBufferData.resize_for_overwrite(getNumBufferElements());
     getReader()(getBuffer()->getBuffer(), wideBufferData);
     ArrayRef<int64_t> shape = getShape();
     ArrayRef<int64_t> srcStrides = getStrides();
-    ArrayRef<onnx_mlir::IntOrFP> src(wideBufferData);
-    onnx_mlir::restrideArray(sizeof(onnx_mlir::IntOrFP), shape,
+    ArrayRef<WideNum> src(wideBufferData);
+    onnx_mlir::restrideArray(sizeof(WideNum), shape,
         onnx_mlir::castArrayRef<char>(src), srcStrides,
         onnx_mlir::castMutableArrayRef<char>(dst));
   }
 
-  onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP> getIntOrFPs() const {
+  onnx_mlir::ArrayBuffer<WideNum> getWideNums() const {
     const Properties &properties = getProperties();
     if (!properties.isTransformed && properties.isContiguous &&
         onnx_mlir::bytewidthOfDType(properties.bufferDType) ==
-            sizeof(onnx_mlir::IntOrFP)) {
-      return onnx_mlir::asArrayRef<onnx_mlir::IntOrFP>(
-          getBuffer()->getBuffer());
+            sizeof(WideNum)) {
+      return onnx_mlir::asArrayRef<WideNum>(getBuffer()->getBuffer());
     }
-    onnx_mlir::ArrayBuffer<onnx_mlir::IntOrFP>::Vector vec;
+    onnx_mlir::ArrayBuffer<WideNum>::Vector vec;
     vec.resize_for_overwrite(getNumElements());
     readElements(vec);
     return std::move(vec);
@@ -493,10 +495,10 @@ public:
     onnx_mlir::ArrayBuffer<char>::Vector vec;
     vec.resize_for_overwrite(getNumElements() * bytewidth);
     MutableArrayRef<char> bytes(vec);
-    if (bytewidth == sizeof(onnx_mlir::IntOrFP)) {
-      readElements(onnx_mlir::castMutableArrayRef<onnx_mlir::IntOrFP>(bytes));
+    if (bytewidth == sizeof(WideNum)) {
+      readElements(onnx_mlir::castMutableArrayRef<WideNum>(bytes));
     } else {
-      SmallVector<onnx_mlir::IntOrFP, 1> wideData;
+      SmallVector<WideNum, 1> wideData;
       wideData.resize_for_overwrite(getNumElements());
       readElements(wideData);
       onnx_mlir::narrowArray(getElementType(), wideData, bytes);

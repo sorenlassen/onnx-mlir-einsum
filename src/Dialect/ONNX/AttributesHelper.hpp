@@ -22,6 +22,8 @@ class raw_ostream;
 
 namespace onnx_mlir {
 
+union WideNum;
+
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
 
@@ -42,7 +44,7 @@ mlir::ElementsAttr makeElementsAttrWithRawBytesFiller(
 
 RawBuffer getElementsRawBytes(mlir::ElementsAttr elements);
 
-ArrayBuffer<IntOrFP> getElementsIntOrFPs(mlir::ElementsAttr elements);
+ArrayBuffer<WideNum> getElementsWideNums(mlir::ElementsAttr elements);
 
 void readIntElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<int64_t> ints);

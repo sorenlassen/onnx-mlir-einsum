@@ -85,6 +85,12 @@ const StringRef BUFFER_ID_ATTR = "buffer_id";
 /// Buffer pool to store buffer pointers.
 SmallVector<char *, 4> bufferPtrs;
 
+template <typename U>
+using EnableFloat = std::enable_if_t<CppTypeTrait<U>::isFloat>;
+
+template <typename U>
+using EnableNotBool = std::enable_if_t<!std::is_same_v<U, bool>>;
+
 template <typename S>
 void castAndCopy(Type dstElemType, ArrayRef<S> src, MutableArrayRef<char> dst) {
   dispatchByMlirType(dstElemType, [&](auto dstDType) {
