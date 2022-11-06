@@ -276,17 +276,6 @@ private:
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
   size_t flatIndexToBufferPos(size_t flatIndex) const;
 
-  template <typename X>
-  DenseElementsAttr toDenseElementsAttrByType() const {
-    if (isSplat())
-      return DenseElementsAttr::get(getType(), getSplatValue<X>());
-    std::vector<X> xs;
-    xs.reserve(getNumElements());
-    for (X x : getValues<X>())
-      xs.emplace_back(x);
-    return DenseElementsAttr::get(getType(), xs);
-  }
-
 public:
   template <typename X>
   llvm::Optional<X> tryGetSplatValue() const {
