@@ -223,8 +223,8 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
   if (isSplat())
     return 0;
   SmallVector<int64_t, 4> indices;
-  unflattenIndex(getShape(), flatIndex, indices);
-  return getStridesPosition(indices, getStrides());
+  return getStridesPosition(
+      unflattenIndex(getShape(), flatIndex), getStrides());
 }
 
 void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {

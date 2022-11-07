@@ -105,21 +105,23 @@ SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {
   return strides;
 }
 
-void unflattenIndex(ArrayRef<int64_t> shape, int64_t flatIndex,
-    SmallVectorImpl<int64_t> &indices) {
+SmallVector<int64_t, 4> unflattenIndex(
+    ArrayRef<int64_t> shape, int64_t flatIndex) {
+  SmallVector<int64_t, 4> indices;
   int64_t rank = shape.size();
-  indices.resize_for_overwrite(rank);
-  if (rank == 0)
-    return;
-  for (int64_t axis = rank - 1; axis >= 1; --axis) {
-    int64_t dimSize = shape[axis];
-    assert(dimSize > 0 && "cannot unflatten shape with zeros");
-    int64_t rem = flatIndex % dimSize;
-    flatIndex /= dimSize;
-    indices[axis] = rem;
+  if (rank > 0) {
+    indices.resize_for_overwrite(rank);
+    for (int64_t axis = rank - 1; axis >= 1; --axis) {
+      int64_t dimSize = shape[axis];
+      assert(dimSize > 0 && "cannot unflatten shape with zeros");
+      int64_t rem = flatIndex % dimSize;
+      flatIndex /= dimSize;
+      indices[axis] = rem;
+    }
+    assert(flatIndex < shape[0]);
+    indices[0] = flatIndex;
   }
-  assert(flatIndex < shape[0]);
-  indices[0] = flatIndex;
+  return indices;
 }
 
 SmallVector<int64_t, 4> padStrides(
