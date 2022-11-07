@@ -2,20 +2,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===---------------------- DisposableElementsAttr.cpp --------------------===//
+//===-------------------------- DisposablePool.cpp ------------------------===//
 //
-// DisposableElementsAttr, garbage collectible alternative to DenseElementsAttr.
-//
-// NOTE: This source file is to compiled separately and linked by CMake,
-// instead it's included by ONNXOps.cpp, because it needs to see the
-// complete definition of DisposableElementsAttributeStorage in order to
-// add DisposableElementsAttr to the ONNX dialect.
+// DisposablePool manages instances of DisposableElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 
 #include "src/Dialect/ONNX/DisposablePool.hpp"
 #include "src/Dialect/ONNX/DisposableElementsAttributeStorage.hpp"
 
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 
@@ -64,9 +60,7 @@ void DisposablePool::scrub(ModuleOp moduleOp) {
       if (auto elements = attr->dyn_cast<DisposableElementsAttr>()) {
         assert(this->pool.count(elements.getImpl()) == 1 &&
                "reachable disposables must be in the pool");
-        ArrayBuffer<char> rawBuffer = getElementsRawBytes(elements);
-        constOp.valueAttr(DenseElementsAttr::getFromRawBuffer(
-            elements.getType(), rawBuffer.get()));
+        constOp.valueAttr(toDenseElementsAttr(elements));
       }
   });
   eraseUnreachable({});
@@ -88,4 +82,4 @@ void DisposablePool::eraseUnreachable(const Pool &reachable) {
   }
 }
 
-}
+} // namespace onnx_mlir

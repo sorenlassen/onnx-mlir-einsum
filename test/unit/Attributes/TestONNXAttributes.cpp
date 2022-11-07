@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/DisposablePool.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
@@ -250,8 +251,8 @@ public:
     llvm::errs() << "x " << x << "\n";
     auto f = i.getSplatValue<APFloat>();
     assert(fabs(f.convertToDouble() - 4.2) < 1e-6);
-    auto d = i.toDenseElementsAttr();
-    d = i.toDenseElementsAttr();
+    auto d = toDenseElementsAttr(i);
+    d = toDenseElementsAttr(i);
     llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
@@ -274,8 +275,8 @@ public:
     auto b = i.value_begin<float>();
     auto x = *b;
     llvm::errs() << "x " << x << "\n";
-    auto d = i.toDenseElementsAttr();
-    d = i.toDenseElementsAttr();
+    auto d = toDenseElementsAttr(i);
+    d = toDenseElementsAttr(i);
     llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
@@ -297,8 +298,8 @@ public:
     auto b = i.value_begin<bool>();
     auto x = *b;
     llvm::errs() << "x " << x << "\n";
-    auto d = i.toDenseElementsAttr();
-    d = i.toDenseElementsAttr();
+    auto d = toDenseElementsAttr(i);
+    d = toDenseElementsAttr(i);
     llvm::errs() << "as DenseElementsAttr " << d << "\n";
     return 0;
   }
@@ -311,8 +312,8 @@ public:
     assert(a);
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
-    auto d = i.toDenseElementsAttr();
-    d = a.cast<DisposableElementsAttr>().toDenseElementsAttr();
+    auto d = toDenseElementsAttr(i);
+    d = toDenseElementsAttr(a.cast<DisposableElementsAttr>());
     llvm::errs() << "as DisposableElementsAttr " << i << "\n";
     llvm::errs() << "as DenseElementsAttr " << d << "\n";
     llvm::errs() << "as Attribute " << a << "\n";

@@ -245,7 +245,8 @@ public:
     return *tryGetSplatValue<X>();
   }
 
-  DenseElementsAttr toDenseElementsAttr() const;
+  // // TODO: move this to a AttributesHelper function
+  // DenseElementsAttr toDenseElementsAttr() const;
 
   // Copies out the elements in a flat array in row-major order.
   void readElements(MutableArrayRef<WideNum> dst) const;
@@ -255,7 +256,10 @@ public:
   onnx_mlir::ArrayBuffer<WideNum> getWideNums() const;
 
   // Returns a pointer to the underlying data, if everything aligns,
-  // otherwise makes and returns a copy.
+  // otherwise makes and returns a copy. Contrary to
+  // DenseElementsAttr::getRawData(), if the element type is bool the returned
+  // data here is not bit packed but instead holds one byte (zero or one) per
+  // bool.
   onnx_mlir::ArrayBuffer<char> getRawBytes() const;
 
   void printWithoutType(raw_ostream &os) const;

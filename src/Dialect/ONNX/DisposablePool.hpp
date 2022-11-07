@@ -2,9 +2,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-//===---------------------- DisposableElementsAttr.hpp --------------------===//
+//===-------------------------- DisposablePool.hpp ------------------------===//
 //
-// DisposableElementsAttr, garbage collectible alternative to DenseElementsAttr.
+// DisposablePool manages instances of DisposableElementsAttr.
+// It creates them, maintains a record of them until they are deemed
+// unreachable, and it can be called to garbage collect those that are
+// unreachable, and to replace them with DenseElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 

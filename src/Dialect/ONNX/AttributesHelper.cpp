@@ -180,7 +180,7 @@ void readFPElements(ElementsAttr elements, MutableArrayRef<double> fps) {
   readElements(elements, castMutableArrayRef<WideNum>(fps));
 }
 
-DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
+DenseElementsAttr toDenseElementsAttr(ElementsAttr elements) {
   llvm::errs() << "toDenseElementsAttribute " << elements.getType() << "\n";
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
@@ -189,8 +189,10 @@ DenseElementsAttr toDenseElementsAttribute(ElementsAttr elements) {
         denseResrc.getRawHandle().getResource()->getBlob()->getData();
     return DenseElementsAttr::getFromRawBuffer(denseResrc.getType(), bytes);
   }
-  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
-    return disposable.toDenseElementsAttr();
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    ArrayBuffer<char> bytes = disposable.getRawBytes();
+    return makeDenseElementsAttrFromRawBytes(disposable.getType(), bytes.get());
+  }
   // TODO: read data from elements.getValues() instead of giving up
   llvm_unreachable("unexpected ElementsAttr instance");
 }

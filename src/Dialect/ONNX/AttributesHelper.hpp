@@ -52,7 +52,7 @@ void readIntElements(
 void readFPElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
-mlir::DenseElementsAttr toDenseElementsAttribute(mlir::ElementsAttr elements);
+mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
 
 // Prints elements the same way as DenseElementsAttr.
 void printIntOrFPElementsAttrAsDense(

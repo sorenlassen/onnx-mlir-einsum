@@ -6,20 +6,12 @@
 //
 // DisposableElementsAttr, garbage collectible alternative to DenseElementsAttr.
 //
-// NOTE: This source file is to compiled separately and linked by CMake,
-// instead it's included by ONNXOps.cpp, because it needs to see the
-// complete definition of DisposableElementsAttributeStorage in order to
-// add DisposableElementsAttr to the ONNX dialect.
-//
 //===----------------------------------------------------------------------===//
 
 #include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/DisposableElementsAttributeStorage.hpp"
 
-#include "src/Dialect/ONNX/ONNXDialect.hpp"
-
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
-#include "src/Dialect/ONNX/ONNXOps.hpp" // ONNXConstantOp
 
 using namespace onnx_mlir;
 
@@ -181,15 +173,15 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
   return getStridesPosition(indices, getStrides());
 }
 
-DenseElementsAttr DisposableElementsAttr::toDenseElementsAttr() const {
-  ArrayBuffer<char> bytes = getRawBytes();
-  if (!getElementType().isInteger(1))
-    return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
-  // DenseElementsAttr::getFromRawBuffer bit packs bools so we
-  // cannot use it, so we pass as ArrayRef<bool> instead:
-  auto bools = castArrayRef<bool>(bytes.get());
-  return DenseElementsAttr::get(getType(), bools);
-}
+// DenseElementsAttr DisposableElementsAttr::toDenseElementsAttr() const {
+//   ArrayBuffer<char> bytes = getRawBytes();
+//   if (!getElementType().isInteger(1))
+//     return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
+//   // DenseElementsAttr::getFromRawBuffer bit packs bools so we
+//   // cannot use it, so we pass as ArrayRef<bool> instead:
+//   auto bools = castArrayRef<bool>(bytes.get());
+//   return DenseElementsAttr::get(getType(), bools);
+// }
 
 void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   if (isContiguous()) {
