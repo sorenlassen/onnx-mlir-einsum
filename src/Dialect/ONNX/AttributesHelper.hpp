@@ -25,7 +25,16 @@ namespace onnx_mlir {
 
 union WideNum;
 
-// TODO: remove some of these functions (they overlap and are not all used).
+// Makes deep copy of elements, unless they are already a DenseElementsAttr.
+mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
+
+// Makes a DisposableElementsAttr that points to elements' raw data, if
+// elements is DenseElementsAttr, except if the element type is bool, then
+// it makes a deep copy because DisposableElementsAttr doesn't bit pack bools.
+mlir::DisposableElementsAttr toDisposableElementsAttr(
+    mlir::ElementsAttr elements);
+
+// TODO: remove some of these functions (they overlap and are not all used):
 
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
@@ -60,11 +69,6 @@ void readIntElements(
 
 void readFPElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
-
-mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
-
-mlir::DisposableElementsAttr toDisposableElementsAttr(
-    mlir::ElementsAttr elements);
 
 // Prints elements the same way as DenseElementsAttr.
 void printIntOrFPElementsAttrAsDense(
