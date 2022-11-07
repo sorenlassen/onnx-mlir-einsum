@@ -12,6 +12,7 @@
 #include "src/Dialect/ONNX/DisposableElementsAttributeStorage.hpp"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
 
 using namespace onnx_mlir;
 
@@ -113,11 +114,36 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
                wideDTypeOfDType(properties.dtype) &&
            "buffer wide type mismatch requires transforming reader");
     if (properties.isBufferSplat) {
+      // TODO: decide whether to remove this and use identity reader also for
+      // splat
       s.reader = getSplatReader(properties.bufferDType, buffer->getBuffer());
     }
     s.reader = getIdentityReader(properties.bufferDType);
   }
   return a;
+}
+
+DisposableElementsAttr DisposableElementsAttr::transpose(
+    DisposablePool &pool, ArrayRef<uint64_t> perm) const {
+  // TODO: if getStrides() don't conflict with perm clone *this
+  //       with strides that incorporate perm, otherwise create a new
+  //       MemoryBuffer and restrideArray buffer into it
+  llvm_unreachable("TODO: implement DisposableElementsAttr::transpose");
+}
+
+DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
+    Type transformedElementType, Transformer transformer) const {
+  ShapedType transformedType = getType().clone(transformedElementType);
+  Properties transformedProperties = getProperties();
+  transformedProperties.isTransformed = true;
+  transformedProperties.dtype = dtypeOfMlirType(transformedElementType);
+  return pool.createElementsAttr(transformedType, getStrides(),
+      transformedProperties, getBuffer(),
+      [read = getReader(), transform = std::move(transformer)](
+          StringRef s, MutableArrayRef<WideNum> dst) {
+        read(s, dst);
+        transform(dst);
+      });
 }
 
 auto DisposableElementsAttr::getStrides() const -> Strides {

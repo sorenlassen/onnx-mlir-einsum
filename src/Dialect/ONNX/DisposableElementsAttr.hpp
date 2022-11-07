@@ -104,6 +104,7 @@ public:
   };
 
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
+  // TODO: change reader to take ArrayRef<char> as first parameter
   using Reader = std::function<void(StringRef, MutableArrayRef<WideNum>)>;
 
   //===----------------------------------------------------------------------===//
@@ -143,6 +144,14 @@ public:
   operator ElementsAttr() const {
     return *this ? cast<ElementsAttr>() : nullptr;
   }
+
+  DisposableElementsAttr transpose(
+      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> perm) const;
+
+  using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
+
+  DisposableElementsAttr transform(onnx_mlir::DisposablePool &pool,
+      Type transformedElementType, Transformer transformer) const;
 
   //===----------------------------------------------------------------------===//
   // Instance properties:
