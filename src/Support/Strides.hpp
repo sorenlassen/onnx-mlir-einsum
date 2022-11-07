@@ -27,6 +27,7 @@ size_t getStridesPosition(
 llvm::SmallVector<int64_t, 4> getDefaultStrides(llvm::ArrayRef<int64_t> shape);
 
 // NOTE: this function is expensive, try to avoid calling it
+// TODO: change to return indices instead of writing into out parameter
 void unflattenIndex(llvm::ArrayRef<int64_t> shape, int64_t flatIndex,
     llvm::SmallVectorImpl<int64_t> &indices);
 
