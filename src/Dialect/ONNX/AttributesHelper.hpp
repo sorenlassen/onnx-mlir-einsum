@@ -78,11 +78,4 @@ void readIntElements(
 void readFPElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
-// Prints elements the same way as DenseElementsAttr.
-void printIntOrFPElementsAttrAsDense(
-    mlir::ElementsAttr attr, llvm::raw_ostream &os);
-
-void printIntOrFPElementsAttrAsDenseWithoutType(
-    mlir::ElementsAttr attr, llvm::raw_ostream &os);
-
 } // namespace onnx_mlir

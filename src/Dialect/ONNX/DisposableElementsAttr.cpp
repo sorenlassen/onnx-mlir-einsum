@@ -13,6 +13,7 @@
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/DisposablePool.hpp"
+#include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
 using namespace onnx_mlir;
 
