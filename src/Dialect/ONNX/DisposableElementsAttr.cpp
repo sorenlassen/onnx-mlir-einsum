@@ -81,9 +81,9 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
     Reader reader) {
   assert((strides.empty() || strides.front() != 0) &&
          "non-padded strides shouldn't have leading zeros");
-  unsigned bytewidth = bytewidthOfDType(properties.bufferDType);
-  assert(buffer->getBufferSize() % bytewidth == 0);
-  int64_t numBufferElements = buffer->getBufferSize() / bytewidth;
+  unsigned bufBytewidth = bytewidthOfDType(properties.bufferDType);
+  assert(buffer->getBufferSize() % bufBytewidth == 0);
+  int64_t numBufferElements = buffer->getBufferSize() / bufBytewidth;
   auto shape = type.getShape();
   assert(strides.empty() == (numBufferElements == 1));
   assert(properties.isBufferSplat == (numBufferElements == 1));
@@ -121,15 +121,6 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
   return a;
 }
 
-bool DisposableElementsAttr::isDisposed() const {
-  //  TODO: Decide if a splat value can be represented with a constant
-  //        reader with no buffer; in that case isDisposed should
-  //        only return true if both buffer and reader are null.
-  return !getImpl()->buffer;
-}
-
-ShapedType DisposableElementsAttr::getType() const { return getImpl()->type; }
-
 auto DisposableElementsAttr::getStrides() const -> Strides {
   return getImpl()->strides;
 }
@@ -148,12 +139,33 @@ auto DisposableElementsAttr::getReader() const -> const Reader & {
   return getImpl()->reader;
 }
 
+bool DisposableElementsAttr::isDisposed() const {
+  //  TODO: Decide if a splat value can be represented with a constant
+  //        reader with no buffer; in that case isDisposed should
+  //        only return true if both buffer and reader are null.
+  return !getImpl()->buffer;
+}
+
+bool DisposableElementsAttr::isContiguous() const {
+  return getProperties().isContiguous;
+}
+
+unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
+  return bytewidthOfDType(getDType());
+}
+
+bool DisposableElementsAttr::isSplat() const {
+  return getProperties().isBufferSplat;
+}
+
+DType DisposableElementsAttr::getDType() const { return getProperties().dtype; }
+
+ShapedType DisposableElementsAttr::getType() const { return getImpl()->type; }
+
 WideNum DisposableElementsAttr::readBufferPos(size_t pos) const {
   StringRef s = getBuffer()->getBuffer();
-  // TODO: consider precomputing bytewidth in properties so
-  //       we don't need to compute it all the time
-  unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
-  StringRef bytes = s.substr(pos * bytewidth, bytewidth);
+  unsigned bufBytewidth = getBufferElementBytewidth();
+  StringRef bytes = s.substr(pos * bufBytewidth, bufBytewidth);
   WideNum n;
   getReader()(bytes, llvm::makeMutableArrayRef(n));
   return n;
@@ -188,7 +200,7 @@ void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
 ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
   const Properties &properties = getProperties();
   if (!properties.isTransformed && properties.isContiguous &&
-      bytewidthOfDType(properties.bufferDType) == sizeof(WideNum)) {
+      getBufferElementBytewidth() == sizeof(WideNum)) {
     return asArrayRef<WideNum>(getBuffer()->getBuffer());
   }
   ArrayBuffer<WideNum>::Vector vec;
@@ -203,14 +215,14 @@ ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
       !properties.isTransformed && properties.dtype == properties.bufferDType;
   if (requiresNoElementwiseTransformOrCast && properties.isContiguous)
     return asArrayRef(getBuffer()->getBuffer());
-  unsigned bytewidth = bytewidthOfDType(properties.bufferDType);
+  unsigned attrBytewidth = bytewidthOfDType(properties.dtype);
   ArrayBuffer<char>::Vector vec;
-  vec.resize_for_overwrite(getNumElements() * bytewidth);
+  vec.resize_for_overwrite(getNumElements() * attrBytewidth);
   MutableArrayRef<char> bytes(vec);
   if (requiresNoElementwiseTransformOrCast) {
     auto src = asArrayRef(getBuffer()->getBuffer());
-    restrideArray(bytewidth, getShape(), src, getStrides(), bytes);
-  } else if (bytewidth == sizeof(WideNum)) {
+    restrideArray(attrBytewidth, getShape(), src, getStrides(), bytes);
+  } else if (attrBytewidth == sizeof(WideNum)) {
     readElements(castMutableArrayRef<WideNum>(bytes));
   } else {
     SmallVector<WideNum, 1> wideData;

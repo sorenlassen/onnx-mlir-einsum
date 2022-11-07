@@ -217,14 +217,14 @@ public:
         makeElementsAttrFromRawBytes(type, asArrayRef(*b), /*mustCopy=*/true);
     llvm::errs() << "eCopy " << eCopy << "\n";
     assert(eCopy.isa<DisposableElementsAttr>());
-    auto dCopy = eCopy.cast<DisposableElementsAttr>();
-    assert(dCopy.getBuffer()->getBuffer().data() != b->getBuffer().data());
+    // auto dCopy = eCopy.cast<DisposableElementsAttr>();
+    // assert(dCopy.getBuffer()->getBuffer().data() != b->getBuffer().data());
 
     auto e =
         makeElementsAttrFromRawBytes(type, asArrayRef(*b), /*mustCopy=*/false);
     assert(e.isa<DisposableElementsAttr>());
-    auto d = e.cast<DisposableElementsAttr>();
-    assert(d.getBuffer()->getBuffer().data() == b->getBuffer().data());
+    // auto d = e.cast<DisposableElementsAttr>();
+    // assert(d.getBuffer()->getBuffer().data() == b->getBuffer().data());
 
     return 0;
   }

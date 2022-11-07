@@ -149,27 +149,34 @@ public:
   // Instance properties:
   //===----------------------------------------------------------------------===//
 private:
+  Strides getStrides() const;
+
+  const Properties &getProperties() const;
+
+  const Buffer &getBuffer() const;
+
+  const Reader &getReader() const;
+
   bool isDisposed() const;
 
-  bool isContiguous() const { return getProperties().isContiguous; }
+  bool isContiguous() const;
+
+  unsigned getBufferElementBytewidth() const;
 
   int64_t getNumBufferElements() const {
-    unsigned bytewidth = bytewidthOfDType(getProperties().bufferDType);
-    return getBuffer()->getBufferSize() / bytewidth;
+    return getBuffer()->getBufferSize() / getBufferElementBytewidth();
   }
 
 public:
-  ShapedType getType() const;
-  Strides getStrides() const;
-  const Properties &getProperties() const;
-  const Buffer &getBuffer() const;
-  const Reader &getReader() const;
-
-  DType getDType() const { return getProperties().dtype; }
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the reader function maps all
   // elements to the same value, or to verify if a mmap'ed file is splat.
-  bool isSplat() const { return getProperties().isBufferSplat; }
+  bool isSplat() const;
+
+  // Same as dtypeOfMlirType(getElementType()).
+  DType getDType() const;
+
+  ShapedType getType() const;
 
   Type getElementType() const { return getType().getElementType(); }
   ArrayRef<int64_t> getShape() const { return getType().getShape(); }
