@@ -6,8 +6,8 @@
 //
 // Storage for DisposableElementsAttr. For information hiding purposes this
 // should not be included by users of DisposableElementsAttr. It is needed for
-// the implementation DisposableElementsAttr itself and ONNXDialect needs it
-// for dialect registration.
+// the implementation DisposableElementsAttr itself, DisposablePool needs it
+// to create instances, and ONNXDialect needs it for dialect registration.
 //
 //===----------------------------------------------------------------------===//
 
