@@ -5,9 +5,14 @@
 //===-------------------------- DisposablePool.hpp ------------------------===//
 //
 // DisposablePool manages instances of DisposableElementsAttr.
-// It creates them, maintains a record of them until they are deemed
-// unreachable, and it can be called to garbage collect those that are
-// unreachable, and to replace them with DenseElementsAttr.
+// It creates them, maintains a record of them (in a "pool") until they are
+// deemed unreachable, and it can be called to garbage collect those that are
+// unreachable, and to "scrub" all occurrences in a module by replacing each
+// with a DenseElementsAttr.
+//
+// Garbage collected and scrubbed DisposableElementsAttrs are removed from the
+// pool and their reference to the underlying MemoryBuffer is cleared,
+// decrementing the shared_ptr reference count.
 //
 //===----------------------------------------------------------------------===//
 
@@ -31,6 +36,7 @@ public:
   DisposablePool(mlir::Dialect *dialect, mlir::MLIRContext *context);
   ~DisposablePool();
 
+  // Create a DisposableElementsAttr and put it in the pool.
   template <typename... Args>
   mlir::DisposableElementsAttr createElementsAttr(Args &&...args) {
     auto d = mlir::DisposableElementsAttr::get(std::forward<Args>(args)...);
@@ -38,12 +44,16 @@ public:
     return d;
   }
 
+  // Disposes every DisposableElementsAttr in the pool which is unreachable
+  // (doesn't appear in moduleOp).
   void garbageCollectUnreachable(mlir::ModuleOp moduleOp);
 
+  // Disposes every DisposableElementsAttr and in moduleOp replaces each with a
+  // DenseElementsAttr.
   void scrub(mlir::ModuleOp moduleOp);
 
   void close() {
-    assert(pool.empty() && "pool must be scrubbed before close ");
+    assert(pool.empty() && "pool must be scrubbed before close");
     active = false;
   }
 

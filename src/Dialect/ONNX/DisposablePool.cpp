@@ -58,6 +58,10 @@ void DisposablePool::scrub(ModuleOp moduleOp) {
   moduleOp.walk([&](ONNXConstantOp constOp) {
     if (auto attr = constOp.value())
       if (auto elements = attr->dyn_cast<DisposableElementsAttr>()) {
+        // TODO: Determine if we can encounter the same elements
+        //       attribute twice and, if so, whether it's ok to rely on the
+        //       storage uniquer to deduplicate or whether it's
+        //       better to do it explicitly here somehow.
         assert(this->pool.count(elements.getImpl()) == 1 &&
                "reachable disposables must be in the pool");
         constOp.valueAttr(toDenseElementsAttr(elements));
