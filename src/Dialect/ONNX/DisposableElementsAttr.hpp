@@ -245,9 +245,6 @@ public:
     return *tryGetSplatValue<X>();
   }
 
-  // // TODO: move this to a AttributesHelper function
-  // DenseElementsAttr toDenseElementsAttr() const;
-
   // Copies out the elements in a flat array in row-major order.
   void readElements(MutableArrayRef<WideNum> dst) const;
 

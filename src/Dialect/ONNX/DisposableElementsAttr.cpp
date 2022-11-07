@@ -173,16 +173,6 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
   return getStridesPosition(indices, getStrides());
 }
 
-// DenseElementsAttr DisposableElementsAttr::toDenseElementsAttr() const {
-//   ArrayBuffer<char> bytes = getRawBytes();
-//   if (!getElementType().isInteger(1))
-//     return DenseElementsAttr::getFromRawBuffer(getType(), bytes.get());
-//   // DenseElementsAttr::getFromRawBuffer bit packs bools so we
-//   // cannot use it, so we pass as ArrayRef<bool> instead:
-//   auto bools = castArrayRef<bool>(bytes.get());
-//   return DenseElementsAttr::get(getType(), bools);
-// }
-
 void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   if (isContiguous()) {
     getReader()(getBuffer()->getBuffer(), dst);
