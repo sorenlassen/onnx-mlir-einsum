@@ -113,6 +113,14 @@ ElementsAttr getConstValueElements(Value constValue) {
   return constOp.valueAttr().cast<ElementsAttr>();
 }
 
+#if 0
+DisposableElementsAttr getConstValueAsDisposableElements(
+    DisposablePool &disposablePool, Value constValue) {
+  return toDisposableElementsAttr(
+      disposablePool, getConstValueElements(constValue));
+}
+#endif
+
 // Creates ONNXConstantOp with the location and result type from replacingValue.
 ONNXConstantOp createReplacingConstantOp(
     PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
@@ -488,10 +496,17 @@ Value ConstPropTranspose(
   SmallVector<uint64_t, 4> perm =
       createIntVectorFromArrayAttr<uint64_t>(permAttr);
 
+#if 0
+  DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
+  DisposableElementsAttr constElements =
+      getConstValueAsDisposableElements(disposablePool, constValue);
+  DisposableElementsAttr transposedElements = constElements.transpose(disposablePool, perm);
+#else
   ElementsAttr constElements = getConstValueElements(constValue);
-  ElementsAttr elements = transposeElements(constElements, perm);
-  return createReplacingConstantOp(rewriter, replacingValue, elements)
+  ElementsAttr transposedElements = transposeElements(constElements, perm);
+  return createReplacingConstantOp(rewriter, replacingValue, transposedElements)
       .getResult();
+#endif
 }
 
 //===----------------------------------------------------------------------===//
@@ -750,6 +765,16 @@ public:
 
 Value ConstPropCast(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
+#if 0
+  ShapedType dstType = replacingValue.getType().cast<ShapedType>();
+  Type dstElemType = dstType.getElementType();
+
+  DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
+  DisposableElementsAttr constElements =
+      getConstValueAsDisposableElements(disposablePool, constValue);
+  DisposableElementsAttr transposedElements =
+      constElements.castElementType(disposablePool, perm);
+#else
   ShapedType srcType = constValue.getType().cast<ShapedType>();
   ShapedType dstType = replacingValue.getType().cast<ShapedType>();
   assert(srcType.getNumElements() == dstType.getNumElements() &&
@@ -775,6 +800,7 @@ Value ConstPropCast(
       rewriter, replacingValue.getLoc(), elements);
 
   return res.getResult();
+#endif
 }
 
 //===----------------------------------------------------------------------===//

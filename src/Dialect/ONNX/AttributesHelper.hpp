@@ -31,10 +31,8 @@ mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
 // Makes a DisposableElementsAttr that points to elements' raw data, if
 // elements is DenseElementsAttr, except if the element type is bool, then
 // it makes a deep copy because DisposableElementsAttr doesn't bit pack bools.
-//
-// TODO: decide if caller should pass in DisposablePool
 mlir::DisposableElementsAttr toDisposableElementsAttr(
-    mlir::ElementsAttr elements);
+    DisposablePool &disposablePool, mlir::ElementsAttr elements);
 
 // TODO: remove some of these functions (they overlap and are not all used):
 
