@@ -20,9 +20,9 @@ using namespace onnx_mlir;
 namespace mlir {
 
 struct DisposableElementsAttributeStorage : public AttributeStorage {
-  using Strides = ArrayRef<int64_t>;
-  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
+  using Strides = DisposableElementsAttr::Strides;
   using Properties = DisposableElementsAttr::Properties;
+  using Buffer = DisposableElementsAttr::Buffer;
   using Reader = DisposableElementsAttr::Reader;
   using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 

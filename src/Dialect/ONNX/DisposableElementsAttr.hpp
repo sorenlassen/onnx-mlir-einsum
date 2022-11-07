@@ -83,8 +83,6 @@ class DisposableElementsAttr
 public:
   using Storage = DisposableElementsAttributeStorage;
   using Strides = ArrayRef<int64_t>;
-  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Reader = std::function<void(StringRef, MutableArrayRef<WideNum>)>;
 
   struct Properties {
     // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
@@ -104,6 +102,9 @@ public:
     // (both are float, or both are signed ints, or both are unsigned ints).
     bool isTransformed;
   };
+
+  using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
+  using Reader = std::function<void(StringRef, MutableArrayRef<WideNum>)>;
 
   //===----------------------------------------------------------------------===//
   // Instantiation:
