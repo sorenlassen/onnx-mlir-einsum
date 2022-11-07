@@ -19,8 +19,8 @@
 #include "llvm/Support/SwapByteOrder.h"
 
 #include "src/Builder/FrontendDialectHelper.hpp"
-#include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Support/DType.hpp"
 
 namespace {
