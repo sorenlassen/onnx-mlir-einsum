@@ -175,10 +175,6 @@ unsigned bytewidthOfDType(DType);
 // == toDType<DTypeTrait<dtype>::widetype> if dtype is constexpr
 DType wideDTypeOfDType(DType dtype);
 
-inline unsigned getIntOrFloatByteWidth(mlir::Type t) {
-  return (t.getIntOrFloatBitWidth() + 7) / 8;
-}
-
 template <DType DTYPE>
 struct DTypeToken {
   constexpr DTypeToken() {}

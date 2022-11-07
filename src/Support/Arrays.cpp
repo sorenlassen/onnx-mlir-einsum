@@ -11,6 +11,7 @@
 #include "src/Support/Arrays.hpp"
 
 #include "src/Support/DType.hpp"
+#include "src/Support/TypeUtilities.hpp"
 #include "src/Support/WideNum.hpp"
 
 #include "mlir/IR/Types.h"

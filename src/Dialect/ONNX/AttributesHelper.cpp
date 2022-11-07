@@ -19,6 +19,7 @@
 #include "src/Dialect/ONNX/DisposablePool.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
+#include "src/Support/TypeUtilities.hpp"
 #include "src/Support/WideNum.hpp"
 
 using namespace mlir;

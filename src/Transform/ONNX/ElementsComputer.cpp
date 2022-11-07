@@ -12,6 +12,7 @@
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Support/Strides.hpp"
+#include "src/Support/TypeUtilities.hpp"
 #include "src/Support/WideNum.hpp"
 
 using namespace mlir;
