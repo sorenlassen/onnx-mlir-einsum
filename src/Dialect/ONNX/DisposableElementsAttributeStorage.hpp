@@ -66,8 +66,9 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // to fill in type's shape. A special case is when the buffer holds a single
   // splat value that broadcasts to shape's size with all-zero strides.
   //
-  // TODO: Decide whether to require that strides have no leading zeros
-  //       (strides shorter than type's shape implies leading zeros).
+  // Strides cannot have leading zeros. Leading zeros are implicit. Pad with
+  // leading zeros up to type's rank whenever you want explicit leading zeros
+  // (see the padStrides(shape, strides) function in Support/Strides).
   Strides strides;
 
   Properties properties;
