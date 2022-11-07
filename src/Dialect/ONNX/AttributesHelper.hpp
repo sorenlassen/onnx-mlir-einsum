@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 
@@ -24,8 +25,16 @@ namespace onnx_mlir {
 
 union WideNum;
 
+// TODO: remove some of these functions (they overlap and are not all used).
+
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
+
+mlir::DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
+    mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
+
+mlir::DenseResourceElementsAttr tryMakeDenseResourceElementsAttrFromRawBytes(
+    mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
 
 mlir::ElementsAttr makeElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
@@ -53,6 +62,9 @@ void readFPElements(
     mlir::ElementsAttr elements, llvm::MutableArrayRef<double> fps);
 
 mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
+
+mlir::DisposableElementsAttr toDisposableElementsAttr(
+    mlir::ElementsAttr elements);
 
 // Prints elements the same way as DenseElementsAttr.
 void printIntOrFPElementsAttrAsDense(
