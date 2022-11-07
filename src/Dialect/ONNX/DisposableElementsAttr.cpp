@@ -115,14 +115,6 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
   return a;
 }
 
-DisposableElementsAttr DisposableElementsAttr::transpose(
-    DisposablePool &pool, ArrayRef<uint64_t> perm) const {
-  // TODO: if getStrides() don't conflict with perm clone *this
-  //       with strides that incorporate perm, otherwise create a new
-  //       MemoryBuffer and restrideArray buffer into it
-  llvm_unreachable("TODO: implement DisposableElementsAttr::transpose");
-}
-
 DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
     Type transformedElementType, Transformer transformer) const {
   ShapedType transformedType = getType().clone(transformedElementType);
@@ -136,6 +128,39 @@ DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
         read(s, dst);
         transform(dst);
       });
+}
+
+DisposableElementsAttr DisposableElementsAttr::castElementType(
+    DisposablePool &pool, Type newElementType) const {
+  // TODO: if newElementType promotes to the same widetype as *this then
+  //       clone *this with the new element type, otherwise call transform
+  //       with a transformer that performs the cast
+  llvm_unreachable("TODO: implement DisposableElementsAttr::castElementType");
+}
+
+DisposableElementsAttr DisposableElementsAttr::transpose(
+    DisposablePool &pool, ArrayRef<uint64_t> perm) const {
+  // TODO: if getStrides() don't conflict with perm clone *this
+  //       with strides that incorporate perm, otherwise create a new
+  //       MemoryBuffer and restrideArray buffer into it
+  llvm_unreachable("TODO: implement DisposableElementsAttr::transpose");
+}
+
+DisposableElementsAttr DisposableElementsAttr::reshape(
+    DisposablePool &pool, ArrayRef<uint64_t> reshapedShape) const {
+  // TODO: if getStrides() don't conflict with reshapedShape clone *this
+  //       with strides that incorporate reshape, otherwise create a new
+  //       MemoryBuffer and restrideArray buffer into it and, if needed,
+  //       do a post processing phase to reorder elements
+  llvm_unreachable("TODO: implement DisposableElementsAttr::reshape");
+}
+
+DisposableElementsAttr DisposableElementsAttr::expand(
+    DisposablePool &pool, ArrayRef<uint64_t> expandedShape) const {
+  // TODO: if getStrides() don't conflict with expandedShape clone *this
+  //       with strides that incorporate expandedShape, otherwise create a new
+  //       MemoryBuffer and restrideArray / reorder buffer into it
+  llvm_unreachable("TODO: implement DisposableElementsAttr::expand");
 }
 
 auto DisposableElementsAttr::getStrides() const -> Strides {

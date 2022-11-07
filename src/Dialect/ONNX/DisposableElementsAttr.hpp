@@ -137,13 +137,23 @@ public:
     return *this ? cast<ElementsAttr>() : nullptr;
   }
 
-  DisposableElementsAttr transpose(
-      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> perm) const;
-
   using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
 
   DisposableElementsAttr transform(onnx_mlir::DisposablePool &pool,
       Type transformedElementType, Transformer transformer) const;
+
+  DisposableElementsAttr castElementType(
+      onnx_mlir::DisposablePool &pool, Type newElementType) const;
+
+  DisposableElementsAttr transpose(
+      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> perm) const;
+
+  DisposableElementsAttr reshape(
+      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> reshapedShape) const;
+
+  // Broadcasts like the ONNX Expand op.
+  DisposableElementsAttr expand(
+      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> expandedShape) const;
 
   //===----------------------------------------------------------------------===//
   // Instance properties:
