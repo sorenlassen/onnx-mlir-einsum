@@ -187,6 +187,7 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
 void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   if (isContiguous()) {
     getReader()(getBuffer()->getBuffer(), dst);
+    return;
   }
   SmallVector<WideNum, 1> wideBufferData;
   wideBufferData.resize_for_overwrite(getNumBufferElements());
