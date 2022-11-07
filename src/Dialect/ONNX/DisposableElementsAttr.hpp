@@ -99,8 +99,9 @@ public:
     // Do the strides match the type's shape?
     bool isContiguous;
 
-    // Is the reader just casting the underlying bufferDType to WideNum?
-    // In this case dtypeBuffer and dtype must have the same widetype.
+    // Is the reader just casting the underlying bufferDType to WideNum? In this
+    // case dtypeBuffer and dtype must have the same double/i64/u64 widetype
+    // (both are float, or both are signed ints, or both are unsigned ints).
     bool isTransformed;
   };
 

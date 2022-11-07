@@ -26,8 +26,8 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Reader = DisposableElementsAttr::Reader;
   using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 
-  // Constructs only type and strides while the caller sets buffer and reader
-  // after construction to minimize copying.
+  // Constructs only type and strides and properties while the caller sets
+  // buffer and reader after construction to minimize copying.
   DisposableElementsAttributeStorage(
       ShapedType type, Strides strides, Properties properties)
       : type(type), strides(strides), properties(properties) {}
@@ -39,7 +39,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // buffer and reader were disposed by garbage collection.
   bool operator==(const KeyTy &key) const { return false; }
   static llvm::hash_code hashKey(const KeyTy &key) {
-    // Generates a unique number each time it is called to defeat the storage
+    // Generates a unique number on each call to defeat the storage
     // uniquer.
     static std::atomic<size_t> counter{0};
     return ++counter;
@@ -56,9 +56,8 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   }
 
   // The tensor shape and element type that this object represents.
-  // The template type T (a Cpp type bool, float, int8_t, etc) may not match
-  // the element type and the caller must cast T to the element type to read
-  // the underlying data.
+  // The underlying data in buffer may not directly match the type's element
+  // type or number of elements, depending on strides and reader.
   ShapedType type;
 
   // Specifies how to map positions expressed in type's shape to the flat
@@ -66,6 +65,9 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // row-major order (maybe as a result of a transpose) or requires broadcast
   // to fill in type's shape. A special case is when the buffer holds a single
   // splat value that broadcasts to shape's size with all-zero strides.
+  //
+  // TODO: Decide whether to require that strides have no leading zeros
+  //       (strides shorter than type's shape implies leading zeros).
   Strides strides;
 
   Properties properties;
@@ -73,11 +75,9 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // shared_ptr to an underlying MemoryBuffer which can be either heap allocated
   // or a mmap'ed file or point to the raw data of a DenseElementsAttr.
   //
-  // The buffer elements' data type may not match T, namely when the transform
-  // function transforms the buffer data type to another data type.
-  // The buffer elements' data type is not knowable, but you can compute the
-  // number of elements from strides and type's shape and then deduce the
-  // data type bytewidth from the buffer's size in bytes.
+  // The buffer elements' data type may not match type's element type, namely
+  // when the transform function transforms the buffer data type to another
+  // data type.
   //
   // Garbage collection clears the buffer when the DisposableElementsAttr is
   // disposed.
@@ -90,6 +90,9 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   // Reads the buffer elements to WideNums corresponding to type's
   // element type. Is set to the identity reader function if data is not
   // transformed, namely when properties.isTransformed is false.
+  // In this case the buffer data type and the type's element type must promote
+  // to the same double/i64/u64 widetype
+  // (both are float, or both are signed ints, or both are unsigned ints).
   //
   // Garbage collection clears the reader when the DisposableElementsAttr is
   // disposed.
