@@ -36,17 +36,6 @@ DisposableElementsAttr::Reader getIdentityReader(DType dtype) {
       dtype, [](auto staticDType) { return identityReader<staticDType>; });
 }
 
-DisposableElementsAttr::Reader getSplatReader(DType dtype, StringRef rawBytes) {
-  unsigned bytewidth = bytewidthOfDType(dtype);
-  ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
-  WideNum splatValue = WideNum::load(dtype, memory);
-  return [=](StringRef s, MutableArrayRef<WideNum> dst) {
-    assert(s.size() == bytewidth);
-    assert(dst.size() == 1);
-    *dst.begin() = splatValue;
-  };
-}
-
 } // namespace
 
 /*static*/
@@ -61,7 +50,6 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
   bool isContiguous = type.getNumElements() == 1 || !actualStrides.empty();
   Properties properties = {.dtype = dtype,
       .bufferDType = dtype,
-      .isBufferSplat = actualStrides.empty(),
       .isContiguous = isContiguous,
       .isTransformed = reader != nullptr};
   return create(type, actualStrides, properties, buffer, std::move(reader));
@@ -77,10 +65,10 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
   assert(buffer->getBufferSize() % bufBytewidth == 0);
   int64_t numBufferElements = buffer->getBufferSize() / bufBytewidth;
   auto shape = type.getShape();
-  assert(strides.empty() == (numBufferElements == 1));
-  assert(properties.isBufferSplat == (numBufferElements == 1));
-  // TODO: decide if isBufferSplat==true and numBufferElements==1
-  //       are ok when getNumElements(shape)==0
+  // We don't require strides.empty() == (numBufferElements == 1)
+  // because strides can be empty when numBufferElements == 0, i.e.
+  // when type.getNumElements() == 0.
+  assert(!strides.empty() || numBufferElements == 1);
   assert(numBufferElements == getStridesNumElements(shape, strides));
   assert(!properties.isContiguous || areStridesContiguous(shape, strides));
   assert(reader || !properties.isTransformed);
@@ -105,11 +93,6 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
     assert(wideDTypeOfDType(properties.bufferDType) ==
                wideDTypeOfDType(properties.dtype) &&
            "buffer wide type mismatch requires transforming reader");
-    if (properties.isBufferSplat) {
-      // TODO: decide whether to remove this and use identity reader also for
-      // splat
-      s.reader = getSplatReader(properties.bufferDType, buffer->getBuffer());
-    }
     s.reader = getIdentityReader(properties.bufferDType);
   }
   return a;
@@ -197,7 +180,7 @@ unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
 }
 
 bool DisposableElementsAttr::isSplat() const {
-  return getProperties().isBufferSplat;
+  return getStrides().empty() && getBuffer()->getBufferSize() != 0;
 }
 
 DType DisposableElementsAttr::getDType() const { return getProperties().dtype; }

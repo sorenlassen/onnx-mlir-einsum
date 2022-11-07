@@ -91,10 +91,6 @@ public:
     // Data type of the elements in buffer before transform.
     onnx_mlir::DType bufferDType;
 
-    // Is there a single element in the buffer?
-    // TODO: remove this field, isSplat() == getStrides().empty()
-    bool isBufferSplat;
-
     // Do the strides match the type's shape?
     bool isContiguous;
 
