@@ -203,7 +203,8 @@ public:
   int test_DisposablePool() {
     llvm::errs() << "test_DisposablePool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    auto dispo = disposablePool.createElementsAttr(type, buffer<bool>({true}));
+    auto dispo =
+        disposablePool.createElementsAttr(type, None, buffer<bool>({true}));
     assert(dispo.isSplat());
     return 0;
   }
@@ -232,9 +233,8 @@ public:
   int test_splat() {
     llvm::errs() << "test_splat:\n";
     ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
-    bool isSplat = true;
     Attribute a =
-        disposablePool.createElementsAttr(type, isSplat, buffer<float>({4.2}));
+        disposablePool.createElementsAttr(type, None, buffer<float>({4.2}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -261,9 +261,8 @@ public:
     llvm::errs() << "test_f16:\n";
     assert(fabs(float_16::fromFloat(4.2).toFloat() - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
-    bool isSplat = true;
     Attribute a = disposablePool.createElementsAttr(
-        type, isSplat, buffer<float_16>({float_16::fromFloat(4.2)}));
+        type, None, buffer<float_16>({float_16::fromFloat(4.2)}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -284,9 +283,8 @@ public:
   int test_bool() {
     llvm::errs() << "test_bool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    bool isSplat = true;
     Attribute a =
-        disposablePool.createElementsAttr(type, isSplat, buffer<bool>({true}));
+        disposablePool.createElementsAttr(type, None, buffer<bool>({true}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -308,7 +306,7 @@ public:
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
     Attribute a;
-    a = disposablePool.createElementsAttr(type, buffer<uint64_t>({7, 9}));
+    a = disposablePool.createElementsAttr(type, None, buffer<uint64_t>({7, 9}));
     assert(a);
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();

@@ -92,6 +92,7 @@ public:
     onnx_mlir::DType bufferDType;
 
     // Is there a single element in the buffer?
+    // TODO: remove this field, isSplat() == getStrides().empty()
     bool isBufferSplat;
 
     // Do the strides match the type's shape?
@@ -117,17 +118,8 @@ public:
   friend class onnx_mlir::DisposablePool;
 
 private:
-  // Checks the buffer contents to detect if it's splat.
-  // To bypass this check, e.g. if the buffer mmaps a file and you don't
-  // want to read it here, call get(type, bufferDType, /*isBufferSplat=*/false,
-  // buffer, reader). It's ok to not detect splatness.
-  //
   // Assumes isTransformed if reader != nullptr.
-  static DisposableElementsAttr get(
-      ShapedType type, const Buffer &buffer, Reader reader = nullptr);
-
-  // Assumes isTransformed if reader != nullptr.
-  static DisposableElementsAttr get(ShapedType type, bool isBufferSplat,
+  static DisposableElementsAttr get(ShapedType type, Optional<Strides> strides,
       const Buffer &buffer, Reader reader = nullptr);
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,

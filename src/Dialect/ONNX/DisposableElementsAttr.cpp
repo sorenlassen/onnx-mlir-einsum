@@ -50,29 +50,21 @@ DisposableElementsAttr::Reader getSplatReader(DType dtype, StringRef rawBytes) {
 } // namespace
 
 /*static*/
-DisposableElementsAttr DisposableElementsAttr::get(
-    ShapedType type, const Buffer &buffer, Reader reader) {
-  ArrayRef<char> rawBuffer = asArrayRef(buffer->getBuffer());
-  bool isBufferSplat = false;
-  if (!DenseElementsAttr::isValidRawBuffer(type, rawBuffer, isBufferSplat))
-    llvm_unreachable("invalid buffer passed to DisposableElementsAttr::get");
-  return get(type, isBufferSplat, buffer, std::move(reader));
-}
-
-/*static*/
-DisposableElementsAttr DisposableElementsAttr::get(
-    ShapedType type, bool isBufferSplat, const Buffer &buffer, Reader reader) {
+DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
+    Optional<Strides> strides, const Buffer &buffer, Reader reader) {
   DType dtype = dtypeOfMlirType(type.getElementType());
-  SmallVector<int64_t, 4> strides;
-  if (!isBufferSplat)
-    strides = getDefaultStrides(type.getShape());
-  bool isContiguous = type.getNumElements() == 1 || !isBufferSplat;
+  SmallVector<int64_t, 4> actualStrides;
+  if (strides.has_value())
+    actualStrides.assign(strides->begin(), strides->end());
+  else
+    actualStrides = getDefaultStrides(type.getShape());
+  bool isContiguous = type.getNumElements() == 1 || !actualStrides.empty();
   Properties properties = {.dtype = dtype,
       .bufferDType = dtype,
-      .isBufferSplat = isBufferSplat,
+      .isBufferSplat = actualStrides.empty(),
       .isContiguous = isContiguous,
       .isTransformed = reader != nullptr};
-  return create(type, strides, properties, buffer, std::move(reader));
+  return create(type, actualStrides, properties, buffer, std::move(reader));
 }
 
 /*static*/

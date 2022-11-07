@@ -28,6 +28,15 @@ using namespace mlir;
 
 namespace onnx_mlir {
 
+namespace {
+Optional<DisposableElementsAttr::Strides> splatOrDefaultStrides(bool isSplat) {
+  if (isSplat)
+    return DisposableElementsAttr::Strides{};
+  else
+    return None;
+}
+} // namespace
+
 DenseElementsAttr toDenseElementsAttr(ElementsAttr elements) {
   if (auto dense = elements.dyn_cast<DenseElementsAttr>())
     return dense;
@@ -67,7 +76,7 @@ DisposableElementsAttr toDisposableElementsAttr(ElementsAttr elements) {
             s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
       }
       return disposablePool->createElementsAttr(
-          dense.getType(), isSplat, std::move(buffer));
+          dense.getType(), splatOrDefaultStrides(isSplat), std::move(buffer));
     } else {
       llvm_unreachable("failed to create DisposableElementsAttr");
     }
@@ -124,7 +133,8 @@ DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
       buffer = llvm::MemoryBuffer::getMemBuffer(
           s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
     }
-    return disposablePool->createElementsAttr(type, isSplat, std::move(buffer));
+    return disposablePool->createElementsAttr(
+        type, splatOrDefaultStrides(isSplat), std::move(buffer));
   } else {
     return nullptr;
   }
@@ -172,7 +182,9 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
     std::unique_ptr<llvm::WritableMemoryBuffer> buffer =
         llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
     filler(buffer->getBuffer());
-    return disposablePool->createElementsAttr(type, std::move(buffer));
+    bool isSplat = splatterBuffer(type, buffer->getBuffer());
+    (void)isSplat; // TODO: decide whether to truncate buffer if isSplat
+    return disposablePool->createElementsAttr(type, None, std::move(buffer));
   }
   if (ResourcePool *resourcePool = ResourcePool::get(type.getContext());
       resourcePool && resourcePool->isActive()) {
