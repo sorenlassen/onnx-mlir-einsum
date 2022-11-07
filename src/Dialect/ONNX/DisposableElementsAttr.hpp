@@ -33,31 +33,6 @@ class DisposablePool;
 
 namespace mlir {
 
-// TODO: move more implementation to .cpp
-
-namespace detail {
-
-inline llvm::iota_range<size_t> seq(size_t numElements) {
-  return llvm::seq(size_t(0), numElements);
-}
-
-template <typename T>
-using MappedIndexIterator =
-    llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
-        std::function<T(size_t)>>;
-template <typename T>
-MappedIndexIterator<T> beginMappedIndexIterator(
-    size_t numElements, const std::function<T(size_t)> &fun) {
-  return llvm::map_iterator(seq(numElements).begin(), fun);
-}
-template <typename T>
-MappedIndexIterator<T> endMappedIndexIterator(
-    size_t numElements, const std::function<T(size_t)> &fun) {
-  return llvm::map_iterator(seq(numElements).end(), fun);
-}
-
-} // namespace detail
-
 struct DisposableElementsAttributeProperties {
   // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
   onnx_mlir::DType dtype;
@@ -215,24 +190,10 @@ public:
   // to copy out data in bulk with readElements().
   //===----------------------------------------------------------------------===//
 private:
-  // True for the types T in NonContiguousIterableTypesT.
-  template <typename T>
-  static constexpr bool isIterableType =
-      (onnx_mlir::CppTypeTrait<T>::dtype != DType::UNDEFINED &&
-          onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
-      std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
+  using IndexIterator = llvm::iota_range<size_t>::const_iterator;
 
-  // Supports all the types T in NonContiguousIterableTypesT.
   template <typename X>
-  static X getNumber(DType tag, WideNum n) {
-    static_assert(isIterableType<X>);
-    if constexpr (std::is_same_v<X, llvm::APFloat>)
-      return n.toAPFloat(tag); // fails unless isFloatDType(tag)
-    else if constexpr (std::is_same_v<X, llvm::APInt>)
-      return n.toAPInt(tag); // fails unless is[Un]SignedIntDType(tag)
-    else
-      return n.to<X>(tag);
-  }
+  using IndexToX = std::function<X(size_t)>;
 
 public:
   // All the iterable types are listed as NonContiguous here as no type
@@ -240,13 +201,13 @@ public:
   // because of strides and the possibility that bufferDType != dtype.
   //
   // (We could add Attribute, IntegerAttr, FloatAttr by adding support for
-  // them in getNumber<X>.)
+  // them in detail::getNumber<X>.)
   using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
       uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
       onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
 
   template <typename X>
-  using iterator = detail::MappedIndexIterator<X>;
+  using iterator = llvm::mapped_iterator<IndexIterator, IndexToX<X>>;
 
   template <typename X>
   using iterator_range = llvm::iterator_range<iterator<X>>;
@@ -254,23 +215,11 @@ public:
   // This implementation enables the value_begin() and getValues() methods
   // from the ElementsAttr interface, for the NonContiguousIterableTypesT types.
   template <typename X>
-  FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const {
-    if constexpr (isIterableType<X>) {
-      DType dtype = getDType();
-      DisposableElementsAttr attr = *this;
-      return detail::beginMappedIndexIterator<X>(
-          getNumElements(), [dtype, attr](size_t flatIndex) -> X {
-            return getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
-          });
-    } else {
-      return failure();
-    }
-  }
+  FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const;
 
-  // equivalent to getValues<X>().end(), which is probably slower?
   template <typename X>
   iterator<X> value_end() const {
-    return detail::endMappedIndexIterator<X>(getNumElements(), nullptr);
+    return getValues<X>().end();
   }
 
   //===----------------------------------------------------------------------===//
@@ -289,11 +238,8 @@ private:
 
 public:
   template <typename X>
-  llvm::Optional<X> tryGetSplatValue() const {
-    if (!isSplat())
-      return llvm::None;
-    return getNumber<X>(getDType(), readBufferPos(0));
-  }
+  llvm::Optional<X> tryGetSplatValue() const;
+
   template <typename X>
   X getSplatValue() const {
     return *tryGetSplatValue<X>();
@@ -315,6 +261,63 @@ public:
   void printWithoutType(raw_ostream &os) const;
 
 }; // class DisposableElementsAttr
+
+//===----------------------------------------------------------------------===//
+// Deferred Method Definitions
+//===----------------------------------------------------------------------===//
+
+namespace detail {
+// True for the types T in DisposableElementsAttr::NonContiguousIterableTypesT.
+template <typename T>
+constexpr bool isIterableType =
+    (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
+        onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
+    std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
+
+// Supports all the types T in NonContiguousIterableTypesT.
+template <typename T>
+T getNumber(onnx_mlir::DType tag, onnx_mlir::WideNum n) {
+  static_assert(isIterableType<T>);
+  if constexpr (std::is_same_v<T, llvm::APFloat>)
+    return n.toAPFloat(tag); // fails unless isFloatDType(tag)
+  else if constexpr (std::is_same_v<T, llvm::APInt>)
+    return n.toAPInt(tag); // fails if isFloatDType(tag)
+  else
+    return n.to<T>(tag);
+}
+} // namespace detail
+
+template <typename X>
+llvm::Optional<X> DisposableElementsAttr::tryGetSplatValue() const {
+  if (!isSplat())
+    return llvm::None;
+  return detail::getNumber<X>(getDType(), readBufferPos(0));
+}
+
+template <typename X>
+inline auto DisposableElementsAttr::try_value_begin_impl(OverloadToken<X>) const
+    -> FailureOr<iterator<X>> {
+  if constexpr (detail::isIterableType<X>) {
+    DType dtype = getDType();
+    if constexpr (std::is_same_v<X, llvm::APFloat>) {
+      if (!isFloatDType(dtype))
+        return failure();
+    } else if constexpr (std::is_same_v<X, llvm::APInt>) {
+      if (isFloatDType(dtype))
+        return failure();
+    }
+    // Translate "this" to a DisposableElementsAttr to work around that "this"
+    // becomes something strange as we wind our way to try_value_begin_impl()
+    // via interfaces from the original call to this->value_end()/getValues().
+    DisposableElementsAttr attr = *this;
+    auto range = llvm::seq<size_t>(0, getNumElements());
+    return iterator<X>(range.begin(), [dtype, attr](size_t flatIndex) -> X {
+      return detail::getNumber<X>(dtype, attr.readFlatIndex(flatIndex));
+    });
+  } else {
+    return failure();
+  }
+}
 
 } // namespace mlir
 

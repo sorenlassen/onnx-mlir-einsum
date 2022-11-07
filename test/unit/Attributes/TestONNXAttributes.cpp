@@ -332,6 +332,8 @@ public:
     auto x = *begin;
     llvm::errs() << "x " << x << "\n";
     assert(*begin == 7);
+    assert(*(end - 1) == 9);
+    assert(*--end == 9);
     std::cerr << "next:" << *++begin << "\n";
     // assert(succeeded(i.tryGetValues<uint64_t>()));
     for (auto v : i.getValues<uint64_t>())
@@ -343,9 +345,8 @@ public:
     auto api = *apbegin;
     assert(api.getZExtValue() == 7);
 
-    auto apfbegin = i.value_begin<APFloat>();
-    // auto apf = *apfbegin; // crashes because ints refuse to cast to APFloat
-    (void)apfbegin;
+    // crashes because ints refuse to cast to APFloat
+    // auto apfbegin = i.value_begin<APFloat>();
 
     // iteration by attributes is not supported
     // auto atbegin = i.value_begin<IntegerAttr>(); // crashes
