@@ -51,9 +51,6 @@ struct DisposableElementsAttributeProperties {
   bool isTransformed;
 };
 
-using DisposableElementsAttributeReader =
-    std::function<void(StringRef, MutableArrayRef<onnx_mlir::WideNum>)>;
-
 struct DisposableElementsAttributeStorage;
 
 // DisposableElementsAttr is an alternative to DenseElementsAttr
@@ -96,16 +93,17 @@ class DisposableElementsAttr
           TypedAttr::Trait> {
   using Base::Base;
 
+  // DType and WideNum are ubiquitous in the class definition and these using
+  // statements are convenient as they let us omit their namespace qualifier.
+  using DType = onnx_mlir::DType;
+  using WideNum = onnx_mlir::WideNum;
+
 public:
   using Storage = DisposableElementsAttributeStorage;
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Properties = DisposableElementsAttributeProperties;
-  using Reader = DisposableElementsAttributeReader;
-  // DType and WideNum are ubiquitous in the class definition and these using
-  // statements are convenient as they let us omit their namespace qualifier.
-  using DType = onnx_mlir::DType;
-  using WideNum = onnx_mlir::WideNum;
+  using Reader = std::function<void(StringRef, MutableArrayRef<WideNum>)>;
 
   //===----------------------------------------------------------------------===//
   // Instantiation:

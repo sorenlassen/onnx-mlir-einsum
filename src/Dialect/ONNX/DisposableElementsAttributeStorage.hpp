@@ -23,7 +23,7 @@ struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
   using Properties = DisposableElementsAttributeProperties;
-  using Reader = DisposableElementsAttributeReader;
+  using Reader = DisposableElementsAttr::Reader;
   using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 
   // Constructs only type and strides while the caller sets buffer and reader

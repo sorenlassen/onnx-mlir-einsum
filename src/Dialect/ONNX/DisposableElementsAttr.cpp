@@ -30,13 +30,12 @@ void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
       [](X x) { return WideNum::from<X>(DTYPE, x); });
 }
 
-DisposableElementsAttributeReader getIdentityReader(DType dtype) {
+DisposableElementsAttr::Reader getIdentityReader(DType dtype) {
   return dispatchByDType(
       dtype, [](auto staticDType) { return identityReader<staticDType>; });
 }
 
-DisposableElementsAttributeReader getSplatReader(
-    DType dtype, StringRef rawBytes) {
+DisposableElementsAttr::Reader getSplatReader(DType dtype, StringRef rawBytes) {
   unsigned bytewidth = bytewidthOfDType(dtype);
   ArrayRef<char> memory = asArrayRef(rawBytes.take_front(bytewidth));
   WideNum splatValue = WideNum::load(dtype, memory);
