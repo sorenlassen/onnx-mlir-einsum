@@ -31,6 +31,8 @@ mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
 // Makes a DisposableElementsAttr that points to elements' raw data, if
 // elements is DenseElementsAttr, except if the element type is bool, then
 // it makes a deep copy because DisposableElementsAttr doesn't bit pack bools.
+//
+// TODO: decide if caller should pass in DisposablePool
 mlir::DisposableElementsAttr toDisposableElementsAttr(
     mlir::ElementsAttr elements);
 
@@ -39,6 +41,7 @@ mlir::DisposableElementsAttr toDisposableElementsAttr(
 mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes);
 
+// TODO: decide if caller should pass in DisposablePool
 mlir::DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
     mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
 
