@@ -33,24 +33,6 @@ class DisposablePool;
 
 namespace mlir {
 
-struct DisposableElementsAttributeProperties {
-  // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
-  onnx_mlir::DType dtype;
-
-  // Data type of the elements in buffer before transform.
-  onnx_mlir::DType bufferDType;
-
-  // Is there a single element in the buffer?
-  bool isBufferSplat;
-
-  // Do the strides match the type's shape?
-  bool isContiguous;
-
-  // Is the reader just casting the underlying bufferDType to WideNum?
-  // In this case dtypeBuffer and dtype must have the same widetype.
-  bool isTransformed;
-};
-
 struct DisposableElementsAttributeStorage;
 
 // DisposableElementsAttr is an alternative to DenseElementsAttr
@@ -102,8 +84,25 @@ public:
   using Storage = DisposableElementsAttributeStorage;
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Properties = DisposableElementsAttributeProperties;
   using Reader = std::function<void(StringRef, MutableArrayRef<WideNum>)>;
+
+  struct Properties {
+    // Data type (BOOL, INT8, FLOAT16, etc) of the type's elements.
+    onnx_mlir::DType dtype;
+
+    // Data type of the elements in buffer before transform.
+    onnx_mlir::DType bufferDType;
+
+    // Is there a single element in the buffer?
+    bool isBufferSplat;
+
+    // Do the strides match the type's shape?
+    bool isContiguous;
+
+    // Is the reader just casting the underlying bufferDType to WideNum?
+    // In this case dtypeBuffer and dtype must have the same widetype.
+    bool isTransformed;
+  };
 
   //===----------------------------------------------------------------------===//
   // Instantiation:

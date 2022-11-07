@@ -22,7 +22,7 @@ namespace mlir {
 struct DisposableElementsAttributeStorage : public AttributeStorage {
   using Strides = ArrayRef<int64_t>;
   using Buffer = std::shared_ptr<llvm::MemoryBuffer>;
-  using Properties = DisposableElementsAttributeProperties;
+  using Properties = DisposableElementsAttr::Properties;
   using Reader = DisposableElementsAttr::Reader;
   using KeyTy = std::tuple<ShapedType, Strides, Properties>;
 
