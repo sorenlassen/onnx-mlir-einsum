@@ -255,12 +255,7 @@ private:
 
 public:
   template <typename X>
-  llvm::Optional<X> tryGetSplatValue() const;
-
-  template <typename X>
-  X getSplatValue() const {
-    return *tryGetSplatValue<X>();
-  }
+  X getSplatValue() const;
 
   // Copies out the elements in a flat array in row-major order.
   void readElements(MutableArrayRef<WideNum> dst) const;
@@ -306,9 +301,8 @@ T getNumber(onnx_mlir::DType tag, onnx_mlir::WideNum n) {
 } // namespace detail
 
 template <typename X>
-llvm::Optional<X> DisposableElementsAttr::tryGetSplatValue() const {
-  if (!isSplat())
-    return llvm::None;
+X DisposableElementsAttr::getSplatValue() const {
+  assert(isSplat() && "expected the attribute to be a splat");
   return detail::getNumber<X>(getDType(), readBufferPos(0));
 }
 
