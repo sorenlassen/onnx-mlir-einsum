@@ -246,14 +246,10 @@ DisposableElementsAttr::Reader composeReadTransform(
 
 template <DType SRC_TAG, DType DST_TAG>
 void wideCaster(MutableArrayRef<WideNum> nums) {
-  using SrcT = CppType<SRC_TAG>;
-  using DstT = CppType<DST_TAG>;
-  for (WideNum &n : nums) {
-    // n = static_cast<DstT>(reinterpret_cast<SrcT>(n)) :
-    SrcT src = n.to<SrcT>(SRC_TAG);        // unpack from WideNum to SrcT
-    DstT dst = static_cast<DstT>(src);     // cast
-    n = WideNum::from<DstT>(DST_TAG, dst); // pack to WideNum from DstT
-  }
+  using S = WideDType<SRC_TAG>;
+  using D = WideDType<SRC_TAG>;
+  for (WideNum &n : nums)
+    n = D::pack(static_cast<typename D::type>(S::unpack(n)));
 }
 
 ElementsAttrBuilder::Transformer wideCaster(DType src, DType dst) {
