@@ -247,7 +247,7 @@ DisposableElementsAttr::Reader composeReadTransform(
 template <DType SRC_TAG, DType DST_TAG>
 void wideCaster(MutableArrayRef<WideNum> nums) {
   using S = WideDType<SRC_TAG>;
-  using D = WideDType<SRC_TAG>;
+  using D = WideDType<DST_TAG>;
   for (WideNum &n : nums)
     n = D::pack(static_cast<typename D::type>(S::unpack(n)));
 }
