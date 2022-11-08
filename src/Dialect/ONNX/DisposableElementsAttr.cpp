@@ -342,7 +342,7 @@ ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
     readElements(wideData);
     narrowArray(getElementType(), wideData, bytes);
   }
-  return std::move(bytes);
+  return std::move(vec);
 }
 
 void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
