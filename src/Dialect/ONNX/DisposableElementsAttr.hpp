@@ -158,10 +158,6 @@ private:
 
   int64_t getNumBufferElements() const;
 
-  StringRef getBufferString() const;
-
-  ArrayRef<char> getBufferBytes() const;
-
 public:
   // isSplat() can return false even if all elements are identical, e.g.
   // no splat check is done to verify if the reader function maps all
@@ -228,6 +224,10 @@ public:
   // Other access to the elements:
   //===----------------------------------------------------------------------===//
 private:
+  StringRef getBufferString() const;
+
+  ArrayRef<char> getBufferBytes() const;
+
   // Warning: this is somewhat inefficient because it invokes getReader().
   // It's more efficient to copy out data in bulk with readElements().
   WideNum readBufferPos(size_t pos) const;
@@ -237,6 +237,8 @@ private:
 
   // Warning: this is inefficient because it calls unflattenIndex on flatIndex.
   size_t flatIndexToBufferPos(size_t flatIndex) const;
+
+  onnx_mlir::ArrayBuffer<WideNum> getBufferAsWideNums() const;
 
 public:
   template <typename X>

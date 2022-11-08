@@ -177,6 +177,18 @@ size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
       unflattenIndex(getShape(), flatIndex), getStrides());
 }
 
+ArrayBuffer<WideNum> DisposableElementsAttr::getBufferAsWideNums() const {
+  const Properties &properties = getProperties();
+  if (!properties.isTransformed &&
+      getBufferElementBytewidth() == sizeof(WideNum)) {
+    return asArrayRef<WideNum>(getBufferString());
+  }
+  ArrayBuffer<WideNum>::Vector wideBufferData;
+  wideBufferData.resize_for_overwrite(getNumBufferElements());
+  getReader()(getBufferString(), wideBufferData);
+  return std::move(wideBufferData);
+}
+
 void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   if (isContiguous()) {
     getReader()(getBuffer()->getBuffer(), dst);
@@ -196,10 +208,10 @@ ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
       getBufferElementBytewidth() == sizeof(WideNum)) {
     return asArrayRef<WideNum>(getBufferString());
   }
-  ArrayBuffer<WideNum>::Vector vec;
-  vec.resize_for_overwrite(getNumElements());
-  readElements(vec);
-  return std::move(vec);
+  ArrayBuffer<WideNum>::Vector wideData;
+  wideData.resize_for_overwrite(getNumElements());
+  readElements(wideData);
+  return std::move(wideData);
 }
 
 ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
@@ -322,10 +334,8 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
   //       reader) when getNumBufferElements() == getNumElements(), i.e.
   //       strides have no zeros.
 
-  SmallVector<WideNum> readout;
-  readout.resize_for_overwrite(getNumBufferElements());
-  getReader()(getBufferString(), readout);
-  ArrayRef<char> src(castArrayRef<char>(makeArrayRef(readout)));
+  ArrayBuffer<WideNum> wideSrc = getBufferAsWideNums();
+  ArrayRef<char> src(castArrayRef<char>(wideSrc.get()));
   std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
       llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
           getNumElements() * sizeof(WideNum));
