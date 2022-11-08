@@ -174,7 +174,7 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
 }
 
 DisposableElementsAttr DisposableElementsAttr::reshape(
-    DisposablePool &pool, ArrayRef<uint64_t> reshapedShape) const {
+    DisposablePool &pool, ArrayRef<int64_t> reshapedShape) const {
   // TODO: if getStrides() don't conflict with reshapedShape clone *this
   //       with strides that incorporate reshape, otherwise create a new
   //       MemoryBuffer and restrideArray buffer into it and, if needed,
@@ -183,7 +183,7 @@ DisposableElementsAttr DisposableElementsAttr::reshape(
 }
 
 DisposableElementsAttr DisposableElementsAttr::expand(
-    DisposablePool &pool, ArrayRef<uint64_t> expandedShape) const {
+    DisposablePool &pool, ArrayRef<int64_t> expandedShape) const {
   // TODO: if getStrides() don't conflict with expandedShape clone *this
   //       with strides that incorporate expandedShape, otherwise create a new
   //       MemoryBuffer and restrideArray / reorder buffer into it

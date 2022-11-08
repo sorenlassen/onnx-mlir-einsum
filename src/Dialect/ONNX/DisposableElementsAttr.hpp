@@ -145,11 +145,11 @@ public:
       onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> perm) const;
 
   DisposableElementsAttr reshape(
-      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> reshapedShape) const;
+      onnx_mlir::DisposablePool &pool, ArrayRef<int64_t> reshapedShape) const;
 
   // Broadcasts like the ONNX Expand op.
   DisposableElementsAttr expand(
-      onnx_mlir::DisposablePool &pool, ArrayRef<uint64_t> expandedShape) const;
+      onnx_mlir::DisposablePool &pool, ArrayRef<int64_t> expandedShape) const;
 
   //===----------------------------------------------------------------------===//
   // Instance properties:
