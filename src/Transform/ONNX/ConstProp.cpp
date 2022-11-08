@@ -442,11 +442,17 @@ struct ElementWiseUnaryOpImpl<ONNXReluOp, U, EnableNotBool<U>> {
   static U impl(U val) { return val < 0 ? 0 : val; }
 };
 
-template <typename OP, typename T>
-T evalElementWiseUnaryOp(T val) {
-  using U = toArithmetic<T>;
-  return static_cast<T>(
-      ElementWiseUnaryOpImpl<OP, U>::impl(static_cast<U>(val)));
+template <typename OP>
+ElementsAttrBuilder::Transformer transformElementWiseUnaryOp(Type elemType) {
+  return dispatchByMlirType(
+      elemType, [](auto dtype) -> ElementsAttrBuilder::Transformer {
+        using W = WideDType<dtype>;
+        using OpImpl = ElementWiseUnaryOpImpl<OP, typename W::type>;
+        return [](MutableArrayRef<WideNum> data) -> void {
+          for (WideNum &n : data)
+            n = W::pack(OpImpl::impl(W::unpack(n)));
+        };
+      });
 }
 
 /// Do element-wise unary calculation of 'input' value and create an
@@ -454,32 +460,19 @@ T evalElementWiseUnaryOp(T val) {
 template <typename ElementwiseUnaryOp>
 Value ConstPropElementwiseUnary(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
-  ShapedType srcType = constValue.getType().cast<ShapedType>();
-  ShapedType replacingType = replacingValue.getType().cast<ShapedType>();
-  assert(srcType.getNumElements() == replacingType.getNumElements() &&
-         "types must have the equally many elements");
+  Type replacingElemType =
+      replacingValue.getType().cast<ShapedType>().getElementType();
 
-  Type elementType = replacingType.getElementType();
-
-  ArrayBuffer<char> src = getRawBytesFromConstValue(constValue);
-
-  // TODO: make single element splat dst buffer if src isSplat
-
-  ElementsAttr elements = makeElementsAttrWithRawBytesFiller(
-      replacingType, [&](MutableArrayRef<char> dst) {
-        dispatchByMlirType(elementType, [&](auto dtype) {
-          using T = CppType<dtype>;
-          fillOrTransform(castArrayRef<T>(src.get()),
-              castMutableArrayRef<T>(dst),
-              evalElementWiseUnaryOp<ElementwiseUnaryOp, T>);
-        });
-      });
-
-  // Construct a new ONNXConstantOp.
-  ONNXConstantOp res = createONNXConstantOpWithDenseAttr(
-      rewriter, replacingValue.getLoc(), elements);
-
-  return res.getResult();
+  ElementsAttrBuilder elementsBuilder(rewriter.getContext());
+  DisposableElementsAttr constElements =
+      getConstValueAsDisposableElements(elementsBuilder, constValue);
+  assert(replacingElemType == constElements.getElementType() &&
+         "all element wise unary ops preserve element type");
+  DisposableElementsAttr transposedElements =
+      elementsBuilder.transform(constElements, replacingElemType,
+          transformElementWiseUnaryOp<ElementwiseUnaryOp>(replacingElemType));
+  return createReplacingConstantOp(rewriter, replacingValue, transposedElements)
+      .getResult();
 }
 
 //===----------------------------------------------------------------------===//
