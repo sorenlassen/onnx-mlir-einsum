@@ -24,13 +24,12 @@ namespace mlir {
 
 namespace {
 
+// TODO: share implementation with widenArray
 template <DType DTYPE>
 void identityReader(StringRef s, MutableArrayRef<WideNum> dst) {
-  using X = CppType<DTYPE>;
-  auto src = asArrayRef<X>(s);
-  assert(src.size() == dst.size());
-  std::transform(src.begin(), src.end(), dst.begin(),
-      [](X x) { return WideNum::from<X>(DTYPE, x); });
+  using W = WideDType<DTYPE>;
+  auto src = asArrayRef<typename W::narrowtype>(s);
+  std::transform(src.begin(), src.end(), dst.begin(), W::widen);
 }
 
 DisposableElementsAttr::Reader getIdentityReader(DType dtype) {

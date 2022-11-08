@@ -121,9 +121,9 @@ void readElements(ElementsAttr elements, MutableArrayRef<WideNum> dst) {
   }
   ArrayBuffer<char> src = getElementsRawBytes(elements);
   dispatchByMlirType(elements.getElementType(), [&](auto dtype) {
-    using S = CppType<dtype>;
-    fillOrTransform(castArrayRef<S>(src.get()), dst,
-        [](S v) { return WideNum::from<S>(toDType<S>, v); });
+    using W = WideDType<dtype>;
+    fillOrTransform(
+        castArrayRef<typename W::narrowtype>(src.get()), dst, W::widen);
   });
 }
 
