@@ -100,11 +100,18 @@ static_assert(sizeof(WideNum) * CHAR_BIT == 64, "WideNum is 64 bits wide");
 
 template <DType DTYPE>
 struct WideDType {
+  using narrowtype = CppType<DTYPE>;
   using type = typename DTypeTrait<DTYPE>::widetype;
   static constexpr DType dtype = toDType<type>;
   static constexpr type unpack(WideNum n) { return n.to<type>(dtype); }
   static constexpr WideNum pack(type x) {
     return WideNum::from<type>(dtype, x);
+  }
+  static constexpr WideNum widen(narrowtype unwide) {
+    return pack(static_cast<type>(unwide));
+  }
+  static constexpr narrowtype narrow(WideNum wide) {
+    return static_cast<narrowtype>(unpack(wide));
   }
 };
 

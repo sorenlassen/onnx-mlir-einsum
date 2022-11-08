@@ -23,20 +23,18 @@ namespace onnx_mlir {
 void widenArray(
     Type elementType, ArrayRef<char> bytes, MutableArrayRef<WideNum> wideData) {
   dispatchByMlirType(elementType, [bytes, wideData](auto dtype) {
-    using T = CppType<dtype>;
-    auto src = castArrayRef<T>(bytes);
-    std::transform(src.begin(), src.end(), wideData.begin(),
-        [](T x) -> WideNum { return WideNum::from<T>(toDType<T>, x); });
+    using W = WideDType<dtype>;
+    auto src = castArrayRef<typename W::narrowtype>(bytes);
+    std::transform(src.begin(), src.end(), wideData.begin(), W::widen);
   });
 }
 
 void narrowArray(
     Type elementType, ArrayRef<WideNum> wideData, MutableArrayRef<char> bytes) {
   dispatchByMlirType(elementType, [wideData, bytes](auto dtype) {
-    using T = CppType<dtype>;
-    auto dst = castMutableArrayRef<T>(bytes);
-    std::transform(wideData.begin(), wideData.end(), dst.begin(),
-        [](WideNum n) -> T { return n.to<T>(toDType<T>); });
+    using W = WideDType<dtype>;
+    auto dst = castMutableArrayRef<typename W::narrowtype>(bytes);
+    std::transform(wideData.begin(), wideData.end(), dst.begin(), W::narrow);
   });
 }
 
