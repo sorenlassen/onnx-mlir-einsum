@@ -138,11 +138,10 @@ public:
     return *this ? cast<ElementsAttr>() : nullptr;
   }
 
-  // TODO: move this
-  using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
-
 private:
   // TODO: move the following to ElementsAttrBuilder
+
+  using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
 
   DisposableElementsAttr transform(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
       Type transformedElementType, Transformer transformer) const;

@@ -105,7 +105,7 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
 namespace {
 DisposableElementsAttr::Reader composeReadTransform(
     const DisposableElementsAttr::Reader &reader,
-    DisposableElementsAttr::Transformer transformer) {
+    ElementsAttrBuilder::Transformer transformer) {
   return [read = reader, transform = std::move(transformer)](
              StringRef s, MutableArrayRef<WideNum> dst) {
     read(s, dst);
@@ -125,7 +125,7 @@ void wideCaster(MutableArrayRef<WideNum> nums) {
   }
 }
 
-DisposableElementsAttr::Transformer wideCaster(DType src, DType dst) {
+ElementsAttrBuilder::Transformer wideCaster(DType src, DType dst) {
   constexpr DType DBL = DType::DOUBLE, I64 = DType::INT64, U64 = DType::UINT64;
   // clang-format off
   if (src == DBL && dst == I64) return wideCaster<DBL, I64>;
