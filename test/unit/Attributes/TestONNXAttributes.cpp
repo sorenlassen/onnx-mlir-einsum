@@ -92,7 +92,7 @@ class Test {
 public:
   Test()
       : ctx(createCtx()), loc(UnknownLoc::get(ctx)), builder(ctx),
-        elmsBuilder(ctx) {
+        elmsBuilder(DisposablePool::create(ctx)) {
     F32 = builder.getF32Type();
     I32 = builder.getI32Type();
     I64 = builder.getI64Type();
