@@ -26,15 +26,25 @@ size_t getStridesPosition(
 
 llvm::SmallVector<int64_t, 4> getDefaultStrides(llvm::ArrayRef<int64_t> shape);
 
-// NOTE: this function is expensive, try to avoid calling it
-llvm::SmallVector<int64_t, 4> unflattenIndex(
-    llvm::ArrayRef<int64_t> shape, int64_t flatIndex);
+llvm::SmallVector<int64_t, 4> unpadStrides(llvm::ArrayRef<int64_t> strides);
 
 llvm::SmallVector<int64_t, 4> padStrides(
     llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
 
 llvm::SmallVector<int64_t, 4> paddedStridesOfShape(
     llvm::ArrayRef<int64_t> shape);
+
+llvm::Optional<llvm::SmallVector<int64_t, 4>> transposeStrides(
+    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
+    llvm::ArrayRef<uint64_t> perm);
+
+llvm::Optional<llvm::SmallVector<int64_t, 4>> reshapeStrides(
+    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
+    llvm::ArrayRef<int64_t> reshapedShape);
+
+llvm::Optional<llvm::SmallVector<int64_t, 4>> expandStrides(
+    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
+    llvm::ArrayRef<int64_t> expandedShape);
 
 // Requires srcStrides and dstStrides are padded.
 void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
@@ -45,5 +55,18 @@ void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
 void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
     llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
     llvm::MutableArrayRef<char> dst);
+
+// The following functions are more about shapes than strides but they live
+// here for now:
+
+// NOTE: this function is expensive, try to avoid calling it
+llvm::SmallVector<int64_t, 4> unflattenIndex(
+    llvm::ArrayRef<int64_t> shape, int64_t flatIndex);
+
+llvm::SmallVector<int64_t, 4> transposeDims(
+    llvm::ArrayRef<int64_t> dims, llvm::ArrayRef<uint64_t> perm);
+
+llvm::SmallVector<int64_t, 4> untransposeDims(
+    llvm::ArrayRef<int64_t> dims, llvm::ArrayRef<uint64_t> perm);
 
 } // namespace onnx_mlir

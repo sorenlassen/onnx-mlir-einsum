@@ -105,23 +105,12 @@ SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {
   return strides;
 }
 
-SmallVector<int64_t, 4> unflattenIndex(
-    ArrayRef<int64_t> shape, int64_t flatIndex) {
-  SmallVector<int64_t, 4> indices;
-  int64_t rank = shape.size();
-  if (rank > 0) {
-    indices.resize_for_overwrite(rank);
-    for (int64_t axis = rank - 1; axis >= 1; --axis) {
-      int64_t dimSize = shape[axis];
-      assert(dimSize > 0 && "cannot unflatten shape with zeros");
-      int64_t rem = flatIndex % dimSize;
-      flatIndex /= dimSize;
-      indices[axis] = rem;
-    }
-    assert(flatIndex < shape[0]);
-    indices[0] = flatIndex;
-  }
-  return indices;
+SmallVector<int64_t, 4> unpadStrides(ArrayRef<int64_t> strides) {
+  size_t skip = 0;
+  while (skip < strides.size() && strides[skip] == 0)
+    skip += 1;
+  SmallVector<int64_t, 4> unpadded(strides.drop_front(skip));
+  return unpadded;
 }
 
 SmallVector<int64_t, 4> padStrides(
@@ -136,6 +125,36 @@ SmallVector<int64_t, 4> padStrides(
 SmallVector<int64_t, 4> paddedStridesOfShape(ArrayRef<int64_t> shape) {
   SmallVector<int64_t, 4> strides = getDefaultStrides(shape);
   return padStrides(shape, strides);
+}
+
+Optional<SmallVector<int64_t, 4>> transposeStrides(ArrayRef<int64_t> shape,
+    ArrayRef<int64_t> strides, ArrayRef<uint64_t> perm) {
+  // TODO: refine logic to figure out strides in more situations
+  if (strides != makeArrayRef(getDefaultStrides(shape)))
+    return None;
+  SmallVector<int64_t, 4> paddedStrides = padStrides(shape, strides);
+  SmallVector<int64_t, 4> transposedStrides =
+      transposeDims(paddedStrides, perm);
+  SmallVector<int64_t, 4> unpaddedTransposedStrides =
+      unpadStrides(transposedStrides);
+  return unpaddedTransposedStrides;
+}
+
+Optional<SmallVector<int64_t, 4>> reshapeStrides(ArrayRef<int64_t> shape,
+    ArrayRef<int64_t> strides, ArrayRef<int64_t> reshapedShape) {
+  // TODO: refine logic to figure out strides in more situations
+  if (strides != makeArrayRef(getDefaultStrides(shape)))
+    return None;
+  return getDefaultStrides(reshapedShape);
+}
+
+Optional<SmallVector<int64_t, 4>> expandStrides(ArrayRef<int64_t> shape,
+    ArrayRef<int64_t> strides, ArrayRef<int64_t> expandedShape) {
+  // TODO: refine logic to figure out strides in more situations
+  if (strides != makeArrayRef(getDefaultStrides(shape)))
+    return None;
+  SmallVector<int64_t, 4> expanded(strides);
+  return expanded;
 }
 
 namespace {
@@ -174,14 +193,54 @@ void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
   });
 }
 
-void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
-    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
-    llvm::MutableArrayRef<char> dst) {
-  llvm::SmallVector<int64_t, 4> paddedSrcStrides =
-      padStrides(shape, srcStrides);
-  llvm::SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
+void restrideArray(unsigned elementBytewidth, ArrayRef<int64_t> shape,
+    ArrayRef<char> src, ArrayRef<int64_t> srcStrides,
+    MutableArrayRef<char> dst) {
+  SmallVector<int64_t, 4> paddedSrcStrides = padStrides(shape, srcStrides);
+  SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
   restrideArray(
       elementBytewidth, shape, src, paddedSrcStrides, dst, dstStrides);
+}
+
+// Shape helpers:
+
+SmallVector<int64_t, 4> unflattenIndex(
+    ArrayRef<int64_t> shape, int64_t flatIndex) {
+  SmallVector<int64_t, 4> indices;
+  int64_t rank = shape.size();
+  if (rank > 0) {
+    indices.resize_for_overwrite(rank);
+    for (int64_t axis = rank - 1; axis >= 1; --axis) {
+      int64_t dimSize = shape[axis];
+      assert(dimSize > 0 && "cannot unflatten shape with zeros");
+      int64_t rem = flatIndex % dimSize;
+      flatIndex /= dimSize;
+      indices[axis] = rem;
+    }
+    assert(flatIndex < shape[0]);
+    indices[0] = flatIndex;
+  }
+  return indices;
+}
+
+SmallVector<int64_t, 4> transposeDims(
+    ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
+  assert(dims.size() == perm.size());
+  SmallVector<int64_t, 4> permutedDims;
+  permutedDims.reserve(perm.size());
+  for (size_t i = 0; i < perm.size(); ++i)
+    permutedDims.push_back(dims[perm[i]]);
+  return permutedDims;
+}
+
+SmallVector<int64_t, 4> untransposeDims(
+    ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
+  assert(dims.size() == perm.size());
+  SmallVector<int64_t, 4> unpermutedDims;
+  unpermutedDims.resize_for_overwrite(perm.size());
+  for (size_t i = 0; i < perm.size(); ++i)
+    unpermutedDims[perm[i]] = dims[i];
+  return unpermutedDims;
 }
 
 } // namespace onnx_mlir
