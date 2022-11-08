@@ -99,26 +99,69 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
   return a;
 }
 
+namespace {
+DisposableElementsAttr::Reader composeReadTransform(
+    const DisposableElementsAttr::Reader &reader,
+    DisposableElementsAttr::Transformer transformer) {
+  return [read = reader, transform = std::move(transformer)](
+             StringRef s, MutableArrayRef<WideNum> dst) {
+    read(s, dst);
+    transform(dst);
+  };
+}
+
+template <DType SRC_TAG, DType DST_TAG>
+void wideCaster(MutableArrayRef<WideNum> nums) {
+  using SrcT = CppType<SRC_TAG>;
+  using DstT = CppType<DST_TAG>;
+  for (WideNum &n : nums) {
+    // n = static_cast<DstT>(reinterpret_cast<SrcT>(n)) :
+    SrcT src = n.to<SrcT>(SRC_TAG);        // unpack from WideNum to SrcT
+    DstT dst = static_cast<DstT>(src);     // cast
+    n = WideNum::from<DstT>(DST_TAG, dst); // pack to WideNum from DstT
+  }
+}
+
+DisposableElementsAttr::Transformer wideCaster(DType src, DType dst) {
+  constexpr DType DBL = DType::DOUBLE, I64 = DType::INT64, U64 = DType::UINT64;
+  // clang-format off
+  if (src == DBL && dst == I64) return wideCaster<DBL, I64>;
+  if (src == DBL && dst == U64) return wideCaster<DBL, U64>;
+  if (src == I64 && dst == DBL) return wideCaster<I64, DBL>;
+  if (src == I64 && dst == U64) return wideCaster<I64, U64>;
+  if (src == U64 && dst == DBL) return wideCaster<U64, DBL>;
+  if (src == U64 && dst == I64) return wideCaster<U64, I64>;
+  // clang-format on
+  llvm_unreachable("wideCaster must be called with 2 different wide types");
+}
+} // namespace
+
 DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
     Type transformedElementType, Transformer transformer) const {
   ShapedType transformedType = getType().clone(transformedElementType);
   Properties transformedProperties = getProperties();
-  transformedProperties.isTransformed = true;
   transformedProperties.dtype = dtypeOfMlirType(transformedElementType);
+  transformedProperties.isTransformed = true;
   return pool.createElementsAttr(transformedType, getStrides(),
       transformedProperties, getBuffer(),
-      [read = getReader(), transform = std::move(transformer)](
-          StringRef s, MutableArrayRef<WideNum> dst) {
-        read(s, dst);
-        transform(dst);
-      });
+      composeReadTransform(getReader(), std::move(transformer)));
 }
 
 DisposableElementsAttr DisposableElementsAttr::castElementType(
     DisposablePool &pool, Type newElementType) const {
-  // TODO: if newElementType promotes to the same widetype as *this then
-  //       clone *this with the new element type, otherwise call transform
-  //       with a transformer that performs the cast
+  ShapedType newType = getType().clone(newElementType);
+  Properties newProperties = getProperties();
+  newProperties.dtype = dtypeOfMlirType(newElementType);
+  DType oldWideType = wideDTypeOfDType(DType());
+  DType newWideType = wideDTypeOfDType(newProperties.dtype);
+  if (oldWideType == newWideType) {
+    return pool.createElementsAttr(
+        newType, getStrides(), newProperties, getBuffer(), getReader());
+  }
+  newProperties.isTransformed = true;
+  Transformer transformer = wideCaster(oldWideType, newWideType);
+  return pool.createElementsAttr(newType, getStrides(), newProperties,
+      getBuffer(), composeReadTransform(getReader(), std::move(transformer)));
   llvm_unreachable("TODO: implement DisposableElementsAttr::castElementType");
 }
 

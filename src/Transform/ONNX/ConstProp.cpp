@@ -24,6 +24,8 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
+#include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
+#include "src/Dialect/ONNX/DisposablePool.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/ShapeHelper.hpp"
@@ -32,7 +34,6 @@
 #include "src/Support/DType.hpp"
 #include "src/Support/TypeUtilities.hpp"
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
-#include "src/Transform/ONNX/ElementsComputer.hpp"
 
 #include <math.h>
 
@@ -112,13 +113,11 @@ ElementsAttr getConstValueElements(Value constValue) {
   return constOp.valueAttr().cast<ElementsAttr>();
 }
 
-#if 0
 DisposableElementsAttr getConstValueAsDisposableElements(
     DisposablePool &disposablePool, Value constValue) {
   return toDisposableElementsAttr(
       disposablePool, getConstValueElements(constValue));
 }
-#endif
 
 // Creates ONNXConstantOp with the location and result type from replacingValue.
 ONNXConstantOp createReplacingConstantOp(
@@ -495,17 +494,13 @@ Value ConstPropTranspose(
   SmallVector<uint64_t, 4> perm =
       createIntVectorFromArrayAttr<uint64_t>(permAttr);
 
-#if 0
   DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
   DisposableElementsAttr constElements =
       getConstValueAsDisposableElements(disposablePool, constValue);
-  DisposableElementsAttr transposedElements = constElements.transpose(disposablePool, perm);
-#else
-  ElementsAttr constElements = getConstValueElements(constValue);
-  ElementsAttr transposedElements = transposeElements(constElements, perm);
+  DisposableElementsAttr transposedElements =
+      constElements.transpose(disposablePool, perm);
   return createReplacingConstantOp(rewriter, replacingValue, transposedElements)
       .getResult();
-#endif
 }
 
 //===----------------------------------------------------------------------===//
@@ -764,42 +759,16 @@ public:
 
 Value ConstPropCast(
     PatternRewriter &rewriter, Value replacingValue, Value constValue) {
-#if 0
-  ShapedType dstType = replacingValue.getType().cast<ShapedType>();
-  Type dstElemType = dstType.getElementType();
+  Type replacingElemType =
+      replacingValue.getType().cast<ShapedType>().getElementType();
 
   DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
   DisposableElementsAttr constElements =
       getConstValueAsDisposableElements(disposablePool, constValue);
-  DisposableElementsAttr transposedElements =
-      constElements.castElementType(disposablePool, perm);
-#else
-  ShapedType srcType = constValue.getType().cast<ShapedType>();
-  ShapedType dstType = replacingValue.getType().cast<ShapedType>();
-  assert(srcType.getNumElements() == dstType.getNumElements() &&
-         "types must have the equally many elements");
-
-  Type srcElemType = srcType.getElementType();
-  Type dstElemType = dstType.getElementType();
-
-  ArrayBuffer<char> src = getRawBytesFromConstValue(constValue);
-
-  // TODO: make single element splat dst buffer if src isSplat
-
-  ElementsAttr elements = makeElementsAttrWithRawBytesFiller(
-      dstType, [&](MutableArrayRef<char> dst) {
-        dispatchByMlirType(srcElemType, [&](auto srcDType) {
-          using S = CppType<srcDType>;
-          castAndCopy(dstElemType, castArrayRef<S>(src.get()), dst);
-        });
-      });
-
-  // Construct a new ONNXConstantOp.
-  ONNXConstantOp res = createONNXConstantOpWithDenseAttr(
-      rewriter, replacingValue.getLoc(), elements);
-
-  return res.getResult();
-#endif
+  DisposableElementsAttr castElements =
+      constElements.castElementType(disposablePool, replacingElemType);
+  return createReplacingConstantOp(rewriter, replacingValue, castElements)
+      .getResult();
 }
 
 //===----------------------------------------------------------------------===//
