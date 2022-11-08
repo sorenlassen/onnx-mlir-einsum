@@ -154,7 +154,7 @@ DisposableElementsAttr DisposableElementsAttr::castElementType(
   ShapedType newType = getType().clone(newElementType);
   Properties newProperties = getProperties();
   newProperties.dtype = dtypeOfMlirType(newElementType);
-  DType oldWideType = wideDTypeOfDType(DType());
+  DType oldWideType = wideDTypeOfDType(getDType());
   DType newWideType = wideDTypeOfDType(newProperties.dtype);
   if (oldWideType == newWideType) {
     return pool.createElementsAttr(
@@ -254,7 +254,7 @@ bool DisposableElementsAttr::isContiguous() const {
 }
 
 unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
-  return bytewidthOfDType(getDType());
+  return bytewidthOfDType(getProperties().bufferDType);
 }
 
 int64_t DisposableElementsAttr::getNumBufferElements() const {

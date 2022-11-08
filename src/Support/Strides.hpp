@@ -56,15 +56,6 @@ void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
     llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
     llvm::MutableArrayRef<char> dst);
 
-// Requires srcStrides and dstStrides are padded.
-template <typename T>
-void restrideArray(llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<T> src,
-    llvm::ArrayRef<int64_t> srcStrides, llvm::MutableArrayRef<T> dst,
-    llvm::ArrayRef<int64_t> dstStrides) {
-  return restrideArray(sizeof(T), shape, castArrayRef<char>(src), srcStrides,
-      castMutableArrayRef<char>(dst), dstStrides);
-}
-
 // The following functions are more about shapes than strides but they live
 // here for now:
 

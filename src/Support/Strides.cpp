@@ -64,13 +64,16 @@ int64_t getStridesNumElements(
 
 bool areStridesContiguous(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   assert(shape.size() >= strides.size());
-  if (shape.size() != strides.size())
+  size_t skip = shape.size() - strides.size();
+  auto leadingOnes =
+      shape.take_while([](int64_t dimSize) { return dimSize == 1; });
+  if (skip != leadingOnes.size())
     return false;
   int64_t x = 1;
   for (int s = strides.size() - 1; s >= 0; --s) {
     if (strides[s] != x)
       return false;
-    x *= shape[s];
+    x *= shape[skip + s];
   }
   return true;
 }

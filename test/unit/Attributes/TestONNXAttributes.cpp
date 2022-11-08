@@ -87,6 +87,7 @@ class Test {
   DisposablePool &disposablePool;
   Type F32;
   Type I32;
+  Type I64;
 
 public:
   Test()
@@ -94,6 +95,7 @@ public:
         disposablePool(DisposablePool::create(ctx)) {
     F32 = builder.getF32Type();
     I32 = builder.getI32Type();
+    I64 = builder.getI64Type();
   }
   ~Test() { delete ctx; }
 
@@ -368,9 +370,51 @@ public:
     auto vs = e.tryGetValues<uint64_t>();
     for (auto v : *vs) // we crash here, why?
       std::cerr << "evalue:" << v << "\n";
-    for (auto v : *e.tryGetValues<uint64_t>()) // we crash here, why?
-      std::cerr << "evalue:" << v << "\n";
+    // for (auto v : *e.tryGetValues<uint64_t>()) // we crash here, why?
+    //   std::cerr << "evalue:" << v << "\n";
 
+    return 0;
+  }
+
+  template <typename T, T... ints>
+  std::vector<T> nums(std::integer_sequence<T, ints...> int_seq) {
+    std::vector<T> v;
+    (v.push_back(ints), ...);
+    return v;
+  }
+
+  int test_transpose() {
+    llvm::errs() << "test_transpose:\n";
+    ShapedType type = RankedTensorType::get({2, 3, 5}, getUInt(8));
+    auto elms = nums<uint8_t>(std::make_integer_sequence<uint8_t, 30>{});
+    auto e =
+        disposablePool.createElementsAttr(type, None, buffer<uint8_t>(elms));
+    std::cerr << "before transpose " << e.getShape();
+    for (auto x : e.getValues<uint8_t>())
+      std::cerr << " " << unsigned(x);
+    std::cerr << "\n";
+    auto et = e.transpose(disposablePool, {1, 2, 0});
+    std::cerr << "after  transpose " << et.getShape();
+    for (auto x : et.getValues<uint8_t>())
+      std::cerr << " " << unsigned(x);
+    std::cerr << "\n";
+    return 0;
+  }
+
+  int test_cast() {
+    llvm::errs() << "test_cast:\n";
+    ShapedType type = RankedTensorType::get({1}, I64);
+    auto e =
+        disposablePool.createElementsAttr(type, None, buffer<int64_t>({256}));
+    std::cerr << "before cast " << e.getShape();
+    for (auto x : e.getValues<int64_t>())
+      std::cerr << " " << x;
+    std::cerr << "\n";
+    auto ec = e.castElementType(disposablePool, F32);
+    std::cerr << "after  cast " << ec.getShape();
+    for (auto x : ec.getValues<float>())
+      std::cerr << " " << x;
+    std::cerr << "\n";
     return 0;
   }
 };
@@ -391,6 +435,8 @@ int main(int argc, char *argv[]) {
   failures += test.test_f16();
   failures += test.test_bool();
   failures += test.test_attributes();
+  failures += test.test_transpose();
+  failures += test.test_cast();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
     return 1;
