@@ -28,6 +28,7 @@
 namespace onnx_mlir {
 
 class DisposablePool : public mlir::DialectInterface::Base<DisposablePool> {
+  friend class ElementsAttrBuilder; // allow access to insert()
 public:
   static DisposablePool &create(mlir::MLIRContext *context);
 
@@ -36,13 +37,13 @@ public:
   DisposablePool(mlir::Dialect *dialect, mlir::MLIRContext *context);
   ~DisposablePool();
 
-  // Create a DisposableElementsAttr and put it in the pool.
-  template <typename... Args>
-  mlir::DisposableElementsAttr createElementsAttr(Args &&...args) {
-    auto d = mlir::DisposableElementsAttr::get(std::forward<Args>(args)...);
-    insert(d);
-    return d;
-  }
+  // // Create a DisposableElementsAttr and put it in the pool.
+  // template <typename... Args>
+  // mlir::DisposableElementsAttr createElementsAttr(Args &&...args) {
+  //   auto d = mlir::DisposableElementsAttr::get(std::forward<Args>(args)...);
+  //   insert(d);
+  //   return d;
+  // }
 
   // Disposes every DisposableElementsAttr in the pool which is unreachable
   // (doesn't appear in moduleOp).

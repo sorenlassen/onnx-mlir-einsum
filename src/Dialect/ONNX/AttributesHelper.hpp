@@ -38,30 +38,7 @@ union WideNum;
 // Makes deep copy of elements, unless they are already a DenseElementsAttr.
 mlir::DenseElementsAttr toDenseElementsAttr(mlir::ElementsAttr elements);
 
-// Makes a DisposableElementsAttr that points to elements' raw data, if
-// elements is DenseElementsAttr, except if the element type is bool, then
-// it makes a deep copy because DisposableElementsAttr doesn't bit pack bools.
-mlir::DisposableElementsAttr toDisposableElementsAttr(
-    DisposablePool &disposablePool, mlir::ElementsAttr elements);
-
 // TODO: remove some of these functions (they overlap and are not all used):
-
-mlir::DenseElementsAttr makeDenseElementsAttrFromRawBytes(
-    mlir::ShapedType type, llvm::ArrayRef<char> bytes);
-
-// TODO: decide if caller should pass in DisposablePool
-mlir::DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
-    mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
-
-mlir::ElementsAttr makeElementsAttrFromRawBytes(
-    mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
-
-template <typename NumericType>
-mlir::ElementsAttr makeElementsAttr(
-    mlir::ShapedType type, llvm::ArrayRef<NumericType> numbers, bool mustCopy) {
-  return makeElementsAttrFromRawBytes(
-      type, castArrayRef<char>(numbers), mustCopy);
-}
 
 typedef llvm::function_ref<void(llvm::MutableArrayRef<char>)> RawBytesFiller;
 

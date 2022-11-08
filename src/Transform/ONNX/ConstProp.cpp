@@ -26,6 +26,7 @@
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/DisposablePool.hpp"
+#include "src/Dialect/ONNX/ElementsAttrBuilder.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/ShapeHelper.hpp"
@@ -114,9 +115,8 @@ ElementsAttr getConstValueElements(Value constValue) {
 }
 
 DisposableElementsAttr getConstValueAsDisposableElements(
-    DisposablePool &disposablePool, Value constValue) {
-  return toDisposableElementsAttr(
-      disposablePool, getConstValueElements(constValue));
+    ElementsAttrBuilder &elementsBuilder, Value constValue) {
+  return elementsBuilder.fromElementsAttr(getConstValueElements(constValue));
 }
 
 // Creates ONNXConstantOp with the location and result type from replacingValue.
@@ -494,11 +494,11 @@ Value ConstPropTranspose(
   SmallVector<uint64_t, 4> perm =
       createIntVectorFromArrayAttr<uint64_t>(permAttr);
 
-  DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
+  ElementsAttrBuilder elementsBuilder(rewriter.getContext());
   DisposableElementsAttr constElements =
-      getConstValueAsDisposableElements(disposablePool, constValue);
+      getConstValueAsDisposableElements(elementsBuilder, constValue);
   DisposableElementsAttr transposedElements =
-      constElements.transpose(disposablePool, perm);
+      elementsBuilder.transpose(constElements, perm);
   return createReplacingConstantOp(rewriter, replacingValue, transposedElements)
       .getResult();
 }
@@ -762,11 +762,11 @@ Value ConstPropCast(
   Type replacingElemType =
       replacingValue.getType().cast<ShapedType>().getElementType();
 
-  DisposablePool &disposablePool = *DisposablePool::get(rewriter.getContext());
+  ElementsAttrBuilder elementsBuilder(rewriter.getContext());
   DisposableElementsAttr constElements =
-      getConstValueAsDisposableElements(disposablePool, constValue);
+      getConstValueAsDisposableElements(elementsBuilder, constValue);
   DisposableElementsAttr castElements =
-      constElements.castElementType(disposablePool, replacingElemType);
+      elementsBuilder.castElementType(constElements, replacingElemType);
   return createReplacingConstantOp(rewriter, replacingValue, castElements)
       .getResult();
 }

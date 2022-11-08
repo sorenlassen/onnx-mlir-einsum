@@ -17,6 +17,7 @@
 
 #include "src/Dialect/ONNX/DisposableElementsAttr.hpp"
 #include "src/Dialect/ONNX/DisposablePool.hpp"
+#include "src/Dialect/ONNX/ElementsAttrBuilder.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
 #include "src/Support/TypeUtilities.hpp"
@@ -27,52 +28,6 @@ using namespace mlir;
 namespace onnx_mlir {
 
 namespace {
-Optional<DisposableElementsAttr::Strides> splatOrDefaultStrides(bool isSplat) {
-  if (isSplat)
-    return DisposableElementsAttr::Strides{};
-  else
-    return None;
-}
-} // namespace
-
-DenseElementsAttr toDenseElementsAttr(ElementsAttr elements) {
-  if (auto dense = elements.dyn_cast<DenseElementsAttr>())
-    return dense;
-  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
-    ArrayBuffer<char> bytes = disposable.getRawBytes();
-    return makeDenseElementsAttrFromRawBytes(disposable.getType(), bytes.get());
-  }
-  // TODO: consider reading data from elements.getValues() instead of giving up
-  llvm_unreachable("unexpected ElementsAttr instance");
-}
-
-DisposableElementsAttr toDisposableElementsAttr(
-    DisposablePool &disposablePool, ElementsAttr elements) {
-  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>())
-    return disposable;
-  if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
-    bool isSplat = dense.isSplat();
-    std::unique_ptr<llvm::MemoryBuffer> buffer;
-    if (dense.getElementType().isInteger(1)) {
-      size_t size = isSplat ? 1 : dense.getNumElements();
-      std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
-          llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
-      std::copy_n(
-          dense.value_begin<bool>(), size, writeBuffer->getBuffer().begin());
-      buffer = std::move(writeBuffer);
-    } else {
-      StringRef s = asStringRef(dense.getRawData());
-      buffer = llvm::MemoryBuffer::getMemBuffer(
-          s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
-    }
-    return disposablePool.createElementsAttr(
-        dense.getType(), splatOrDefaultStrides(isSplat), std::move(buffer));
-  }
-  // TODO: consider supporting more ElementsAttr types
-  llvm_unreachable("unexpected ElementsAttr instance");
-}
-
-namespace {
 
 bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
   bool isSplat;
@@ -80,8 +35,6 @@ bool splatterBuffer(ShapedType type, ArrayRef<char> buffer) {
     llvm_unreachable("invalid dense int or fps raw buffer");
   return isSplat;
 }
-
-} // namespace
 
 DenseElementsAttr makeDenseElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes) {
@@ -95,35 +48,17 @@ DenseElementsAttr makeDenseElementsAttrFromRawBytes(
   return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
-DisposableElementsAttr tryMakeDisposableElementsAttrFromRawBytes(
-    ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
-  size_t bytewidth = getIntOrFloatByteWidth(type.getElementType());
-  assert(bytes.size() == type.getNumElements() * bytewidth &&
-         "data size must match type");
-  if (DisposablePool *disposablePool = DisposablePool::get(type.getContext());
-      disposablePool && disposablePool->isActive()) {
-    std::unique_ptr<llvm::MemoryBuffer> buffer;
-    bool isSplat = splatterBuffer(type, bytes);
-    StringRef s = asStringRef(isSplat ? bytes.take_front(bytewidth) : bytes);
-    if (mustCopy) {
-      buffer = llvm::MemoryBuffer::getMemBufferCopy(s);
-    } else {
-      buffer = llvm::MemoryBuffer::getMemBuffer(
-          s, /*BufferName=*/"", /*RequiresNullTerminator=*/false);
-    }
-    return disposablePool->createElementsAttr(
-        type, splatOrDefaultStrides(isSplat), std::move(buffer));
-  } else {
-    return nullptr;
-  }
-}
+} // namespace
 
-ElementsAttr makeElementsAttrFromRawBytes(
-    ShapedType type, ArrayRef<char> bytes, bool mustCopy) {
-  if (auto disposable =
-          tryMakeDisposableElementsAttrFromRawBytes(type, bytes, mustCopy))
-    return disposable;
-  return makeDenseElementsAttrFromRawBytes(type, bytes);
+DenseElementsAttr toDenseElementsAttr(ElementsAttr elements) {
+  if (auto dense = elements.dyn_cast<DenseElementsAttr>())
+    return dense;
+  if (auto disposable = elements.dyn_cast<DisposableElementsAttr>()) {
+    ArrayBuffer<char> bytes = disposable.getRawBytes();
+    return makeDenseElementsAttrFromRawBytes(disposable.getType(), bytes.get());
+  }
+  // TODO: consider reading data from elements.getValues() instead of giving up
+  llvm_unreachable("unexpected ElementsAttr instance");
 }
 
 ElementsAttr makeElementsAttrWithRawBytesFiller(
@@ -137,7 +72,8 @@ ElementsAttr makeElementsAttrWithRawBytesFiller(
     filler(buffer->getBuffer());
     bool isSplat = splatterBuffer(type, buffer->getBuffer());
     (void)isSplat; // TODO: decide whether to truncate buffer if isSplat
-    return disposablePool->createElementsAttr(type, None, std::move(buffer));
+    return ElementsAttrBuilder(*disposablePool)
+        .create(type, None, std::move(buffer));
   }
   SmallVector<char> bytes;
   bytes.resize_for_overwrite(size);

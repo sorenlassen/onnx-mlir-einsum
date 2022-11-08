@@ -13,6 +13,7 @@
 
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/DisposablePool.hpp"
+#include "src/Dialect/ONNX/ElementsAttrBuilder.hpp"
 #include "src/Dialect/ONNX/ONNXAttributes.hpp"
 
 using namespace onnx_mlir;
@@ -138,19 +139,20 @@ DisposableElementsAttr::Transformer wideCaster(DType src, DType dst) {
 }
 } // namespace
 
-DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
-    Type transformedElementType, Transformer transformer) const {
+DisposableElementsAttr DisposableElementsAttr::transform(
+    ElementsAttrBuilder &elmsBuilder, Type transformedElementType,
+    Transformer transformer) const {
   ShapedType transformedType = getType().clone(transformedElementType);
   Properties transformedProperties = getProperties();
   transformedProperties.dtype = dtypeOfMlirType(transformedElementType);
   transformedProperties.isTransformed = true;
-  return pool.createElementsAttr(transformedType, getStrides(),
+  return elmsBuilder.create(transformedType, getStrides(),
       transformedProperties, getBuffer(),
       composeReadTransform(getReader(), std::move(transformer)));
 }
 
 DisposableElementsAttr DisposableElementsAttr::castElementType(
-    DisposablePool &pool, Type newElementType) const {
+    ElementsAttrBuilder &elmsBuilder, Type newElementType) const {
   if (newElementType == getElementType())
     return *this;
 
@@ -161,19 +163,19 @@ DisposableElementsAttr DisposableElementsAttr::castElementType(
   DType newWideType = wideDTypeOfDType(newProperties.dtype);
 
   if (oldWideType == newWideType) {
-    return pool.createElementsAttr(
+    return elmsBuilder.create(
         newType, getStrides(), newProperties, getBuffer(), getReader());
   }
 
   newProperties.isTransformed = true;
   Transformer transformer = wideCaster(oldWideType, newWideType);
-  return pool.createElementsAttr(newType, getStrides(), newProperties,
-      getBuffer(), composeReadTransform(getReader(), std::move(transformer)));
+  return elmsBuilder.create(newType, getStrides(), newProperties, getBuffer(),
+      composeReadTransform(getReader(), std::move(transformer)));
   llvm_unreachable("TODO: implement DisposableElementsAttr::castElementType");
 }
 
 DisposableElementsAttr DisposableElementsAttr::transpose(
-    DisposablePool &pool, ArrayRef<uint64_t> perm) const {
+    ElementsAttrBuilder &elmsBuilder, ArrayRef<uint64_t> perm) const {
   // TODO: Check if perm is identity and then just return *this.
 
   ShapedType type = getType();
@@ -186,9 +188,8 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
   if (auto transposedStrides = transposeStrides(shape, strides, perm)) {
     transposedProperties.isContiguous =
         (transposedStrides == getDefaultStrides(transposedShape));
-    return pool.createElementsAttr(transposedType,
-        makeArrayRef(*transposedStrides), transposedProperties, getBuffer(),
-        getReader());
+    return elmsBuilder.create(transposedType, makeArrayRef(*transposedStrides),
+        transposedProperties, getBuffer(), getReader());
   }
 
   // TODO: Consider transposing without transforming (just carry over the
@@ -210,13 +211,12 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
   DType dtype = getDType();
   transposedProperties.bufferDType = wideDTypeOfDType(dtype);
   Buffer transposedBuffer = std::move(writeBuffer);
-  return pool.createElementsAttr(transposedType,
-      getDefaultStrides(transposedShape), transposedProperties,
-      transposedBuffer, getIdentityReader(dtype));
+  return elmsBuilder.create(transposedType, getDefaultStrides(transposedShape),
+      transposedProperties, transposedBuffer, getIdentityReader(dtype));
 }
 
 DisposableElementsAttr DisposableElementsAttr::reshape(
-    DisposablePool &pool, ArrayRef<int64_t> reshapedShape) const {
+    ElementsAttrBuilder &elmsBuilder, ArrayRef<int64_t> reshapedShape) const {
   // TODO: if getStrides() don't conflict with reshapedShape clone *this
   //       with strides that incorporate reshape, otherwise create a new
   //       MemoryBuffer and restrideArray buffer into it and, if needed,
@@ -225,7 +225,7 @@ DisposableElementsAttr DisposableElementsAttr::reshape(
 }
 
 DisposableElementsAttr DisposableElementsAttr::expand(
-    DisposablePool &pool, ArrayRef<int64_t> expandedShape) const {
+    ElementsAttrBuilder &elmsBuilder, ArrayRef<int64_t> expandedShape) const {
   // TODO: if getStrides() don't conflict with expandedShape clone *this
   //       with strides that incorporate expandedShape, otherwise create a new
   //       MemoryBuffer and restrideArray / reorder buffer into it
