@@ -102,6 +102,137 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
   return a;
 }
 
+auto DisposableElementsAttr::getStrides() const -> Strides {
+  return getImpl()->strides;
+}
+
+auto DisposableElementsAttr::getProperties() const -> const Properties & {
+  return getImpl()->properties;
+}
+
+auto DisposableElementsAttr::getBuffer() const -> const Buffer & {
+  assert(!isDisposed());
+  return getImpl()->buffer;
+}
+
+auto DisposableElementsAttr::getReader() const -> const Reader & {
+  assert(!isDisposed());
+  return getImpl()->reader;
+}
+
+bool DisposableElementsAttr::isDisposed() const {
+  //  TODO: Decide if a splat value can be represented with a constant
+  //        reader with no buffer; in that case isDisposed should
+  //        only return true if both buffer and reader are null.
+  return !getImpl()->buffer;
+}
+
+bool DisposableElementsAttr::isContiguous() const {
+  return getProperties().isContiguous;
+}
+
+unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
+  return bytewidthOfDType(getProperties().bufferDType);
+}
+
+int64_t DisposableElementsAttr::getNumBufferElements() const {
+  return getBuffer()->getBufferSize() / getBufferElementBytewidth();
+}
+
+StringRef DisposableElementsAttr::getBufferString() const {
+  return getBuffer()->getBuffer();
+}
+
+ArrayRef<char> DisposableElementsAttr::getBufferBytes() const {
+  return asArrayRef(getBufferString());
+}
+
+bool DisposableElementsAttr::isSplat() const {
+  return getStrides().empty() && getBuffer()->getBufferSize() != 0;
+}
+
+DType DisposableElementsAttr::getDType() const { return getProperties().dtype; }
+
+ShapedType DisposableElementsAttr::getType() const { return getImpl()->type; }
+
+WideNum DisposableElementsAttr::readBufferPos(size_t pos) const {
+  StringRef s = getBufferString();
+  unsigned bufBytewidth = getBufferElementBytewidth();
+  StringRef bytes = s.substr(pos * bufBytewidth, bufBytewidth);
+  WideNum n;
+  getReader()(bytes, llvm::makeMutableArrayRef(n));
+  return n;
+}
+
+WideNum DisposableElementsAttr::readFlatIndex(size_t flatIndex) const {
+  return readBufferPos(flatIndexToBufferPos(flatIndex));
+}
+
+size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
+  if (isContiguous())
+    return flatIndex;
+  if (isSplat())
+    return 0;
+  SmallVector<int64_t, 4> indices;
+  return getStridesPosition(
+      unflattenIndex(getShape(), flatIndex), getStrides());
+}
+
+void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
+  if (isContiguous()) {
+    getReader()(getBuffer()->getBuffer(), dst);
+    return;
+  }
+  SmallVector<WideNum, 1> wideBufferData;
+  wideBufferData.resize_for_overwrite(getNumBufferElements());
+  getReader()(getBufferString(), wideBufferData);
+  ArrayRef<WideNum> src(wideBufferData);
+  restrideArray(sizeof(WideNum), getShape(), castArrayRef<char>(src),
+      getStrides(), castMutableArrayRef<char>(dst));
+}
+
+ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
+  const Properties &properties = getProperties();
+  if (!properties.isTransformed && properties.isContiguous &&
+      getBufferElementBytewidth() == sizeof(WideNum)) {
+    return asArrayRef<WideNum>(getBufferString());
+  }
+  ArrayBuffer<WideNum>::Vector vec;
+  vec.resize_for_overwrite(getNumElements());
+  readElements(vec);
+  return std::move(vec);
+}
+
+ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
+  const Properties &properties = getProperties();
+  bool requiresNoElementwiseTransformOrCast =
+      !properties.isTransformed && properties.dtype == properties.bufferDType;
+  if (requiresNoElementwiseTransformOrCast && properties.isContiguous)
+    return getBufferBytes();
+  unsigned attrBytewidth = bytewidthOfDType(properties.dtype);
+  ArrayBuffer<char>::Vector vec;
+  vec.resize_for_overwrite(getNumElements() * attrBytewidth);
+  MutableArrayRef<char> bytes(vec);
+  if (requiresNoElementwiseTransformOrCast) {
+    auto src = getBufferBytes();
+    restrideArray(attrBytewidth, getShape(), src, getStrides(), bytes);
+  } else if (attrBytewidth == sizeof(WideNum)) {
+    readElements(castMutableArrayRef<WideNum>(bytes));
+  } else {
+    SmallVector<WideNum, 1> wideData;
+    wideData.resize_for_overwrite(getNumElements());
+    readElements(wideData);
+    narrowArray(getElementType(), wideData, bytes);
+  }
+  return std::move(vec);
+}
+
+void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
+  printIntOrFPElementsAttrAsDenseWithoutType(*this, os);
+}
+
+// TODO: move all the following to ElementsAttrBuilder
+
 namespace {
 DisposableElementsAttr::Reader composeReadTransform(
     const DisposableElementsAttr::Reader &reader,
@@ -230,135 +361,6 @@ DisposableElementsAttr DisposableElementsAttr::expand(
   //       with strides that incorporate expandedShape, otherwise create a new
   //       MemoryBuffer and restrideArray / reorder buffer into it
   llvm_unreachable("TODO: implement DisposableElementsAttr::expand");
-}
-
-auto DisposableElementsAttr::getStrides() const -> Strides {
-  return getImpl()->strides;
-}
-
-auto DisposableElementsAttr::getProperties() const -> const Properties & {
-  return getImpl()->properties;
-}
-
-auto DisposableElementsAttr::getBuffer() const -> const Buffer & {
-  assert(!isDisposed());
-  return getImpl()->buffer;
-}
-
-auto DisposableElementsAttr::getReader() const -> const Reader & {
-  assert(!isDisposed());
-  return getImpl()->reader;
-}
-
-bool DisposableElementsAttr::isDisposed() const {
-  //  TODO: Decide if a splat value can be represented with a constant
-  //        reader with no buffer; in that case isDisposed should
-  //        only return true if both buffer and reader are null.
-  return !getImpl()->buffer;
-}
-
-bool DisposableElementsAttr::isContiguous() const {
-  return getProperties().isContiguous;
-}
-
-unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
-  return bytewidthOfDType(getProperties().bufferDType);
-}
-
-int64_t DisposableElementsAttr::getNumBufferElements() const {
-  return getBuffer()->getBufferSize() / getBufferElementBytewidth();
-}
-
-StringRef DisposableElementsAttr::getBufferString() const {
-  return getBuffer()->getBuffer();
-}
-
-ArrayRef<char> DisposableElementsAttr::getBufferBytes() const {
-  return asArrayRef(getBufferString());
-}
-
-bool DisposableElementsAttr::isSplat() const {
-  return getStrides().empty() && getBuffer()->getBufferSize() != 0;
-}
-
-DType DisposableElementsAttr::getDType() const { return getProperties().dtype; }
-
-ShapedType DisposableElementsAttr::getType() const { return getImpl()->type; }
-
-WideNum DisposableElementsAttr::readBufferPos(size_t pos) const {
-  StringRef s = getBufferString();
-  unsigned bufBytewidth = getBufferElementBytewidth();
-  StringRef bytes = s.substr(pos * bufBytewidth, bufBytewidth);
-  WideNum n;
-  getReader()(bytes, llvm::makeMutableArrayRef(n));
-  return n;
-}
-
-WideNum DisposableElementsAttr::readFlatIndex(size_t flatIndex) const {
-  return readBufferPos(flatIndexToBufferPos(flatIndex));
-}
-
-size_t DisposableElementsAttr::flatIndexToBufferPos(size_t flatIndex) const {
-  if (isContiguous())
-    return flatIndex;
-  if (isSplat())
-    return 0;
-  SmallVector<int64_t, 4> indices;
-  return getStridesPosition(
-      unflattenIndex(getShape(), flatIndex), getStrides());
-}
-
-void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
-  if (isContiguous()) {
-    getReader()(getBuffer()->getBuffer(), dst);
-    return;
-  }
-  SmallVector<WideNum, 1> wideBufferData;
-  wideBufferData.resize_for_overwrite(getNumBufferElements());
-  getReader()(getBufferString(), wideBufferData);
-  ArrayRef<WideNum> src(wideBufferData);
-  restrideArray(sizeof(WideNum), getShape(), castArrayRef<char>(src),
-      getStrides(), castMutableArrayRef<char>(dst));
-}
-
-ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
-  const Properties &properties = getProperties();
-  if (!properties.isTransformed && properties.isContiguous &&
-      getBufferElementBytewidth() == sizeof(WideNum)) {
-    return asArrayRef<WideNum>(getBufferString());
-  }
-  ArrayBuffer<WideNum>::Vector vec;
-  vec.resize_for_overwrite(getNumElements());
-  readElements(vec);
-  return std::move(vec);
-}
-
-ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
-  const Properties &properties = getProperties();
-  bool requiresNoElementwiseTransformOrCast =
-      !properties.isTransformed && properties.dtype == properties.bufferDType;
-  if (requiresNoElementwiseTransformOrCast && properties.isContiguous)
-    return getBufferBytes();
-  unsigned attrBytewidth = bytewidthOfDType(properties.dtype);
-  ArrayBuffer<char>::Vector vec;
-  vec.resize_for_overwrite(getNumElements() * attrBytewidth);
-  MutableArrayRef<char> bytes(vec);
-  if (requiresNoElementwiseTransformOrCast) {
-    auto src = getBufferBytes();
-    restrideArray(attrBytewidth, getShape(), src, getStrides(), bytes);
-  } else if (attrBytewidth == sizeof(WideNum)) {
-    readElements(castMutableArrayRef<WideNum>(bytes));
-  } else {
-    SmallVector<WideNum, 1> wideData;
-    wideData.resize_for_overwrite(getNumElements());
-    readElements(wideData);
-    narrowArray(getElementType(), wideData, bytes);
-  }
-  return std::move(vec);
-}
-
-void DisposableElementsAttr::printWithoutType(raw_ostream &os) const {
-  printIntOrFPElementsAttrAsDenseWithoutType(*this, os);
 }
 
 } // namespace mlir

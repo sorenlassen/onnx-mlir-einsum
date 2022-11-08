@@ -138,27 +138,6 @@ public:
     return *this ? cast<ElementsAttr>() : nullptr;
   }
 
-private:
-  // TODO: move the following to ElementsAttrBuilder
-
-  using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
-
-  DisposableElementsAttr transform(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
-      Type transformedElementType, Transformer transformer) const;
-
-  DisposableElementsAttr castElementType(
-      onnx_mlir::ElementsAttrBuilder &elmsBuilder, Type newElementType) const;
-
-  DisposableElementsAttr transpose(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
-      ArrayRef<uint64_t> perm) const;
-
-  DisposableElementsAttr reshape(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
-      ArrayRef<int64_t> reshapedShape) const;
-
-  // Broadcasts like the ONNX Expand op.
-  DisposableElementsAttr expand(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
-      ArrayRef<int64_t> expandedShape) const;
-
   //===----------------------------------------------------------------------===//
   // Instance properties:
   //===----------------------------------------------------------------------===//
@@ -278,6 +257,27 @@ public:
   onnx_mlir::ArrayBuffer<char> getRawBytes() const;
 
   void printWithoutType(raw_ostream &os) const;
+
+private:
+  // TODO: move the following to ElementsAttrBuilder
+
+  using Transformer = std::function<void(MutableArrayRef<WideNum>)>;
+
+  DisposableElementsAttr transform(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
+      Type transformedElementType, Transformer transformer) const;
+
+  DisposableElementsAttr castElementType(
+      onnx_mlir::ElementsAttrBuilder &elmsBuilder, Type newElementType) const;
+
+  DisposableElementsAttr transpose(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
+      ArrayRef<uint64_t> perm) const;
+
+  DisposableElementsAttr reshape(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
+      ArrayRef<int64_t> reshapedShape) const;
+
+  // Broadcasts like the ONNX Expand op.
+  DisposableElementsAttr expand(onnx_mlir::ElementsAttrBuilder &elmsBuilder,
+      ArrayRef<int64_t> expandedShape) const;
 
 }; // class DisposableElementsAttr
 
