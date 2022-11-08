@@ -159,7 +159,7 @@ Optional<SmallVector<int64_t, 4>> expandStrides(ArrayRef<int64_t> shape,
 
 namespace {
 template <typename T>
-void restrideArray(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
+void restrideArrayImpl(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
     ArrayRef<T> src, ArrayRef<int64_t> dstStrides, MutableArrayRef<T> dst) {
   assert(srcStrides.size() == shape.size() && "src strides must be padded");
   assert(dstStrides.size() == shape.size() && "dst strides must be padded");
@@ -188,7 +188,7 @@ void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
     ArrayRef<int64_t> dstStrides) {
   dispatchByBytewidth(bytewidth, [&](auto staticBytewidth) {
     using T = BitcastType<staticBytewidth>;
-    restrideArray<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
+    restrideArrayImpl<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
         castMutableArrayRef<T>(dst));
   });
 }

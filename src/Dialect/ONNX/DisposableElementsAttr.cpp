@@ -71,6 +71,8 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
   // when type.getNumElements() == 0.
   assert(!strides.empty() || numBufferElements == 1);
   assert(numBufferElements == getStridesNumElements(shape, strides));
+  // TODO: figure out if isContiguous should always be exactly the same as
+  //       areStridesContiguous(shape, strides))
   assert(!properties.isContiguous || areStridesContiguous(shape, strides));
   assert(reader || !properties.isTransformed);
   assert(properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
@@ -167,10 +169,42 @@ DisposableElementsAttr DisposableElementsAttr::castElementType(
 
 DisposableElementsAttr DisposableElementsAttr::transpose(
     DisposablePool &pool, ArrayRef<uint64_t> perm) const {
-  // TODO: if getStrides() don't conflict with perm clone *this
-  //       with strides that incorporate perm, otherwise create a new
-  //       MemoryBuffer and restrideArray buffer into it
-  llvm_unreachable("TODO: implement DisposableElementsAttr::transpose");
+  ShapedType type = getType();
+  auto shape = type.getShape();
+  auto transposedShape = transposeDims(shape, perm);
+  ShapedType transposedType = type.clone(transposedShape);
+  Properties transposedProperties = getProperties();
+  auto strides = getStrides();
+  if (auto transposedStrides = transposeStrides(shape, strides, perm)) {
+    transposedProperties.isContiguous =
+        (transposedStrides == getDefaultStrides(transposedShape));
+    return pool.createElementsAttr(transposedType,
+        makeArrayRef(*transposedStrides), transposedProperties, getBuffer(),
+        getReader());
+  }
+
+  // TODO: Consider transposing without transforming (just carry over the
+  //       reader) when getNumBufferElements() == getNumElements(), i.e.
+  //       strides have no zeros.
+
+  SmallVector<WideNum> readout;
+  readout.resize_for_overwrite(getNumBufferElements());
+  getReader()(getBuffer()->getBuffer(), readout);
+  ArrayRef<char> src(castArrayRef<char>(makeArrayRef(readout)));
+  std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
+      llvm::WritableMemoryBuffer::getNewUninitMemBuffer(
+          getNumElements() * sizeof(WideNum));
+  auto reverseStrides =
+      untransposeDims(paddedStridesOfShape(transposedShape), perm);
+  restrideArray(sizeof(WideNum), shape, src, strides, writeBuffer->getBuffer(),
+      reverseStrides);
+  transposedProperties.isContiguous = true;
+  DType dtype = getDType();
+  transposedProperties.bufferDType = wideDTypeOfDType(dtype);
+  Buffer transposedBuffer = std::move(writeBuffer);
+  return pool.createElementsAttr(transposedType,
+      getDefaultStrides(transposedShape), transposedProperties,
+      transposedBuffer, getIdentityReader(dtype));
 }
 
 DisposableElementsAttr DisposableElementsAttr::reshape(
@@ -221,6 +255,14 @@ bool DisposableElementsAttr::isContiguous() const {
 
 unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
   return bytewidthOfDType(getDType());
+}
+
+int64_t DisposableElementsAttr::getNumBufferElements() const {
+  return getBuffer()->getBufferSize() / getBufferElementBytewidth();
+}
+
+ArrayRef<char> DisposableElementsAttr::getBufferBytes() const {
+  return asArrayRef(getBuffer()->getBuffer());
 }
 
 bool DisposableElementsAttr::isSplat() const {

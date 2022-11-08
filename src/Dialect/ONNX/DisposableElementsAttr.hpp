@@ -169,9 +169,9 @@ private:
 
   unsigned getBufferElementBytewidth() const;
 
-  int64_t getNumBufferElements() const {
-    return getBuffer()->getBufferSize() / getBufferElementBytewidth();
-  }
+  int64_t getNumBufferElements() const;
+
+  ArrayRef<char> getBufferBytes() const;
 
 public:
   // isSplat() can return false even if all elements are identical, e.g.
