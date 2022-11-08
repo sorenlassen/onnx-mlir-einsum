@@ -171,6 +171,8 @@ private:
 
   int64_t getNumBufferElements() const;
 
+  StringRef getBufferString() const;
+
   ArrayRef<char> getBufferBytes() const;
 
 public:
