@@ -107,11 +107,15 @@ public:
   //===----------------------------------------------------------------------===//
   // Instantiation:
   //
-  // The get methods are private and are only accessed from DisposablePool.
-  // Call DisposablePool::get(..) to instantiate DisposableElementsAttr.
+  // The get methods are private and are only accessed from
+  // ElementsAttrBuilder. Call ElementsAttrBuilder::create(..)
+  // to instantiate DisposableElementsAttr.
+  //
+  // DisposablePool needs access to the private getImpl() method
+  // to dispose instances.
   //===----------------------------------------------------------------------===//
 public:
-  friend class onnx_mlir::DisposablePool; // TODO: remove
+  friend class onnx_mlir::DisposablePool;
   friend class onnx_mlir::ElementsAttrBuilder;
 
 private:
