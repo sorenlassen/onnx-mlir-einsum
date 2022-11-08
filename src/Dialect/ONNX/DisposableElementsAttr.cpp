@@ -151,15 +151,20 @@ DisposableElementsAttr DisposableElementsAttr::transform(DisposablePool &pool,
 
 DisposableElementsAttr DisposableElementsAttr::castElementType(
     DisposablePool &pool, Type newElementType) const {
+  if (newElementType == getElementType())
+    return *this;
+
   ShapedType newType = getType().clone(newElementType);
   Properties newProperties = getProperties();
   newProperties.dtype = dtypeOfMlirType(newElementType);
   DType oldWideType = wideDTypeOfDType(getDType());
   DType newWideType = wideDTypeOfDType(newProperties.dtype);
+
   if (oldWideType == newWideType) {
     return pool.createElementsAttr(
         newType, getStrides(), newProperties, getBuffer(), getReader());
   }
+
   newProperties.isTransformed = true;
   Transformer transformer = wideCaster(oldWideType, newWideType);
   return pool.createElementsAttr(newType, getStrides(), newProperties,
@@ -169,12 +174,15 @@ DisposableElementsAttr DisposableElementsAttr::castElementType(
 
 DisposableElementsAttr DisposableElementsAttr::transpose(
     DisposablePool &pool, ArrayRef<uint64_t> perm) const {
+  // TODO: Check if perm is identity and then just return *this.
+
   ShapedType type = getType();
   auto shape = type.getShape();
   auto transposedShape = transposeDims(shape, perm);
   ShapedType transposedType = type.clone(transposedShape);
   Properties transposedProperties = getProperties();
   auto strides = getStrides();
+
   if (auto transposedStrides = transposeStrides(shape, strides, perm)) {
     transposedProperties.isContiguous =
         (transposedStrides == getDefaultStrides(transposedShape));
