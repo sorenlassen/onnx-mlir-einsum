@@ -29,6 +29,15 @@ int64_t getStridesNumElements(
   return last + 1;
 }
 
+size_t getStridesPosition(
+    ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
+  assert(indices.size() >= strides.size());
+  size_t pos = 0;
+  for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
+    pos += indices[a] * strides[s];
+  return pos;
+}
+
 bool areStridesContiguous(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   unsigned rank = shape.size();
   assert(rank >= strides.size());
@@ -45,15 +54,6 @@ bool areStridesContiguous(ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
     mult *= dimSize;
   }
   return true;
-}
-
-size_t getStridesPosition(
-    ArrayRef<int64_t> indices, ArrayRef<int64_t> strides) {
-  assert(indices.size() >= strides.size());
-  size_t pos = 0;
-  for (int a = indices.size() - 1, s = strides.size() - 1; s >= 0; --a, --s)
-    pos += indices[a] * strides[s];
-  return pos;
 }
 
 SmallVector<int64_t, 4> getDefaultStrides(ArrayRef<int64_t> shape) {

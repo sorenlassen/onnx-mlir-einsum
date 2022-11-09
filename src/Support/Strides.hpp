@@ -20,11 +20,12 @@ namespace onnx_mlir {
 int64_t getStridesNumElements(
     llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
 
-bool areStridesContiguous(
-    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
-
 size_t getStridesPosition(
     llvm::ArrayRef<int64_t> indices, llvm::ArrayRef<int64_t> strides);
+
+// Returns strides == getDefaultStrides(shape, strides).
+bool areStridesContiguous(
+    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides);
 
 llvm::SmallVector<int64_t, 4> getDefaultStrides(llvm::ArrayRef<int64_t> shape);
 
