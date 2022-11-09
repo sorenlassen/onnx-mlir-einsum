@@ -202,7 +202,7 @@ public:
   // them in detail::getNumber<X>.)
   using NonContiguousIterableTypesT = std::tuple<bool, int8_t, uint8_t, int16_t,
       uint16_t, int32_t, uint32_t, int64_t, uint64_t, onnx_mlir::float_16,
-      onnx_mlir::bfloat_16, float, double, APInt, APFloat>;
+      onnx_mlir::bfloat_16, float, double, APInt, APFloat, WideNum>;
 
   template <typename X>
   using iterator = llvm::mapped_iterator<IndexIterator, IndexToX<X>>;
@@ -293,7 +293,8 @@ template <typename T>
 constexpr bool isIterableType =
     (onnx_mlir::CppTypeTrait<T>::dtype != onnx_mlir::DType::UNDEFINED &&
         onnx_mlir::CppTypeTrait<T>::isIntOrFloat) ||
-    std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat>;
+    std::is_same_v<T, llvm::APInt> || std::is_same_v<T, llvm::APFloat> ||
+    std::is_same_v<T, onnx_mlir::WideNum>;
 
 // Supports all the types T in NonContiguousIterableTypesT.
 template <typename T>
@@ -303,6 +304,8 @@ T getNumber(onnx_mlir::DType tag, onnx_mlir::WideNum n) {
     return n.toAPFloat(tag); // fails unless isFloatDType(tag)
   else if constexpr (std::is_same_v<T, llvm::APInt>)
     return n.toAPInt(tag); // fails if isFloatDType(tag)
+  else if constexpr (std::is_same_v<T, onnx_mlir::WideNum>)
+    return n;
   else
     return n.to<T>(tag);
 }
