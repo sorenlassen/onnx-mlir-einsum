@@ -46,12 +46,10 @@ public:
   mlir::DisposableElementsAttr transform(mlir::DisposableElementsAttr elms,
       mlir::Type transformedElementType, Transformer transformer);
 
-#if 0
   template <typename BinaryCombiner = std::function<WideNum(WideNum, WideNum)>>
-  DisposableElementsAttr combine(
-      mlir::DisposableElementsAttr lhs, mlir::DisposableElementsAttr rhs,
-      mlir::ShapedType combinedType, BinaryCombiner combiner);
-#endif
+  mlir::DisposableElementsAttr combine(mlir::DisposableElementsAttr lhs,
+      mlir::DisposableElementsAttr rhs, mlir::ShapedType combinedType,
+      BinaryCombiner combiner);
 
   mlir::DisposableElementsAttr castElementType(
       mlir::DisposableElementsAttr elms, mlir::Type newElementType);
@@ -93,37 +91,46 @@ ElementsAttrBuilder::Transformer ElementsAttrBuilder::functionTransformer(
   };
 }
 
-#if 0
 template <typename BinaryCombiner>
-DisposableElementsAttr ElementsAttrBuilder::combine(
+mlir::DisposableElementsAttr ElementsAttrBuilder::combine(
     mlir::DisposableElementsAttr lhs, mlir::DisposableElementsAttr rhs,
     mlir::ShapedType combinedType, BinaryCombiner combiner) {
   if (lhs.isSplat()) {
     WideNum lhsNum = lhs.getSplatValue<WideNum>();
-    return elementsBuilder.transformAndExpand(rhs, combinedType,
-functionTransformer([lhsNum](WideNum n) { return combiner(lhsNum, n); }));
+    return transformAndExpand(rhs, combinedType,
+        functionTransformer(
+            [lhsNum, combiner = std::forward<BinaryCombiner>(combiner)](
+                WideNum n) { return combiner(lhsNum, n); }));
   }
   if (rhs.isSplat()) {
     WideNum rhsNum = rhs.getSplatValue<WideNum>();
-    return elementsBuilder.transformAndExpand(lhs, combinedType,
-functionTransformer([rhsNum](WideNum n) { return combiner(n, rhsNum); }));
+    return transformAndExpand(lhs, combinedType,
+        functionTransformer(
+            [rhsNum, combiner = std::forward<BinaryCombiner>(combiner)](
+                WideNum n) { return combiner(n, rhsNum); }));
   }
+
+  auto shape = combinedType.getShape();
+  size_t size = combinedType.getNumElements() * sizeof(WideNum);
+  std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
+      llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
+  auto dstNums = castMutableArrayRef<WideNum>(writeBuffer->getBuffer());
+  auto dstStrides = getDefaultStrides(shape);
+  Strided<llvm::MutableArrayRef<WideNum>> dst{dstStrides, dstNums};
   ArrayBuffer<WideNum> lhsNums = lhs.getBufferAsWideNums();
+  Strided<llvm::ArrayRef<WideNum>> lhsStrided{lhs.getStrides(), lhsNums.get()};
   ArrayBuffer<WideNum> rhsNums = rhs.getBufferAsWideNums();
-    std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
-        llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
-    MutableArrayBuffer<WideNum> dstNums = castMutableArrayRef<WideNum>(writeBuffer->getBuffer());
-    // TODO fill in dstNums from lhsNums, rhsNums, combiner
-    DType dtype = dtypeOfMlirType(combinedType.getElementType());
-    DisposableElementsAttr::Properties properties{
-      .dtype = dtype,
+  Strided<llvm::ArrayRef<WideNum>> rhsStrided{rhs.getStrides(), rhsNums.get()};
+  transformAndRestrideTwoWideArrays(
+      shape, lhsStrided, rhsStrided, dst, combiner);
+
+  DType dtype = dtypeOfMlirType(combinedType.getElementType());
+  mlir::DisposableElementsAttr::Properties properties{.dtype = dtype,
       .bufferDType = wideDTypeOfDType(dtype),
       .isContiguous = true,
-      .isTransformed = false
-    };
-    DisposableElementsAttr::Buffer buffer = std::move(writeBuffer);
-return create(combinedType, None, properties, buffer);
+      .isTransformed = false};
+  mlir::DisposableElementsAttr::Buffer buffer = std::move(writeBuffer);
+  return create(combinedType, llvm::None, properties, buffer);
 }
-#endif
 
 } // namespace onnx_mlir

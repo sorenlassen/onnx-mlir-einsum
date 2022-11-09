@@ -127,40 +127,6 @@ ONNXConstantOp createReplacingConstantOp(
       IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
 }
 
-ArrayBuffer<char> getRawBytesFromConstOp(
-    ONNXConstantOp constOp, ShapedType type) {
-  Attribute bufferIDAttr =
-      constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
-  if (bufferIDAttr) {
-    unsigned bufferId = bufferIDAttr.cast<IntegerAttr>().getUInt();
-    int64_t maxSize = getMaxSizeInBytes(type);
-    ArrayRef<char> src = llvm::makeArrayRef(bufferPtrs[bufferId], maxSize);
-    int64_t size = getSizeInBytes(type);
-    if (size == maxSize)
-      return src;
-    // TODO: redo all the following
-    char *res = allocateBufferFor(type, /*useMaxSize=*/false);
-    bufferPtrs.push_back(res);
-    Type elementType = type.getElementType();
-    MutableArrayRef<char> dst(res, size);
-    if (elementType.isa<FloatType>()) {
-      castAndCopy(elementType, castArrayRef<double>(src), dst);
-    } else if (elementType.isa<IntegerType>()) {
-      castAndCopy(elementType, castArrayRef<int64_t>(src), dst);
-    } else {
-      llvm_unreachable("Unknown data type");
-    }
-    return llvm::makeArrayRef(res, size);
-  }
-  ElementsAttr elements = constOp.valueAttr().cast<ElementsAttr>();
-  return getElementsRawBytes(elements);
-}
-
-ArrayBuffer<char> getRawBytesFromConstValue(Value constValue) {
-  ONNXConstantOp constOp = getONNXConstantOp(constValue);
-  return getRawBytesFromConstOp(constOp, constValue.getType());
-}
-
 /// Get a data array from a given ONNXConstantOp. If data were stored in memory,
 /// get from memory. Otherwise, get from the dense attribute.
 char *getArrayFromAttributeOrBuffer(PatternRewriter &rewriter, Operation *op) {
@@ -319,57 +285,19 @@ struct ElementWiseBinaryOpImpl<ONNXDivOp, U, EnableNotBool<U>> {
   static U impl(U lhs, U rhs) { return lhs / rhs; }
 };
 
-template <typename OP, typename T>
-T evalElementWiseBinaryOp(T lhs, T rhs) {
-  using U = toArithmetic<T>;
-  return static_cast<T>(ElementWiseBinaryOpImpl<OP, U>::impl(
-      static_cast<U>(lhs), static_cast<U>(rhs)));
-}
-
-std::vector<int64_t> unbroadcast(
-    ArrayRef<int64_t> dstIndices, ArrayRef<int64_t> srcShape) {
-  assert(dstIndices.size() >= srcShape.size());
-  size_t offset = dstIndices.size() - srcShape.size();
-  std::vector<int64_t> srcIndices;
-  for (size_t i = 0; i < srcShape.size(); ++i) {
-    assert(srcShape[i] == 1 || dstIndices[i + offset] < srcShape[i]);
-    srcIndices.push_back(srcShape[i] == 1 ? 0 : dstIndices[i + offset]);
-  }
-  return srcIndices;
-}
-
-template <typename OP, typename T>
-void evalElementwiseBinaryOp(ArrayRef<int64_t> lhsShape, ArrayRef<T> lhs,
-    ArrayRef<int64_t> rhsShape, ArrayRef<T> rhs, ArrayRef<int64_t> dstShape,
-    MutableArrayRef<T> dst) {
-  std::vector<int64_t> lhsStrides;
-  bool lhsBroadcast = lhsShape != dstShape;
-  if (lhsBroadcast)
-    lhsStrides = getStrides(lhsShape);
-  std::vector<int64_t> rhsStrides;
-  bool rhsBroadcast = rhsShape != dstShape;
-  if (rhsBroadcast)
-    rhsStrides = getStrides(rhsShape);
-  std::vector<int64_t> dstStrides;
-  bool broadcast = lhsBroadcast || rhsBroadcast;
-  if (broadcast)
-    dstStrides = getStrides(dstShape);
-  for (size_t k = 0; k < dst.size(); ++k) {
-    size_t i = k;
-    size_t j = k;
-    if (broadcast) {
-      std::vector<int64_t> dstIndices = getAccessIndex(i, dstStrides);
-      if (lhsBroadcast) {
-        std::vector<int64_t> lhsIndices = unbroadcast(dstIndices, lhsShape);
-        i = getLinearAccessIndex(lhsIndices, lhsStrides);
-      }
-      if (rhsBroadcast) {
-        std::vector<int64_t> rhsIndices = unbroadcast(dstIndices, rhsShape);
-        j = getLinearAccessIndex(rhsIndices, rhsStrides);
-      }
-    }
-    dst[k] = evalElementWiseBinaryOp<OP, T>(lhs[i], rhs[j]);
-  }
+template <typename ElementwiseBinaryOp>
+/*std::function<WideNum(WideNum, WideNum)>*/
+auto combinerOfElementwiseBinaryOp(DType operandsDType) {
+  using ElementwiseBinaryOpCombiner = std::function<WideNum(WideNum, WideNum)>;
+  return dispatchByDType(
+      operandsDType, [](auto dtype) -> ElementwiseBinaryOpCombiner {
+        using W = WideDType<dtype>;
+        using OpImpl =
+            ElementWiseBinaryOpImpl<ElementwiseBinaryOp, typename W::type>;
+        return [](WideNum lhs, WideNum rhs) -> WideNum {
+          return W::pack(OpImpl::impl(W::unpack(lhs), W::unpack(rhs)));
+        };
+      });
 }
 
 /// Do element-wise binary calculation of 'lhs' and 'rhs' values and create an
@@ -377,63 +305,20 @@ void evalElementwiseBinaryOp(ArrayRef<int64_t> lhsShape, ArrayRef<T> lhs,
 template <typename ElementwiseBinaryOp>
 Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
     Value replacingValue, Value lhsValue, Value rhsValue) {
-#if 0
-  Type replacingType =
-      replacingValue.getType().cast<ShapedType>();
-  DType operandsDType = lhs.getDType();
-  assert(operandsDType == rhs.getDType());
+  Type replacingType = replacingValue.getType().cast<ShapedType>();
 
   ElementsAttrBuilder elementsBuilder(rewriter.getContext());
   DisposableElementsAttr lhs =
       getConstValueAsDisposableElements(elementsBuilder, lhsValue);
   DisposableElementsAttr rhs =
       getConstValueAsDisposableElements(elementsBuilder, rhsValue);
+  DType operandsDType = lhs.getDType();
+  assert(operandsDType == rhs.getDType());
   DisposableElementsAttr resultElements =
       elementsBuilder.combine(lhs, rhs, replacingType,
           combinerOfElementwiseBinaryOp<ElementwiseBinaryOp>(operandsDType));
   return createReplacingConstantOp(rewriter, replacingValue, resultElements)
       .getResult();
-#else
-  ShapedType lhsType = lhsValue.getType().cast<ShapedType>();
-  ShapedType rhsType = rhsValue.getType().cast<ShapedType>();
-  ShapedType type = replacingValue.getType().cast<ShapedType>();
-  size_t eltSizeInBytes = getEltSizeInBytes(type);
-  Type elementType = type.getElementType();
-  assert(
-      lhsType.getElementType() == elementType && "lhs element type mismatch");
-  assert(
-      rhsType.getElementType() == elementType && "rhs element type mismatch");
-  ArrayRef<int64_t> lhsShape = lhsType.getShape();
-  ArrayRef<int64_t> rhsShape = rhsType.getShape();
-
-  ArrayRef<int64_t> splatShape = {};
-  ArrayBuffer<char> lhs = getRawBytesFromConstValue(lhsValue);
-  if (lhs.get().size() == eltSizeInBytes) {
-    lhsShape = splatShape;
-  }
-  ArrayBuffer<char> rhs = getRawBytesFromConstValue(rhsValue);
-  if (rhs.get().size() == eltSizeInBytes) {
-    rhsShape = splatShape;
-  }
-
-  // TODO: make single element splat dst buffer if both lhs and rhs are splat
-
-  ElementsAttr elements =
-      makeElementsAttrWithRawBytesFiller(type, [&](MutableArrayRef<char> dst) {
-        dispatchByMlirType(elementType, [&](auto dtype) {
-          using T = CppType<dtype>;
-          evalElementwiseBinaryOp<ElementwiseBinaryOp, T>(lhsShape,
-              castArrayRef<T>(lhs.get()), rhsShape, castArrayRef<T>(rhs.get()),
-              type.getShape(), castMutableArrayRef<T>(dst));
-        });
-      });
-
-  // Construct a new ONNXConstantOp.
-  ONNXConstantOp res = createONNXConstantOpWithDenseAttr(
-      rewriter, replacingValue.getLoc(), elements);
-
-  return res.getResult();
-#endif
 }
 
 //===----------------------------------------------------------------------===//
