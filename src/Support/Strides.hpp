@@ -46,27 +46,27 @@ llvm::Optional<llvm::SmallVector<int64_t, 4>> expandStrides(
     llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
     llvm::ArrayRef<int64_t> expandedShape);
 
-// Requires srcStrides and dstStrides are padded.
-void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
-    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
-    llvm::MutableArrayRef<char> dst, llvm::ArrayRef<int64_t> dstStrides);
-
-// Computes dstStrides from shape, and pads them and srcStrides.
-void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
-    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
-    llvm::MutableArrayRef<char> dst);
-
-// The following functions are more about shapes than strides but they live
-// here for now:
-
-// NOTE: this function is expensive, try to avoid calling it
-llvm::SmallVector<int64_t, 4> unflattenIndex(
-    llvm::ArrayRef<int64_t> shape, int64_t flatIndex);
+// The following transpose and unflatten functions are more about shapes than
+// strides but they live here for now:
 
 llvm::SmallVector<int64_t, 4> transposeDims(
     llvm::ArrayRef<int64_t> dims, llvm::ArrayRef<uint64_t> perm);
 
 llvm::SmallVector<int64_t, 4> untransposeDims(
     llvm::ArrayRef<int64_t> dims, llvm::ArrayRef<uint64_t> perm);
+
+// NOTE: this function is expensive, try to avoid calling it
+llvm::SmallVector<int64_t, 4> unflattenIndex(
+    llvm::ArrayRef<int64_t> shape, int64_t flatIndex);
+
+// Computes dstStrides from shape, and pads them and srcStrides.
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
+    llvm::MutableArrayRef<char> dst);
+
+// Requires srcStrides and dstStrides are padded.
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    llvm::ArrayRef<char> src, llvm::ArrayRef<int64_t> srcStrides,
+    llvm::MutableArrayRef<char> dst, llvm::ArrayRef<int64_t> dstStrides);
 
 } // namespace onnx_mlir
