@@ -201,8 +201,8 @@ void DisposableElementsAttr::readElements(MutableArrayRef<WideNum> dst) const {
   wideBufferData.resize_for_overwrite(getNumBufferElements());
   getReader()(getBufferString(), wideBufferData);
   ArrayRef<WideNum> src(wideBufferData);
-  restrideArray(sizeof(WideNum), getShape(), castArrayRef<char>(src),
-      getStrides(), castMutableArrayRef<char>(dst));
+  restrideArray(sizeof(WideNum), getShape(),
+      {getStrides(), castArrayRef<char>(src)}, castMutableArrayRef<char>(dst));
 }
 
 ArrayBuffer<WideNum> DisposableElementsAttr::getWideNums() const {
@@ -229,7 +229,7 @@ ArrayBuffer<char> DisposableElementsAttr::getRawBytes() const {
   MutableArrayRef<char> bytes(vec);
   if (requiresNoElementwiseTransformOrCast) {
     auto src = getBufferBytes();
-    restrideArray(attrBytewidth, getShape(), src, getStrides(), bytes);
+    restrideArray(attrBytewidth, getShape(), {getStrides(), src}, bytes);
   } else if (attrBytewidth == sizeof(WideNum)) {
     readElements(castMutableArrayRef<WideNum>(bytes));
   } else {
@@ -344,8 +344,8 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
           getNumElements() * sizeof(WideNum));
   auto reverseStrides =
       untransposeDims(paddedStridesOfShape(transposedShape), perm);
-  restrideArray(sizeof(WideNum), shape, src, strides, writeBuffer->getBuffer(),
-      reverseStrides);
+  restrideArray(sizeof(WideNum), shape, {strides, src},
+      {reverseStrides, writeBuffer->getBuffer()});
   transposedProperties.isContiguous = true;
   DType dtype = getDType();
   transposedProperties.bufferDType = wideDTypeOfDType(dtype);

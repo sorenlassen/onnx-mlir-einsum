@@ -194,18 +194,18 @@ SmallVector<int64_t, 4> unflattenIndex(
 
 namespace {
 template <typename T>
-void restrideArrayImpl(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
-    ArrayRef<T> src, ArrayRef<int64_t> dstStrides, MutableArrayRef<T> dst) {
-  assert(srcStrides.size() == shape.size() && "src strides must be padded");
-  assert(dstStrides.size() == shape.size() && "dst strides must be padded");
+void restrideArrayImpl(ArrayRef<int64_t> shape, Strided<ArrayRef<T>> src,
+    Strided<MutableArrayRef<T>> dst) {
+  assert(src.strides.size() == shape.size() && "src strides must be padded");
+  assert(dst.strides.size() == shape.size() && "dst strides must be padded");
   int64_t rank = shape.size();
   auto traverse = [=](int64_t axis, size_t srcPos, size_t dstPos,
                       const auto &recurse) -> void {
     if (axis == rank) {
-      dst[dstPos] = src[srcPos];
+      dst.data[dstPos] = src.data[srcPos];
     } else {
-      size_t srcStride = srcStrides[axis];
-      size_t dstStride = dstStrides[axis];
+      size_t srcStride = src.strides[axis];
+      size_t dstStride = dst.strides[axis];
       size_t dimSize = shape[axis];
       for (size_t i = 0; i < dimSize; ++i) {
         recurse(axis + 1, srcPos, dstPos, recurse);
@@ -219,21 +219,22 @@ void restrideArrayImpl(ArrayRef<int64_t> shape, ArrayRef<int64_t> srcStrides,
 } // namespace
 
 void restrideArray(unsigned elementBytewidth, ArrayRef<int64_t> shape,
-    ArrayRef<char> src, ArrayRef<int64_t> srcStrides,
-    MutableArrayRef<char> dst) {
-  SmallVector<int64_t, 4> paddedSrcStrides = padStrides(shape, srcStrides);
+    Strided<ArrayRef<char>> src, MutableArrayRef<char> dstData) {
+  SmallVector<int64_t, 4> paddedSrcStrides = padStrides(shape, src.strides);
   SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
-  restrideArray(
-      elementBytewidth, shape, src, paddedSrcStrides, dst, dstStrides);
+  Strided<ArrayRef<char>> paddedSrc{paddedSrcStrides, src.data};
+  Strided<MutableArrayRef<char>> dst{dstStrides, dstData};
+  restrideArray(elementBytewidth, shape, paddedSrc, dst);
 }
 
 void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
-    ArrayRef<char> src, ArrayRef<int64_t> srcStrides, MutableArrayRef<char> dst,
-    ArrayRef<int64_t> dstStrides) {
+    Strided<ArrayRef<char>> src, Strided<MutableArrayRef<char>> dst) {
   dispatchByBytewidth(bytewidth, [&](auto staticBytewidth) {
     using T = BitcastType<staticBytewidth>;
-    restrideArrayImpl<T>(shape, srcStrides, castArrayRef<T>(src), dstStrides,
-        castMutableArrayRef<T>(dst));
+    Strided<ArrayRef<T>> srcT{src.strides, castArrayRef<T>(src.data)};
+    Strided<MutableArrayRef<T>> dstT{
+        dst.strides, castMutableArrayRef<T>(dst.data)};
+    restrideArrayImpl<T>(shape, srcT, dstT);
   });
 }
 
