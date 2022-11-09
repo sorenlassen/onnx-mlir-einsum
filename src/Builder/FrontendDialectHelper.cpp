@@ -28,6 +28,63 @@
 
 namespace {
 
+// Perform byte swap if system endianness is BE.
+// ONNX tensor content raw data is always in LE.
+// Don't byte swap single byte types, because that's unnecessary
+// and llvm::sys::getSwappedBytes(bool) also happens to be broken.
+template <typename T>
+constexpr bool shouldSwapLEBytes =
+    sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
+                         llvm::support::endianness::little;
+
+#ifdef ENABLE_DISPOSABLE_POOL
+// TODO: make this work...
+struct ElementsAttrFactory {
+  template <typename T>
+  static ElementsAttr get(
+      mlir::RankedTensorType type, llvm::ArrayRef<T> bytes) {
+    MLIRContext *ctx = type.getContext();
+    assert(type.getElementType() == toMlirType<T>(ctx));
+    bool isSplat;
+    if (!DenseElementsAttr::isValidRawBuffer(type, bytes, isSplat))
+      llvm_unreachable("invalid dense int or fps raw buffer");
+    if (isSplat)
+      bytes = bytes.take_front(sizeof(T));
+    std::unique_ptr<llvm::MemoryBuffer> buffer =
+        llvm::MemoryBuffer::getMemBufferCopy(s);
+    ArrayRef<int64_t> empty; // empty strides when splat
+    ElementsAttrBuilder elmsBuilder(ctx);
+    return isSplat ? elmsBuilder.create(type, empty, std::move(buffer))
+                   : elmsBuilder.create(type, None, std::move(buffer));
+  }
+};
+template <typename T>
+ElementsAttr createElementsAttrFromMemoryBuffer(
+    mlir::RankedTensorType type, std::unique_ptr<MemoryBuffer> membuf) {
+  MLIRContext *ctx = type.getContext();
+  assert(type.getElementType() == toMlirType<T>(ctx));
+  if (shouldSwapLEBytes<T>) {
+    // TODO: swap bytes into MemoryBuffer and create ElementsAttr from that
+  } else {
+    return ElementsAttrBuilder(ctx).create(type, None, std::move(buffer));
+  }
+}
+#else
+using ElementsAttrFactory = mlir::DenseElementsAttr;
+template <typename T>
+mlir::DenseElementsAttr createDenseElmAttrFromRawData(
+    llvm::ArrayRef<char> buffer, mlir::RankedTensorType tensorType);
+template <typename T>
+mlir::DenseElementsAttr createElementsAttrFromMemoryBuffer(
+    mlir::RankedTensorType type, std::unique_ptr<llvm::MemoryBuffer> membuf) {
+  assert(type.getElementType() == onnx_mlir::toMlirType<T>(type.getContext()));
+  llvm::ArrayRef<char> bytes = onnx_mlir::asArrayRef(membuf->getBuffer());
+  return shouldSwapLEBytes<T> ? createDenseElmAttrFromRawData<T>(bytes, type)
+                              : ElementsAttrFactory::get(
+                                    type, onnx_mlir::castArrayRef<T>(bytes));
+}
+#endif
+
 // Parses unsigned number.
 size_t parseOffsetOrLength(const std::string &value) {
   char *end = nullptr;
@@ -161,12 +218,7 @@ template <typename T>
 mlir::DenseElementsAttr createDenseElmAttrFromRawData(
     llvm::ArrayRef<char> buffer, mlir::RankedTensorType tensorType) {
   llvm::ArrayRef<T> array = onnx_mlir::castArrayRef<T>(buffer);
-  // Perform byte swap if system endianness is BE.
-  // ONNX tensor content raw data is always in LE.
-  // Don't byte swap single byte types, because that's unnecessary
-  // and llvm::sys::getSwappedBytes(bool) also happens to be broken.
-  if (sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
-                           llvm::support::endianness::little) {
+  if (shouldSwapLEBytes<T>) {
     llvm::SmallVector<T> copy;
     copy.resize_for_overwrite(array.size());
     std::transform(array.begin(), array.end(), copy.data(), swappedBytes<T>);
@@ -185,8 +237,9 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
       tp.data_location() == onnx::TensorProto::EXTERNAL) {
     if (std::unique_ptr<llvm::MemoryBuffer> externalData =
             readExternalData(externalDataDir, tp))
-      return createDenseElmAttrFromRawData<T>(
-          onnx_mlir::asArrayRef(externalData->getBuffer()), tensorType);
+      return createElementsAttrFromMemoryBuffer<T>(
+          tensorType, std::move(externalData));
+    // TODO: llvm_unreachable ?
   }
   if (tp.has_raw_data()) {
     return createDenseElmAttrFromRawData<T>(
