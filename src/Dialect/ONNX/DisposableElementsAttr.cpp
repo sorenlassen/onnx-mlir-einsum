@@ -43,19 +43,18 @@ DisposableElementsAttr::Reader getIdentityReader(DType dtype) {
 DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
     Optional<Strides> optionalStrides, const Buffer &buffer, Reader reader) {
   DType dtype = dtypeOfMlirType(type.getElementType());
-  bool isContiguous = true; // may be set to false below
-  auto defaultStrides = getDefaultStrides(type.getShape());
+  Properties properties = {.dtype = dtype,
+      .bufferDType = dtype,
+      // .isContiguous is set below
+      .isTransformed = reader != nullptr};
   SmallVector<int64_t, 4> strides;
   if (optionalStrides.has_value()) {
     strides.assign(optionalStrides->begin(), optionalStrides->end());
-    isContiguous = (strides == makeArrayRef(defaultStrides));
+    properties.isContiguous = areStridesContiguous(type.getShape(), strides);
   } else {
-    strides = defaultStrides;
+    strides = getDefaultStrides(type.getShape());
+    properties.isContiguous = true;
   }
-  Properties properties = {.dtype = dtype,
-      .bufferDType = dtype,
-      .isContiguous = isContiguous,
-      .isTransformed = reader != nullptr};
   return create(type, strides, properties, buffer, std::move(reader));
 }
 
@@ -328,8 +327,8 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
 
   if (auto transposedStrides = transposeStrides(shape, strides, perm)) {
     transposedProperties.isContiguous =
-        (transposedStrides == getDefaultStrides(transposedShape));
-    return elmsBuilder.create(transposedType, makeArrayRef(*transposedStrides),
+        areStridesContiguous(transposedShape, *transposedStrides);
+    return elmsBuilder.create(transposedType, *transposedStrides,
         transposedProperties, getBuffer(), getReader());
   }
 
@@ -374,7 +373,7 @@ DisposableElementsAttr DisposableElementsAttr::expand(
   auto strides = getStrides();
   Properties expandedProperties = getProperties();
   expandedProperties.isContiguous =
-      (strides == makeArrayRef(expandedDefaultStrides));
+      areStridesContiguous(expandedShape, strides);
   ShapedType expandedType = type.clone(expandedShape);
   return elmsBuilder.create(
       expandedType, strides, expandedProperties, getBuffer(), getReader());
