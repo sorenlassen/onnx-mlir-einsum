@@ -4,7 +4,7 @@
 
 //============-- TestONNXAttributes.cpp - ONNXAttributes tests --=============//
 //
-// Tests Disposable*ElementsAttr.
+// Tests DisposableElementsAttr.
 //
 //===----------------------------------------------------------------------===//
 
@@ -205,7 +205,7 @@ public:
   int test_ElementsAttrBuilder() {
     llvm::errs() << "test_ElementsAttrBuilder:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    auto dispo = elmsBuilder.create(type, None, buffer<bool>({true}));
+    auto dispo = elmsBuilder.create(type, buffer<bool>({true}));
     assert(dispo.isSplat());
     return 0;
   }
@@ -235,7 +235,7 @@ public:
   int test_splat() {
     llvm::errs() << "test_splat:\n";
     ShapedType type = RankedTensorType::get({1}, builder.getF32Type());
-    Attribute a = elmsBuilder.create(type, None, buffer<float>({4.2}));
+    Attribute a = elmsBuilder.create(type, buffer<float>({4.2}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -262,8 +262,8 @@ public:
     llvm::errs() << "test_f16:\n";
     assert(fabs(float_16::fromFloat(4.2).toFloat() - 4.2) < 1e-3);
     ShapedType type = RankedTensorType::get({1}, builder.getF16Type());
-    Attribute a = elmsBuilder.create(
-        type, None, buffer<float_16>({float_16::fromFloat(4.2)}));
+    Attribute a =
+        elmsBuilder.create(type, buffer<float_16>({float_16::fromFloat(4.2)}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -284,7 +284,7 @@ public:
   int test_bool() {
     llvm::errs() << "test_bool:\n";
     ShapedType type = RankedTensorType::get({1}, getUInt(1));
-    Attribute a = elmsBuilder.create(type, None, buffer<bool>({true}));
+    Attribute a = elmsBuilder.create(type, buffer<bool>({true}));
     assert(a);
     assert(a.isa<ElementsAttr>());
     ElementsAttr e = a.cast<ElementsAttr>();
@@ -306,7 +306,7 @@ public:
     llvm::errs() << "test_attributes:\n";
     ShapedType type = RankedTensorType::get({2}, getUInt(64));
     Attribute a;
-    a = elmsBuilder.create(type, None, buffer<uint64_t>({7, 9}));
+    a = elmsBuilder.create(type, buffer<uint64_t>({7, 9}));
     assert(a);
     assert(a.isa<DisposableElementsAttr>());
     DisposableElementsAttr i = a.cast<DisposableElementsAttr>();
@@ -385,7 +385,7 @@ public:
     llvm::errs() << "test_transpose:\n";
     ShapedType type = RankedTensorType::get({2, 3, 5}, getUInt(8));
     auto elms = nums<uint8_t>(std::make_integer_sequence<uint8_t, 30>{});
-    auto e = elmsBuilder.create(type, None, buffer<uint8_t>(elms));
+    auto e = elmsBuilder.create(type, buffer<uint8_t>(elms));
     std::cerr << "before transpose " << e.getShape();
     for (auto x : e.getValues<uint8_t>())
       std::cerr << " " << unsigned(x);
@@ -401,7 +401,7 @@ public:
   int test_cast() {
     llvm::errs() << "test_cast:\n";
     ShapedType type = RankedTensorType::get({1}, I64);
-    auto e = elmsBuilder.create(type, None, buffer<int64_t>({256}));
+    auto e = elmsBuilder.create(type, buffer<int64_t>({256}));
     std::cerr << "before cast " << e.getShape();
     for (auto x : e.getValues<int64_t>())
       std::cerr << " " << x;

@@ -40,11 +40,21 @@ DisposableElementsAttr::Reader getIdentityReader(DType dtype) {
 } // namespace
 
 /*static*/
-DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
-    Optional<Strides> optionalStrides, const Buffer &buffer, Reader reader) {
+DisposableElementsAttr DisposableElementsAttr::get(
+    ShapedType type, const Buffer &buffer, Optional<Strides> optionalStrides) {
   DType dtype = dtypeOfMlirType(type.getElementType());
+  return get(type, buffer, optionalStrides, dtype);
+}
+
+/*static*/
+DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
+    const Buffer &buffer, Optional<Strides> optionalStrides, DType bufferDType,
+    Reader reader) {
+  DType dtype = dtypeOfMlirType(type.getElementType());
+  assert(wideDTypeOfDType(dtype) == wideDTypeOfDType(bufferDType) ||
+         reader != nullptr);
   Properties properties = {.dtype = dtype,
-      .bufferDType = dtype,
+      .bufferDType = bufferDType,
       // .isContiguous is set below
       .isTransformed = reader != nullptr};
   SmallVector<int64_t, 4> strides;
@@ -55,12 +65,12 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
     strides = getDefaultStrides(type.getShape());
     properties.isContiguous = true;
   }
-  return create(type, strides, properties, buffer, std::move(reader));
+  return create(type, buffer, strides, properties, std::move(reader));
 }
 
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
-    Strides strides, Properties properties, const Buffer &buffer,
+    const Buffer &buffer, Strides strides, Properties properties,
     Reader reader) {
   assert((strides.empty() || strides.front() != 0) &&
          "non-padded strides shouldn't have leading zeros");
@@ -80,13 +90,12 @@ DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
   assert(properties.isTransformed || wideDTypeOfDType(properties.bufferDType) ==
                                          wideDTypeOfDType(properties.dtype));
   // TODO: add more checks
-  return create(
-      type, strides, properties, std::move(buffer), std::move(reader));
+  return create(type, buffer, strides, properties, std::move(reader));
 }
 
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
-    Strides strides, Properties properties, const Buffer &buffer,
+    const Buffer &buffer, Strides strides, Properties properties,
     Reader reader) {
   DisposableElementsAttr a =
       Base::get(type.getContext(), type, strides, properties);
@@ -121,6 +130,13 @@ auto DisposableElementsAttr::getReader() const -> const Reader & {
   return getImpl()->reader;
 }
 
+auto DisposableElementsAttr::getReaderOrNull() const -> Reader {
+  if (getProperties().isTransformed)
+    return getReader();
+  else
+    return nullptr;
+}
+
 bool DisposableElementsAttr::isDisposed() const {
   //  TODO: Decide if a splat value can be represented with a constant
   //        reader with no buffer; in that case isDisposed should
@@ -130,6 +146,10 @@ bool DisposableElementsAttr::isDisposed() const {
 
 bool DisposableElementsAttr::isContiguous() const {
   return getProperties().isContiguous;
+}
+
+DType DisposableElementsAttr::getBufferDType() const {
+  return getProperties().bufferDType;
 }
 
 unsigned DisposableElementsAttr::getBufferElementBytewidth() const {
@@ -283,11 +303,8 @@ DisposableElementsAttr DisposableElementsAttr::transform(
     ElementsAttrBuilder &elmsBuilder, Type transformedElementType,
     Transformer transformer) const {
   ShapedType transformedType = getType().clone(transformedElementType);
-  Properties transformedProperties = getProperties();
-  transformedProperties.dtype = dtypeOfMlirType(transformedElementType);
-  transformedProperties.isTransformed = true;
-  return elmsBuilder.create(transformedType, getStrides(),
-      transformedProperties, getBuffer(),
+  return elmsBuilder.create(transformedType, getBuffer(), getStrides(),
+      dtypeOfMlirType(transformedElementType),
       composeReadTransform(getReader(), std::move(transformer)));
 }
 
@@ -297,21 +314,18 @@ DisposableElementsAttr DisposableElementsAttr::castElementType(
     return *this;
 
   ShapedType newType = getType().clone(newElementType);
-  Properties newProperties = getProperties();
-  newProperties.dtype = dtypeOfMlirType(newElementType);
+  DType newDType = dtypeOfMlirType(newElementType);
+  DType newWideType = wideDTypeOfDType(newDType);
   DType oldWideType = wideDTypeOfDType(getDType());
-  DType newWideType = wideDTypeOfDType(newProperties.dtype);
 
-  if (oldWideType == newWideType) {
-    return elmsBuilder.create(
-        newType, getStrides(), newProperties, getBuffer(), getReader());
-  }
+  if (oldWideType == newWideType)
+    return elmsBuilder.create(newType, getBuffer(), getStrides(),
+        getBufferDType(), getReaderOrNull());
 
-  newProperties.isTransformed = true;
   Transformer transformer = wideCaster(oldWideType, newWideType);
-  return elmsBuilder.create(newType, getStrides(), newProperties, getBuffer(),
-      composeReadTransform(getReader(), std::move(transformer)));
-  llvm_unreachable("TODO: implement DisposableElementsAttr::castElementType");
+  Reader reader = composeReadTransform(getReader(), std::move(transformer));
+  return elmsBuilder.create(
+      newType, getBuffer(), getStrides(), getBufferDType(), std::move(reader));
 }
 
 DisposableElementsAttr DisposableElementsAttr::transpose(
@@ -322,14 +336,10 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
   auto shape = type.getShape();
   auto transposedShape = transposeDims(shape, perm);
   ShapedType transposedType = type.clone(transposedShape);
-  Properties transposedProperties = getProperties();
   auto strides = getStrides();
-
   if (auto transposedStrides = transposeStrides(shape, strides, perm)) {
-    transposedProperties.isContiguous =
-        areStridesContiguous(transposedShape, *transposedStrides);
-    return elmsBuilder.create(transposedType, *transposedStrides,
-        transposedProperties, getBuffer(), getReader());
+    return elmsBuilder.create(transposedType, getBuffer(),
+        makeArrayRef(*transposedStrides), getBufferDType(), getReaderOrNull());
   }
 
   // TODO: Consider transposing without transforming (just carry over the
@@ -345,12 +355,11 @@ DisposableElementsAttr DisposableElementsAttr::transpose(
       untransposeDims(paddedStridesOfShape(transposedShape), perm);
   restrideArray(sizeof(WideNum), shape, {strides, src},
       {reverseStrides, writeBuffer->getBuffer()});
-  transposedProperties.isContiguous = true;
   DType dtype = getDType();
-  transposedProperties.bufferDType = wideDTypeOfDType(dtype);
   Buffer transposedBuffer = std::move(writeBuffer);
-  return elmsBuilder.create(transposedType, getDefaultStrides(transposedShape),
-      transposedProperties, transposedBuffer, getIdentityReader(dtype));
+  auto newStrides = getDefaultStrides(transposedShape);
+  return elmsBuilder.create(transposedType, transposedBuffer,
+      makeArrayRef(newStrides), wideDTypeOfDType(dtype));
 }
 
 DisposableElementsAttr DisposableElementsAttr::reshape(
@@ -365,18 +374,12 @@ DisposableElementsAttr DisposableElementsAttr::reshape(
 DisposableElementsAttr DisposableElementsAttr::expand(
     ElementsAttrBuilder &elmsBuilder, ArrayRef<int64_t> expandedShape) const {
   ShapedType type = getType();
-  auto shape = type.getShape();
-  if (expandedShape == shape)
+  if (expandedShape == type.getShape())
     return *this;
 
-  auto expandedDefaultStrides = getDefaultStrides(expandedShape);
-  auto strides = getStrides();
-  Properties expandedProperties = getProperties();
-  expandedProperties.isContiguous =
-      areStridesContiguous(expandedShape, strides);
   ShapedType expandedType = type.clone(expandedShape);
-  return elmsBuilder.create(
-      expandedType, strides, expandedProperties, getBuffer(), getReader());
+  return elmsBuilder.create(expandedType, getBuffer(), getStrides(),
+      getBufferDType(), getReaderOrNull());
 }
 
 } // namespace mlir

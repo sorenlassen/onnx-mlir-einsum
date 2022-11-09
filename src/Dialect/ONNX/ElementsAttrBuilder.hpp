@@ -35,10 +35,24 @@ public:
   // it makes a deep copy because DisposableElementsAttr doesn't bit pack bools.
   mlir::DisposableElementsAttr fromElementsAttr(mlir::ElementsAttr elements);
 
-  mlir::DisposableElementsAttr fromRawBytes(
-      mlir::ShapedType type, llvm::ArrayRef<char> bytes, bool mustCopy);
+  template <typename T>
+  using Filler = std::function<void(llvm::MutableArrayRef<T>)>;
 
-  using Transformer = std::function<void(llvm::MutableArrayRef<WideNum>)>;
+  mlir::DisposableElementsAttr fromRawBytes(mlir::ShapedType type,
+      DType bufferDType, llvm::ArrayRef<char> bytes, bool mustCopy);
+
+  mlir::DisposableElementsAttr fromRawBytes(mlir::ShapedType type,
+      DType bufferDType, const Filler<char> &bytesFiller);
+
+  template <typename T>
+  mlir::DisposableElementsAttr fromArray(mlir::ShapedType type,
+      DType bufferDType, llvm::ArrayRef<T> array, bool mustCopy);
+
+  template <typename T>
+  mlir::DisposableElementsAttr fromArray(
+      mlir::ShapedType type, const Filler<T> &typedFiller);
+
+  using Transformer = Filler<WideNum>;
 
   template <typename UnaryFunction = std::function<WideNum(WideNum)>>
   static Transformer functionTransformer(UnaryFunction fun);
@@ -83,6 +97,22 @@ private:
 //       like ShapeHelper.inc
 //===----------------------------------------------------------------------===//
 
+template <typename T>
+mlir::DisposableElementsAttr ElementsAttrBuilder::fromArray(
+    mlir::ShapedType type, DType bufferDType, llvm::ArrayRef<T> array,
+    bool mustCopy) {
+  return fromRawBytes(type, toDType<T>, castArrayRef<char>, mustCopy);
+}
+
+template <typename T>
+mlir::DisposableElementsAttr ElementsAttrBuilder::fromArray(
+    mlir::ShapedType type, const Filler<T> &typedFiller) {
+  return fromRawBytes(
+      type, toDType<T>, [&typedFiller](llvm::MutableArrayRef<char> bytes) {
+        typedFiller(castArrayRef<T>(bytes));
+      });
+}
+
 /*static*/
 template <typename UnaryFunction>
 ElementsAttrBuilder::Transformer ElementsAttrBuilder::functionTransformer(
@@ -113,11 +143,12 @@ mlir::DisposableElementsAttr ElementsAttrBuilder::combine(
                 WideNum n) { return combiner(n, rhsNum); }));
   }
 
-  auto shape = combinedType.getShape();
+  // TODO: use fromArray(Filler<T>) to reduce code duplication
   size_t size = combinedType.getNumElements() * sizeof(WideNum);
   std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
       llvm::WritableMemoryBuffer::getNewUninitMemBuffer(size);
   auto dstNums = castMutableArrayRef<WideNum>(writeBuffer->getBuffer());
+  auto shape = combinedType.getShape();
   auto dstStrides = getDefaultStrides(shape);
   Strided<llvm::MutableArrayRef<WideNum>> dst{dstStrides, dstNums};
   ArrayBuffer<WideNum> lhsNums = lhs.getBufferAsWideNums();
@@ -128,12 +159,9 @@ mlir::DisposableElementsAttr ElementsAttrBuilder::combine(
       shape, lhsStrided, rhsStrided, dst, combiner);
 
   DType dtype = dtypeOfMlirType(combinedType.getElementType());
-  mlir::DisposableElementsAttr::Properties properties{.dtype = dtype,
-      .bufferDType = wideDTypeOfDType(dtype),
-      .isContiguous = true,
-      .isTransformed = false};
-  mlir::DisposableElementsAttr::Buffer buffer = std::move(writeBuffer);
-  return create(combinedType, dstStrides, properties, buffer);
+  DType bufferDType = wideDTypeOfDType(dtype);
+  return create(combinedType, std::move(writeBuffer),
+      llvm::makeArrayRef(dstStrides), bufferDType);
 }
 
 } // namespace onnx_mlir

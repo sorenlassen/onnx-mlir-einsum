@@ -118,17 +118,11 @@ DisposableElementsAttr getConstValueAsDisposableElements(
     unsigned bufferId = bufferIDAttr.cast<IntegerAttr>().getUInt();
     ShapedType type = constValue.getType().cast<ShapedType>();
     int64_t maxSize = getMaxSizeInBytes(type);
-    mlir::DisposableElementsAttr::Buffer buffer =
-        llvm::MemoryBuffer::getMemBufferCopy(
-            StringRef(bufferPtrs[bufferId], maxSize));
     DType dtype = dtypeOfMlirType(type.getElementType());
-    mlir::DisposableElementsAttr::Properties properties{.dtype = dtype,
-        .bufferDType = wideDTypeOfDType(dtype),
-        .isContiguous = true,
-        .isTransformed = false};
-    auto shape = type.getShape();
-    auto strides = getDefaultStrides(shape);
-    return elementsBuilder.create(type, strides, properties, buffer);
+    DType bufferDType = wideDTypeOfDType(dtype);
+    ArrayRef<char> buffer(bufferPtrs[bufferId], maxSize);
+    return elementsBuilder.fromRawBytes(
+        type, bufferDType, buffer, /*mustCopy=*/true);
   }
   return elementsBuilder.fromElementsAttr(
       constOp.valueAttr().cast<ElementsAttr>());
