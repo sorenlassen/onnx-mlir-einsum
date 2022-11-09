@@ -21,7 +21,10 @@
 #include "src/Builder/FrontendDialectHelper.hpp"
 #include "src/Dialect/ONNX/AttributesHelper.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
+#include "src/Support/Arrays.hpp"
 #include "src/Support/DType.hpp"
+
+// TODO: put everything in namespace onnx_mlir, and add 'using namespace mlir'
 
 namespace {
 
@@ -156,9 +159,8 @@ T swappedBytes(T x) {
 
 template <typename T>
 mlir::DenseElementsAttr createDenseElmAttrFromRawData(
-    llvm::StringRef buffer, mlir::RankedTensorType tensorType) {
-  size_t size = buffer.size() / sizeof(T);
-  llvm::ArrayRef<T> array(reinterpret_cast<T const *>(buffer.data()), size);
+    llvm::ArrayRef<char> buffer, mlir::RankedTensorType tensorType) {
+  llvm::ArrayRef<T> array = onnx_mlir::castArrayRef<T>(buffer);
   // Perform byte swap if system endianness is BE.
   // ONNX tensor content raw data is always in LE.
   // Don't byte swap single byte types, because that's unnecessary
@@ -166,7 +168,7 @@ mlir::DenseElementsAttr createDenseElmAttrFromRawData(
   if (sizeof(T) > 1 && llvm::support::endian::system_endianness() !=
                            llvm::support::endianness::little) {
     llvm::SmallVector<T> copy;
-    copy.resize_for_overwrite(size);
+    copy.resize_for_overwrite(array.size());
     std::transform(array.begin(), array.end(), copy.data(), swappedBytes<T>);
     return mlir::DenseElementsAttr::get(tensorType, llvm::makeArrayRef(copy));
   } else {
@@ -184,11 +186,11 @@ mlir::DenseElementsAttr createDenseElmAttr(const std::string &externalDataDir,
     if (std::unique_ptr<llvm::MemoryBuffer> externalData =
             readExternalData(externalDataDir, tp))
       return createDenseElmAttrFromRawData<T>(
-          externalData->getBuffer(), tensorType);
+          onnx_mlir::asArrayRef(externalData->getBuffer()), tensorType);
   }
   if (tp.has_raw_data()) {
     return createDenseElmAttrFromRawData<T>(
-        llvm::StringRef(tp.raw_data()), tensorType);
+        onnx_mlir::asArrayRef(tp.raw_data()), tensorType);
   }
   // Not raw, no need to take care of endianness.
   const auto &data = TransformValueToONNXData<T>::data(tp);
