@@ -18,39 +18,6 @@ using namespace mlir;
 
 namespace onnx_mlir {
 
-namespace {
-
-// clang-format off
-template <unsigned Bytewidth>
-using BitcastType =
-    std::conditional_t<Bytewidth == 1, std::uint8_t,
-    std::conditional_t<Bytewidth == 2, std::uint16_t,
-    std::conditional_t<Bytewidth == 4, std::uint32_t,
-    std::conditional_t<Bytewidth == 8, std::uint64_t,
-    void>>>>;
-// clang-format on
-
-template <unsigned Bytewidth>
-struct BytewidthToken {
-  constexpr BytewidthToken() {}
-  constexpr operator unsigned() const { return Bytewidth; }
-};
-
-template <typename Action, typename... Args>
-auto dispatchByBytewidth(unsigned bytewidth, Action &&act, Args &&...args) {
-  // clang-format off
-  switch (bytewidth) {
-  case 1: return act(BytewidthToken<1>{}, std::forward<Args>(args)...);
-  case 2: return act(BytewidthToken<2>{}, std::forward<Args>(args)...);
-  case 4: return act(BytewidthToken<4>{}, std::forward<Args>(args)...);
-  case 8: return act(BytewidthToken<8>{}, std::forward<Args>(args)...);
-  default: llvm_unreachable("unsupported bytewidth");
-  }
-  // clang-format on
-}
-
-} // namespace
-
 int64_t getStridesNumElements(
     ArrayRef<int64_t> shape, ArrayRef<int64_t> strides) {
   if (ShapedType::getNumElements(shape) == 0)
@@ -193,6 +160,9 @@ SmallVector<int64_t, 4> unflattenIndex(
 }
 
 namespace {
+
+// Uses the same algorithm as transformAndRestrideTwoWideArrays but is
+// sufficiently different to be reimplemented here without code reuse.
 template <typename T>
 void restrideArrayImpl(ArrayRef<int64_t> shape, Strided<ArrayRef<T>> src,
     Strided<MutableArrayRef<T>> dst) {
@@ -216,16 +186,37 @@ void restrideArrayImpl(ArrayRef<int64_t> shape, Strided<ArrayRef<T>> src,
   };
   traverse(0, 0, 0, traverse);
 }
-} // namespace
 
-void restrideArray(unsigned elementBytewidth, ArrayRef<int64_t> shape,
-    Strided<ArrayRef<char>> src, MutableArrayRef<char> dstData) {
-  SmallVector<int64_t, 4> paddedSrcStrides = padStrides(shape, src.strides);
-  SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
-  Strided<ArrayRef<char>> paddedSrc{paddedSrcStrides, src.data};
-  Strided<MutableArrayRef<char>> dst{dstStrides, dstData};
-  restrideArray(elementBytewidth, shape, paddedSrc, dst);
+// clang-format off
+template <unsigned Bytewidth>
+using BitcastType =
+    std::conditional_t<Bytewidth == 1, std::uint8_t,
+    std::conditional_t<Bytewidth == 2, std::uint16_t,
+    std::conditional_t<Bytewidth == 4, std::uint32_t,
+    std::conditional_t<Bytewidth == 8, std::uint64_t,
+    void>>>>;
+// clang-format on
+
+template <unsigned Bytewidth>
+struct BytewidthToken {
+  constexpr BytewidthToken() {}
+  constexpr operator unsigned() const { return Bytewidth; }
+};
+
+template <typename Action, typename... Args>
+auto dispatchByBytewidth(unsigned bytewidth, Action &&act, Args &&...args) {
+  // clang-format off
+  switch (bytewidth) {
+  case 1: return act(BytewidthToken<1>{}, std::forward<Args>(args)...);
+  case 2: return act(BytewidthToken<2>{}, std::forward<Args>(args)...);
+  case 4: return act(BytewidthToken<4>{}, std::forward<Args>(args)...);
+  case 8: return act(BytewidthToken<8>{}, std::forward<Args>(args)...);
+  default: llvm_unreachable("unsupported bytewidth");
+  }
+  // clang-format on
 }
+
+} // namespace
 
 void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
     Strided<ArrayRef<char>> src, Strided<MutableArrayRef<char>> dst) {
@@ -236,6 +227,15 @@ void restrideArray(unsigned bytewidth, ArrayRef<int64_t> shape,
         dst.strides, castMutableArrayRef<T>(dst.data)};
     restrideArrayImpl<T>(shape, srcT, dstT);
   });
+}
+
+void restrideArray(unsigned elementBytewidth, ArrayRef<int64_t> shape,
+    Strided<ArrayRef<char>> src, MutableArrayRef<char> dstData) {
+  SmallVector<int64_t, 4> paddedSrcStrides = padStrides(shape, src.strides);
+  SmallVector<int64_t, 4> dstStrides = paddedStridesOfShape(shape);
+  Strided<ArrayRef<char>> paddedSrc{paddedSrcStrides, src.data};
+  Strided<MutableArrayRef<char>> dst{dstStrides, dstData};
+  restrideArray(elementBytewidth, shape, paddedSrc, dst);
 }
 
 } // namespace onnx_mlir

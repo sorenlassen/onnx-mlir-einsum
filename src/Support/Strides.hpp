@@ -63,14 +63,14 @@ struct Strided {
   T data;
 };
 
-// Computes dstStrides from shape, and pads them and srcStrides.
-void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
-    Strided<llvm::ArrayRef<char>> src, llvm::MutableArrayRef<char> dstData);
-
 // Requires srcStrides and dstStrides are padded.
 void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
     Strided<llvm::ArrayRef<char>> src,
     Strided<llvm::MutableArrayRef<char>> dst);
+
+// Computes dstStrides from shape, and pads them and srcStrides.
+void restrideArray(unsigned elementBytewidth, llvm::ArrayRef<int64_t> shape,
+    Strided<llvm::ArrayRef<char>> src, llvm::MutableArrayRef<char> dstData);
 
 template <typename BinaryFunction = std::function<WideNum(WideNum, WideNum)>>
 void transformAndRestrideTwoWideArrays(llvm::ArrayRef<int64_t> shape,
