@@ -377,6 +377,23 @@ void evalElementwiseBinaryOp(ArrayRef<int64_t> lhsShape, ArrayRef<T> lhs,
 template <typename ElementwiseBinaryOp>
 Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
     Value replacingValue, Value lhsValue, Value rhsValue) {
+#if 0
+  Type replacingType =
+      replacingValue.getType().cast<ShapedType>();
+  DType operandsDType = lhs.getDType();
+  assert(operandsDType == rhs.getDType());
+
+  ElementsAttrBuilder elementsBuilder(rewriter.getContext());
+  DisposableElementsAttr lhs =
+      getConstValueAsDisposableElements(elementsBuilder, lhsValue);
+  DisposableElementsAttr rhs =
+      getConstValueAsDisposableElements(elementsBuilder, rhsValue);
+  DisposableElementsAttr resultElements =
+      elementsBuilder.combine(lhs, rhs, replacingType,
+          combinerOfElementwiseBinaryOp<ElementwiseBinaryOp>(operandsDType));
+  return createReplacingConstantOp(rewriter, replacingValue, resultElements)
+      .getResult();
+#else
   ShapedType lhsType = lhsValue.getType().cast<ShapedType>();
   ShapedType rhsType = rhsValue.getType().cast<ShapedType>();
   ShapedType type = replacingValue.getType().cast<ShapedType>();
@@ -416,6 +433,7 @@ Value ConstPropElementwiseBinary(PatternRewriter &rewriter,
       rewriter, replacingValue.getLoc(), elements);
 
   return res.getResult();
+#endif
 }
 
 //===----------------------------------------------------------------------===//
@@ -448,10 +466,10 @@ ElementsAttrBuilder::Transformer transformElementWiseUnaryOp(Type elemType) {
       elemType, [](auto dtype) -> ElementsAttrBuilder::Transformer {
         using W = WideDType<dtype>;
         using OpImpl = ElementWiseUnaryOpImpl<OP, typename W::type>;
-        return [](MutableArrayRef<WideNum> data) -> void {
-          for (WideNum &n : data)
-            n = W::pack(OpImpl::impl(W::unpack(n)));
-        };
+        return ElementsAttrBuilder::functionTransformer(
+            [](WideNum n) -> WideNum {
+              return W::pack(OpImpl::impl(W::unpack(n)));
+            });
       });
 }
 
