@@ -44,10 +44,6 @@ llvm::Optional<llvm::SmallVector<int64_t, 4>> reshapeStrides(
     llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
     llvm::ArrayRef<int64_t> reshapedShape);
 
-llvm::Optional<llvm::SmallVector<int64_t, 4>> expandStrides(
-    llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides,
-    llvm::ArrayRef<int64_t> expandedShape);
-
 // The following transpose and unflatten functions are more about shapes than
 // strides but they live here for now:
 

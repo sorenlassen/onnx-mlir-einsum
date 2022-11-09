@@ -151,15 +151,6 @@ Optional<SmallVector<int64_t, 4>> reshapeStrides(ArrayRef<int64_t> shape,
   return getDefaultStrides(reshapedShape);
 }
 
-Optional<SmallVector<int64_t, 4>> expandStrides(ArrayRef<int64_t> shape,
-    ArrayRef<int64_t> strides, ArrayRef<int64_t> expandedShape) {
-  // TODO: refine logic to figure out strides in more situations
-  if (strides != makeArrayRef(getDefaultStrides(shape)))
-    return None;
-  SmallVector<int64_t, 4> expanded(strides);
-  return expanded;
-}
-
 SmallVector<int64_t, 4> transposeDims(
     ArrayRef<int64_t> dims, ArrayRef<uint64_t> perm) {
   assert(dims.size() == perm.size());
