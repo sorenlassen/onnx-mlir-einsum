@@ -286,6 +286,9 @@ private:
 
 //===----------------------------------------------------------------------===//
 // Deferred Method Definitions
+//
+// TODO: move so standalone DisposableElementsAttr.inc source file
+//       like ShapeHelper.inc
 //===----------------------------------------------------------------------===//
 
 namespace detail {

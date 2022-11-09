@@ -78,6 +78,9 @@ private:
 
 //===----------------------------------------------------------------------===//
 // Deferred Method Definitions
+//
+// TODO: move so standalone ElementsAttrBuilder.inc source file
+//       like ShapeHelper.inc
 //===----------------------------------------------------------------------===//
 
 /*static*/
