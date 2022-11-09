@@ -25,6 +25,8 @@ namespace onnx_mlir {
 // and DType and onnx::TensorProto_DataType can be used interchangeably.
 // In some places it is convenient to use DType to avoid compile time
 // dependencies on third_party/onnx.
+//
+// TODO: rename DType because of a name clash in uses of onnx-mlir
 enum class DType : int8_t {
   // clang-format off
   UNDEFINED = 0,
