@@ -130,7 +130,7 @@ mlir::DisposableElementsAttr ElementsAttrBuilder::combine(
       .isContiguous = true,
       .isTransformed = false};
   mlir::DisposableElementsAttr::Buffer buffer = std::move(writeBuffer);
-  return create(combinedType, llvm::None, properties, buffer);
+  return create(combinedType, dstStrides, properties, buffer);
 }
 
 } // namespace onnx_mlir

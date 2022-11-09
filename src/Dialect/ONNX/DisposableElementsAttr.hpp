@@ -120,8 +120,9 @@ public:
 
 private:
   // Assumes isTransformed if reader != nullptr.
-  static DisposableElementsAttr get(ShapedType type, Optional<Strides> strides,
-      const Buffer &buffer, Reader reader = nullptr);
+  static DisposableElementsAttr get(ShapedType type,
+      Optional<Strides> optionalStrides, const Buffer &buffer,
+      Reader reader = nullptr);
 
   static DisposableElementsAttr get(ShapedType type, Strides strides,
       Properties properties, const Buffer &buffer, Reader reader = nullptr);

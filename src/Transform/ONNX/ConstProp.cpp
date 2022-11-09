@@ -109,14 +109,29 @@ SmallVector<T, 4> createIntVectorFromArrayAttr(ArrayAttr a) {
   return vec;
 }
 
-ElementsAttr getConstValueElements(Value constValue) {
-  ONNXConstantOp constOp = getONNXConstantOp(constValue);
-  return constOp.valueAttr().cast<ElementsAttr>();
-}
-
 DisposableElementsAttr getConstValueAsDisposableElements(
     ElementsAttrBuilder &elementsBuilder, Value constValue) {
-  return elementsBuilder.fromElementsAttr(getConstValueElements(constValue));
+  ONNXConstantOp constOp = getONNXConstantOp(constValue);
+  Attribute bufferIDAttr =
+      constOp->getAttrOfType<::mlir::Attribute>(BUFFER_ID_ATTR);
+  if (bufferIDAttr) {
+    unsigned bufferId = bufferIDAttr.cast<IntegerAttr>().getUInt();
+    ShapedType type = constValue.getType().cast<ShapedType>();
+    int64_t maxSize = getMaxSizeInBytes(type);
+    mlir::DisposableElementsAttr::Buffer buffer =
+        llvm::MemoryBuffer::getMemBufferCopy(
+            StringRef(bufferPtrs[bufferId], maxSize));
+    DType dtype = dtypeOfMlirType(type.getElementType());
+    mlir::DisposableElementsAttr::Properties properties{.dtype = dtype,
+        .bufferDType = wideDTypeOfDType(dtype),
+        .isContiguous = true,
+        .isTransformed = false};
+    auto shape = type.getShape();
+    auto strides = getDefaultStrides(shape);
+    return elementsBuilder.create(type, strides, properties, buffer);
+  }
+  return elementsBuilder.fromElementsAttr(
+      constOp.valueAttr().cast<ElementsAttr>());
 }
 
 // Creates ONNXConstantOp with the location and result type from replacingValue.

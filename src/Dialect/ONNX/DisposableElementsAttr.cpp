@@ -41,19 +41,22 @@ DisposableElementsAttr::Reader getIdentityReader(DType dtype) {
 
 /*static*/
 DisposableElementsAttr DisposableElementsAttr::get(ShapedType type,
-    Optional<Strides> strides, const Buffer &buffer, Reader reader) {
+    Optional<Strides> optionalStrides, const Buffer &buffer, Reader reader) {
   DType dtype = dtypeOfMlirType(type.getElementType());
-  SmallVector<int64_t, 4> actualStrides;
-  if (strides.has_value())
-    actualStrides.assign(strides->begin(), strides->end());
-  else
-    actualStrides = getDefaultStrides(type.getShape());
-  bool isContiguous = type.getNumElements() == 1 || !actualStrides.empty();
+  bool isContiguous = true; // may be set to false below
+  auto defaultStrides = getDefaultStrides(type.getShape());
+  SmallVector<int64_t, 4> strides;
+  if (optionalStrides.has_value()) {
+    strides.assign(optionalStrides->begin(), optionalStrides->end());
+    isContiguous = (strides == makeArrayRef(defaultStrides));
+  } else {
+    strides = defaultStrides;
+  }
   Properties properties = {.dtype = dtype,
       .bufferDType = dtype,
       .isContiguous = isContiguous,
       .isTransformed = reader != nullptr};
-  return create(type, actualStrides, properties, buffer, std::move(reader));
+  return create(type, strides, properties, buffer, std::move(reader));
 }
 
 /*static*/
@@ -362,10 +365,19 @@ DisposableElementsAttr DisposableElementsAttr::reshape(
 
 DisposableElementsAttr DisposableElementsAttr::expand(
     ElementsAttrBuilder &elmsBuilder, ArrayRef<int64_t> expandedShape) const {
-  // TODO: if getStrides() don't conflict with expandedShape clone *this
-  //       with strides that incorporate expandedShape, otherwise create a new
-  //       MemoryBuffer and restrideArray / reorder buffer into it
-  llvm_unreachable("TODO: implement DisposableElementsAttr::expand");
+  ShapedType type = getType();
+  auto shape = type.getShape();
+  if (expandedShape == shape)
+    return *this;
+
+  auto expandedDefaultStrides = getDefaultStrides(expandedShape);
+  auto strides = getStrides();
+  Properties expandedProperties = getProperties();
+  expandedProperties.isContiguous =
+      (strides == makeArrayRef(expandedDefaultStrides));
+  ShapedType expandedType = type.clone(expandedShape);
+  return elmsBuilder.create(
+      expandedType, strides, expandedProperties, getBuffer(), getReader());
 }
 
 } // namespace mlir
