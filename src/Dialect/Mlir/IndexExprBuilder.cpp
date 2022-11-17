@@ -92,7 +92,7 @@ IndexExpr IndexExprBuilder::getIntArrayAsSymbol(Value intArrayVal, uint64_t i) {
   if (i >= size)
     return UndefinedIndexExpr();
   // If our scalar array is a constant, return it.
-  if (DenseElementsAttr attrArray = getConst(intArrayVal)) {
+  if (ElementsAttr attrArray = getConst(intArrayVal)) {
     auto attrVal = attrArray.getValues<Attribute>()[ArrayRef<uint64_t>({i})];
     int64_t attrInt = attrVal.cast<IntegerAttr>().getInt();
     return LiteralIndexExpr(attrInt);

@@ -195,12 +195,12 @@ mlir::Value EmitInitializerForInputTensor(mlir::Location loc,
     return builder.create<mlir::ONNXNoneOp>(
         loc, builder.getNoneType(), builder.getUnitAttr());
 
-  mlir::DenseElementsAttr denseElmAttr =
+  mlir::ElementsAttr elmAttr =
       onnxTensorProtoToDenseElmAttr(builder, externalDataDir, initializer);
-  return builder.create<mlir::ONNXConstantOp>(loc, nullptr, denseElmAttr);
+  return builder.create<mlir::ONNXConstantOp>(loc, nullptr, elmAttr);
 }
 
-mlir::DenseElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
+mlir::ElementsAttr onnxTensorProtoToDenseElmAttr(mlir::OpBuilder &builder,
     const std::string &externalDataDir, const onnx::TensorProto &tp) {
   // Tensor dimensions.
   llvm::ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());

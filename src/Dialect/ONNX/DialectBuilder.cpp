@@ -320,8 +320,8 @@ Value OnnxBuilder::reshapeToNDim(
 // =============================================================================
 
 // Return null if none is found.
-DenseElementsAttr IndexExprBuilderForAnalysis::getConst(mlir::Value value) {
-  return getDenseElementAttributeFromONNXValue(value);
+ElementsAttr IndexExprBuilderForAnalysis::getConst(mlir::Value value) {
+  return getElementAttributeFromONNXValue(value);
 }
 
 // For analysis, we never create values, so return null.

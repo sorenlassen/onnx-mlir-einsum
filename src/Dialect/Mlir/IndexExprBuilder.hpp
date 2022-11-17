@@ -142,9 +142,9 @@ protected:
   //===--------------------------------------------------------------------===//
   // Subclasses must define these pure virtual functions.
 
-  // Locate a dense element attribute associated with the defining op given by
+  // Locate an elements attribute associated with the defining op given by
   // value. Return nullptr if none exists.
-  virtual mlir::DenseElementsAttr getConst(mlir::Value value) = 0;
+  virtual mlir::ElementsAttr getConst(mlir::Value value) = 0;
   // Locate/generate a value that represents the integer value given by the op
   // defining intArrayVal at position i in the array. Return nullptr if cannot
   // locate/generate the value.
