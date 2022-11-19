@@ -293,11 +293,6 @@ special_op_handler = dict([
     ("Softmax", "ImportNodeSoftmax")
 ])
 
-# Operations with custom assembly format (alphabetical order).
-OpsWithCustomAssemblyFormat = [
-    'Constant',
-]
-
 # Operations supporting canonicalization (alphabetical order).
 OpsWithCanonicalizer = [
     'Add',
@@ -991,13 +986,8 @@ def gen_op_def(schema, with_version = False):
         traits.append("OpInterface<\"HasOnnxSubgraphOpInterface\">")
     s += inc_indent(indent) + '[{}]> {{\n'.format(join_args(traits))
 
-    indent = inc_indent(indent)
-
-    # Generate decl for custom assembly format.
-    if opName in OpsWithCustomAssemblyFormat:
-        s += indent + 'let hasCustomAssemblyFormat = 1;\n'
-
     # Generate decl for canonicalizer.
+    indent = inc_indent(indent)
     if opName in OpsWithCanonicalizer:
         s += indent + 'let hasCanonicalizer = 1;\n'
 
