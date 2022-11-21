@@ -384,9 +384,9 @@ LogicalResult ConstPropSplitPatternCommon(Op splitOp, PatternRewriter &rewriter,
   // Basic info.
   unsigned numResults = splitOp.getNumResults();
   Value input = splitOp.input();
-  ConstPropCounters::count("Split", {input});
   if (!isFromDenseONNXConstantOp(input))
     return failure();
+  ConstPropCounters::count("Split", {input});
   ShapedType inputType = input.getType().cast<ShapedType>();
   ArrayRef<int64_t> inputShape = inputType.getShape();
 
@@ -521,6 +521,8 @@ public:
 
     if (!isFromDenseONNXConstantOp(scatterNdOp.updates()))
       return failure();
+
+    ConstPropCounters::count("Scatter", {scatterNdOp.data(), scatterNdOp.indices(), scatterNdOp.updates()});
 
     ElementsAttrBuilder elementsBuilder(rewriter.getContext());
     DisposableElementsAttr dataElements =
