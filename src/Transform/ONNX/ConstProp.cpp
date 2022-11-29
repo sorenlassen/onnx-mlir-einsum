@@ -32,6 +32,7 @@
 #include "src/Transform/ONNX/ConstPropHelper.hpp"
 
 #include <math.h>
+#include <unistd.h>
 
 using namespace mlir;
 using namespace onnx_mlir;
@@ -1078,6 +1079,19 @@ struct ConstPropONNXToONNXPass
 
   void runOnOperation() final;
 };
+
+std::string reportHeapCommand() {
+  return "heap -s " + std::to_string(getpid()) + " | head -n40";
+}
+
+void reportHeap(std::string heading) {
+  if (getenv("MallocStackLogging")) {
+    llvm::outs() << heading << ":\n";
+    llvm::outs() << "running: " << reportHeapCommand() << "\n";
+    llvm::outs().flush();
+    std::system(reportHeapCommand().c_str());
+  }
+}
 } // end anonymous namespace.
 
 void ConstPropONNXToONNXPass::runOnOperation() {
@@ -1087,6 +1101,8 @@ void ConstPropONNXToONNXPass::runOnOperation() {
   ConversionTarget target(getContext());
   target.addLegalDialect<ONNXDialect>();
 
+  reportHeap("Before const prop");
+
   RewritePatternSet patterns(context);
   populateWithGenerated(patterns);
   patterns.insert<ConstPropSplitPattern>(&getContext());
@@ -1094,6 +1110,8 @@ void ConstPropONNXToONNXPass::runOnOperation() {
   patterns.insert<ConstPropScatterNDPattern>(&getContext());
   if (failed(applyPatternsAndFoldGreedily(function, std::move(patterns))))
     signalPassFailure();
+
+  reportHeap("After const prop, before cleaning up helper attributes");
 
   // Create DenseElementsAttr and clean up helper attributes.
   function.walk([&](ONNXConstantOp constOp) {
@@ -1116,7 +1134,8 @@ void ConstPropONNXToONNXPass::runOnOperation() {
   }
   bufferPtrs.clear();
 
-} // end anonymous namespace
+  reportHeap("After const prop, after cleaning up helper attributes");
+}
 
 /*!
  * Create a ConstPropONNX pass.
