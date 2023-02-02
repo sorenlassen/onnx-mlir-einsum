@@ -12,15 +12,17 @@
 
 template <typename Iter, size_t N>
 struct StridedIterator
-    : public llvm::iterator_facade_base<StridedIterator<Iter, Arg>, std::forward_iterator_tag, std::pair<Iter, std::array<size_t, N>>> {
+    : public llvm::iterator_facade_base<StridedIterator<Iter, N>, std::forward_iterator_tag, std::pair<Iter, std::array<size_t, N>>> {
+  using value_type = std::pair<Iter, std::array<size_t, N>>;
+
   const llvm::ArrayRef<int64_t> shape;
   const std::array<llvm::ArrayRef<int64_t>, N> strides;
   value_type locations;
   llvm::SmallVector<uint64_t, 6> idx;
 
 public:
-  StridedIterator(llvm::ArrayRef<int64_t> shape, Iter iter, std::array<llvm::ArrayRef<int64_t>> strides)
-  : shape(shape), strides(strides), tuple(iter, {}), idx(shape.size(), 0) {}
+  StridedIterator(llvm::ArrayRef<int64_t> shape, Iter iter, std::array<llvm::ArrayRef<int64_t>, N> strides)
+  : shape(shape), strides(strides), locations(iter, {}), idx(shape.size(), 0) {}
 
   StridedIterator(const StridedIterator &) = default;
 
@@ -30,16 +32,19 @@ public:
     return locations.first == other.locations.first;
   }
 
-  const value_type &operator*() const { return tuple; }
+  const value_type &operator*() const { return locations; }
+
+  const value_type *operator->() const {
+    return &locations;
+  }
 
   StridedIterator &operator++() {
     ++(locations.first);
-#if 1
     for (auto axis = idx.size();;) {
       if (axis == 0)
         break;
       --axis;
-      int64_t dim = shape[axis];
+      uint64_t dim = shape[axis];
       for (unsigned i = 0; i < N; ++i)
         locations.second[i] += strides[i][axis];
       if (++(idx[axis]) < dim)
@@ -49,71 +54,17 @@ public:
       idx[axis] = 0;
     }
     return *this;
-#else
-    for (int a = static_cast<int>(axes.size()) - 1; a >= 0; --a) {
-      int64_t dim = shape[a];
-      int64_t stride = strides[a];
-      ptr += stride;
-      if (++(axes[a]) < dim) {
-        return *this;
-      }
-      ptr -= dim * stride;
-      axes[a] = 0;
-    }
-    return *this;
-#endif
   }
 };
 
 template <typename Iterator, typename Arg0, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, Action &&act) {
-#if 1
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
   for (StridedIterator<Iterator, 1> it(shape, begin, {src0.strides}), stop({}, end, {{}}); it != stop; ++it) {
-    auto locations = *it;
-    act(it.first, it.second[0]);
+    act(it->first, src0.begin() + it->second[0]);
   }
   return end;
-#elif 1 // about 5% slower
-  llvm::ArrayRef<int64_t> strides = src0.strides;
-  llvm::SmallVector<int64_t, 6> axes(shape.size(), 0);
-  Iterator it = begin;
-  for (const Arg0 *ptr = src0.begin(); ptr != nullptr; ++it) {
-    act(it, ptr);
-    for (unsigned a = axes.size(); ; ) {
-      if (a == 0) {
-        ptr = nullptr;
-        break;
-      }
-      --a;
-      int64_t dim = shape[a];
-      int64_t stride = strides[a];
-      ptr += stride;
-      if (++(axes[a]) < dim) {
-        break;
-      }
-      ptr -= dim * stride;
-      axes[a] = 0;
-    }
-  }
-  return it;
-#else
-  auto traverse = [=](const auto &recurse, unsigned axis, Iterator it,
-                      const Arg0 *elm0) -> Iterator {
-    if (axis == shape.size()) {
-      act(it, elm0);
-      it++;
-    } else {
-      for (int64_t i = 0; i < shape[axis]; ++i) {
-        it = recurse(recurse, axis + 1, it, elm0);
-        elm0 += src0.strides[axis];
-      }
-    }
-    return it;
-  };
-  return traverse(traverse, /*axis=*/0, begin, src0.begin());
-#endif
 }
 
 template <typename Iterator, typename Arg0, typename Arg1, typename Action>
