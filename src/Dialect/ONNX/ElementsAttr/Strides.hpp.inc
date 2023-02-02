@@ -61,7 +61,7 @@ template <typename Iterator, typename Arg0, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, Action &&act) {
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
-  for (StridedIterator<Iterator, 1> it(shape, begin, {src0.strides}), stop({}, end, {{}}); it != stop; ++it) {
+  for (StridedIterator<Iterator, 1> it(shape, begin, {src0.strides}); it->first != end; ++it) {
     act(it->first, src0.begin() + it->second[0]);
   }
   return end;
