@@ -10,38 +10,46 @@
 // implementations of traverseStrides and mapStrides, so here we
 // implement them manually for unary and binary cases.
 
-template <typename T>
+template <typename Iter, size_t N>
 struct StridedIterator
-    : public llvm::iterator_facade_base<StridedIterator<T>, std::forward_iterator_tag, T> {
+    : public llvm::iterator_facade_base<StridedIterator<Iter, Arg>, std::forward_iterator_tag, std::pair<Iter, std::array<size_t, N>>> {
   const llvm::ArrayRef<int64_t> shape;
-  const llvm::ArrayRef<int64_t> strides;
-  T *ptr;
-  llvm::SmallVector<int64_t, 6> axes;
+  const std::array<llvm::ArrayRef<int64_t>, N> strides;
+  value_type locations;
+  llvm::SmallVector<uint64_t, 6> idx;
 
 public:
-  StridedIterator(llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides, T *ptr)
-  : shape(shape), strides(strides), ptr(ptr), axes(shape.size(), 0) {}
-
-  StridedIterator(std::nullptr_t)
-  : ptr(nullptr) {}
+  StridedIterator(llvm::ArrayRef<int64_t> shape, Iter iter, std::array<llvm::ArrayRef<int64_t>> strides)
+  : shape(shape), strides(strides), tuple(iter, {}), idx(shape.size(), 0) {}
 
   StridedIterator(const StridedIterator &) = default;
 
   StridedIterator &operator=(const StridedIterator &) = default;
 
   bool operator==(const StridedIterator &other) const {
-    return ptr == other.ptr;
+    return locations.first == other.locations.first;
   }
 
-  bool operator==(std::nullptr_t) const {
-    return ptr == nullptr;
-  }
-
-  const T &operator*() const { return *ptr; }
-
-  T &operator*() { return *ptr; }
+  const value_type &operator*() const { return tuple; }
 
   StridedIterator &operator++() {
+    ++(locations.first);
+#if 1
+    for (auto axis = idx.size();;) {
+      if (axis == 0)
+        break;
+      --axis;
+      int64_t dim = shape[axis];
+      for (unsigned i = 0; i < N; ++i)
+        locations.second[i] += strides[i][axis];
+      if (++(idx[axis]) < dim)
+        break;
+      for (unsigned i = 0; i < N; ++i)
+        locations.second[i] -= dim * strides[i][axis];
+      idx[axis] = 0;
+    }
+    return *this;
+#else
     for (int a = static_cast<int>(axes.size()) - 1; a >= 0; --a) {
       int64_t dim = shape[a];
       int64_t stride = strides[a];
@@ -52,72 +60,21 @@ public:
       ptr -= dim * stride;
       axes[a] = 0;
     }
-    ptr = nullptr;
     return *this;
-  }
-};
-
-#if 0
-template <typename T>
-struct StridedIterator
-    : public llvm::iterator_facade_base<StridedIterator, std::forward_iterator_tag, T> {
-  struct Axis {
-    int64_t dim;
-    int64_t stride;
-    int64_t pos;
-  };
-  
-  T *ptr;
-  std::vector<Axis> axes;
-
-public:
-  StridedIterator(llvm::ArrayRef<int64_t> shape, llvm::ArrayRef<int64_t> strides, pointer ptr)
-  : ptr(ptr) {
-    assert(shape.size() == strides.size());
-    axes.reserve(shape.size());
-    for (unsigned i = 0; i < shape.size(); ++i)
-      axes.emplace_back(shape[i], strides[i], 0);
-  }
-
-  StridedIterator(const StridedIterator &) = default;
-
-  StridedIterator &operator=(const StridedIterator &) = default;
-
-  bool operator==(const StridedIterator &other) const {
-    return ptr == other.ptr;
-  }
-
-  const T &operator*() const { return *ptr; }
-
-  T &operator*() { return *ptr; }
-
-  StridedIterator &operator++() {
-    auto next = ptr;
-    auto it = axes.rbegin(), end = axes.rend();
-    while (it != end) {
-      next += it->str;
-      ++(it->pos);
-      if (it->pos < it->dim) {
-        ptr = next;
-        return *this;
-      }
-      next -= it->pos * it->str;
-      it->pos = 0;
-    }
-    ptr++;
-    return *this;
-  }
-};
 #endif
+  }
+};
 
 template <typename Iterator, typename Arg0, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, Action &&act) {
 #if 1
-  Iterator it = begin;
-  for (StridedIterator<const Arg0> si(shape, src0.strides, src0.begin()); si != nullptr; ++si, ++it)
-    act(it, &*si);
-  return it;
+  Iterator end = begin + mlir::ShapedType::getNumElements(shape);
+  for (StridedIterator<Iterator, 1> it(shape, begin, {src0.strides}), stop({}, end, {{}}); it != stop; ++it) {
+    auto locations = *it;
+    act(it.first, it.second[0]);
+  }
+  return end;
 #elif 1 // about 5% slower
   llvm::ArrayRef<int64_t> strides = src0.strides;
   llvm::SmallVector<int64_t, 6> axes(shape.size(), 0);
