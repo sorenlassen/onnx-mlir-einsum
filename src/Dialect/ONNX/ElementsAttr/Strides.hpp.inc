@@ -70,39 +70,27 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
 template <typename Iterator, typename Arg0, typename Arg1, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
-  auto traverse = [=](const auto &recurse, unsigned axis, Iterator it,
-                      const Arg0 *elm0, const Arg1 *elm1) -> Iterator {
-    if (axis == shape.size()) {
-      act(it, elm0, elm1);
-      it++;
-    } else {
-      for (int64_t i = 0; i < shape[axis]; ++i) {
-        it = recurse(recurse, axis + 1, it, elm0, elm1);
-        elm0 += src0.strides[axis];
-        elm1 += src1.strides[axis];
-      }
-    }
-    return it;
-  };
-  return traverse(traverse, /*axis=*/0, begin, src0.begin(), src1.begin());
+  Iterator end = begin + mlir::ShapedType::getNumElements(shape);
+  for (StridedIterator<Iterator, 2> it(shape, begin, {src0.strides, src1.strides}); it->first != end; ++it) {
+    act(it->first, src0.begin() + it->second[0], src1.begin() + it->second[1]);
+  }
+  return end;
 }
 
 template <typename Res, typename Arg0, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, Action &&act) {
-  Res *end = traverseStrides<Res *, Arg0>(shape, dst.begin(), src0,
-      [&act](Res *res, const Arg0 *arg0) { *res = act(*arg0); });
-  assert(end == dst.end() && "traverses every dst element");
+  for (StridedIterator<Res *, 1> it(shape, dst.begin(), {src0.strides}); it->first != dst.end(); ++it) {
+    *(it->first) = act(src0.begin()[it->second[0]]);
+  }
 }
 
 template <typename Res, typename Arg0, typename Arg1, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
-  Res *end = traverseStrides<Res *, Arg0, Arg1>(shape, dst.begin(), src0, src1,
-      [&act](Res *res, const Arg0 *arg0, const Arg1 *arg1) {
-        *res = act(*arg0, *arg1);
-      });
-  assert(end == dst.end() && "traverses every dst element");
+  for (StridedIterator<Res *, 2> it(shape, dst.begin(), {src0.strides, src1.strides}); it->first != dst.end(); ++it) {
+    *(it->first) = act(src0.begin()[it->second[0]], src1.begin()[it->second[1]]);
+  }
 }
 
 #else
@@ -114,9 +102,6 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
   // for (StridedIterator<Args...> srcs(shape, src...); srcs != nullptr; ++srcs, ++it)
   //   std::apply(act, std::tuple_cat(std::make_tuple(it), *srcs));
   // return it;
-#if 0
-  llvm::SmallVector<int64_t, 6> axes(shape.size(), 0);
-#else
   auto traverse = [=](const auto &recurse, unsigned axis, Iterator it,
                       const Args *... elms) -> Iterator {
     if (axis == shape.size()) {
@@ -131,7 +116,6 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     return it;
   };
   return traverse(traverse, /*axis=*/0, begin, src.begin()...);
-#endif
 }
 
 template <typename Res, typename... Args, typename Action>
