@@ -40,6 +40,7 @@
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
 
@@ -119,15 +120,15 @@ struct StridedArrayRef : public llvm::ArrayRef<T> {
       : Base(array), strides(strides) {}
 };
 
-template <typename Iterator, typename... Args,
-    typename Action = llvm::function_ref<void(Iterator, const Args *...)>>
-Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
-    StridedArrayRef<Args>... src, Action &&act);
+// template <typename Iterator, typename... Args,
+//     typename Action = llvm::function_ref<void(Iterator, const Args *...)>>
+// Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
+//     StridedArrayRef<Args>... src, Action &&act);
 
-template <typename Res, typename... Args,
-    typename Action = llvm::function_ref<Res(Args...)>>
-void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
-    StridedArrayRef<Args>... src, Action &&act);
+// template <typename Res, typename... Args,
+//     typename Action = llvm::function_ref<Res(Args...)>>
+// void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
+//     StridedArrayRef<Args>... src, Action &&act);
 
 // Include template implementations.
 #include "Strides.hpp.inc"
