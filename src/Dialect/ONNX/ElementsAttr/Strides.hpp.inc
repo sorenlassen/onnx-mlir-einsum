@@ -21,7 +21,7 @@ struct StridedIterator
   llvm::SmallVector<uint64_t, 6> idx;
 
 public:
-  StridedIterator(llvm::ArrayRef<int64_t> shape, Iter iter, std::array<llvm::ArrayRef<int64_t>, N> strides)
+  StridedIterator(llvm::ArrayRef<int64_t> shape, std::array<llvm::ArrayRef<int64_t>, N> strides, Iter iter)
   : shape(shape), strides(strides), locations(iter, {}), idx(shape.size(), 0) {}
 
   StridedIterator(const StridedIterator &) = default;
@@ -61,7 +61,7 @@ template <typename Iterator, typename Arg0, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, Action &&act) {
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
-  for (StridedIterator<Iterator, 1> it(shape, begin, {src0.strides}); it->first != end; ++it) {
+  for (StridedIterator<Iterator, 1> it(shape, {src0.strides}, begin); it->first != end; ++it) {
     act(it->first, src0.begin() + it->second[0]);
   }
   return end;
@@ -71,7 +71,7 @@ template <typename Iterator, typename Arg0, typename Arg1, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
-  for (StridedIterator<Iterator, 2> it(shape, begin, {src0.strides, src1.strides}); it->first != end; ++it) {
+  for (StridedIterator<Iterator, 2> it(shape, {src0.strides, src1.strides}, begin); it->first != end; ++it) {
     act(it->first, src0.begin() + it->second[0], src1.begin() + it->second[1]);
   }
   return end;
@@ -80,7 +80,7 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
 template <typename Res, typename Arg0, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, Action &&act) {
-  for (StridedIterator<Res *, 1> it(shape, dst.begin(), {src0.strides}); it->first != dst.end(); ++it) {
+  for (StridedIterator<Res *, 1> it(shape, {src0.strides}, dst.begin()); it->first != dst.end(); ++it) {
     *(it->first) = act(src0.begin()[it->second[0]]);
   }
 }
@@ -88,7 +88,7 @@ void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
 template <typename Res, typename Arg0, typename Arg1, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
-  for (StridedIterator<Res *, 2> it(shape, dst.begin(), {src0.strides, src1.strides}); it->first != dst.end(); ++it) {
+  for (StridedIterator<Res *, 2> it(shape, {src0.strides, src1.strides}, dst.begin()); it->first != dst.end(); ++it) {
     *(it->first) = act(src0.begin()[it->second[0]], src1.begin()[it->second[1]]);
   }
 }
