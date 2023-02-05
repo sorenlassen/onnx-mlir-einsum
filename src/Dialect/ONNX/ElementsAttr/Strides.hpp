@@ -124,7 +124,9 @@ struct StridedArrayRef : public llvm::ArrayRef<T> {
 template <size_t N>
 class Strided_Iterator {
   struct value_type {
-    std::array<size_t, N> locations;
+    value_type(unsigned rank, uint64_t flattenedIndex = 0)
+        : pos{}, flattenedIndex(flattenedIndex), index(rank, 0) {}
+    std::array<size_t, N> pos;
     uint64_t flattenedIndex;
     llvm::SmallVector<uint64_t, 6> index;
   };
@@ -141,7 +143,7 @@ public:
   // Begin iterator.
   Strided_Iterator(llvm::ArrayRef<int64_t> shape,
       std::array<llvm::ArrayRef<int64_t>, N> strides)
-      : shape(shape), strides(strides), value({}, 0, {shape.size(), 0}) {
+      : shape(shape), strides(strides), value(shape.size()) {
     for (auto dim : shape)
       assert(dim > 0 && "shape must describe non-empty tensor");
     for (unsigned i = 0; i < N; ++i)
@@ -149,7 +151,7 @@ public:
   }
 
   // End iterator: ends after the given number of iterations.
-  Strided_Iterator(size_t iterations) : value({}, iterations, {}) {}
+  Strided_Iterator(size_t iterations) : value{0, iterations} {}
 
   // End iterator: ends after one traversal of shape.
   Strided_Iterator(llvm::ArrayRef<int64_t> shape)
@@ -161,6 +163,10 @@ public:
 
   bool operator==(const Strided_Iterator &other) const {
     return value.flattenedIndex == other.value.flattenedIndex;
+  }
+
+  bool operator!=(const Strided_Iterator &other) const {
+    return value.flattenedIndex != other.value.flattenedIndex;
   }
 
   reference operator*() const { return value; }
@@ -175,11 +181,11 @@ public:
       --axis;
       uint64_t dim = shape[axis];
       for (unsigned i = 0; i < N; ++i)
-        value.locations[i] += strides[i][axis];
+        value.pos[i] += strides[i][axis];
       if (++(value.index[axis]) < dim)
         break;
       for (unsigned i = 0; i < N; ++i)
-        value.locations[i] -= dim * strides[i][axis];
+        value.pos[i] -= dim * strides[i][axis];
       value.index[axis] = 0;
     }
     return *this;
@@ -199,7 +205,8 @@ public:
 
 // template <typename Res, typename... Args,
 //     typename Action = llvm::function_ref<Res(Args...)>>
-// void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
+// void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res>
+// dst,
 //     StridedArrayRef<Args>... src, Action &&act);
 
 // Include template implementations.

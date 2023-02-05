@@ -4,7 +4,7 @@
 // Strides template implementations
 //===----------------------------------------------------------------------===//
 
-#if defined(_MSC_VER)
+#if 1 // defined(_MSC_VER)
 
 // MSVC cannot figure out the parameter packs in the variadic
 // implementations of traverseStrides and mapStrides, so here we
@@ -93,6 +93,7 @@ void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
 template <typename Res, typename Arg0, typename Arg1, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
+#if 1
   size_t pos0 = 0, pos1 = 0;
   llvm::SmallVector<uint64_t, 6> index(shape.size(), 0);
   for (auto d = dst.begin(); d != dst.end(); ++d) {
@@ -113,6 +114,17 @@ void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
       index[axis] = 0;
     }
   }
+#elif 1
+  for (Strided_Iterator<2> it(shape, {src0.strides, src1.strides}), end(shape);
+       it != end; ++it)
+    dst[it->flattenedIndex] = act(src0[it->pos[0]], src1[it->pos[1]]);
+#else
+  for (StridedIterator<Res *, 2> it(
+           shape, {src0.strides, src1.strides}, dst.begin());
+       it->first != dst.end(); ++it)
+    *(it->first) =
+        act(src0.begin()[it->second[0]], src1.begin()[it->second[1]]);
+#endif
 }
 
 #else
