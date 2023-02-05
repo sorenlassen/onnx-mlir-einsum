@@ -40,9 +40,9 @@
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator.h"
 
 #include <array>
 
@@ -118,6 +118,78 @@ struct StridedArrayRef : public llvm::ArrayRef<T> {
   llvm::ArrayRef<int64_t> strides;
   StridedArrayRef(llvm::ArrayRef<T> array, llvm::ArrayRef<int64_t> strides)
       : Base(array), strides(strides) {}
+};
+
+// TODO: rename to StridedIterator
+template <size_t N>
+class Strided_Iteraror {
+  struct value_type {
+    std::array<size_t, N> locations;
+    uint64_t flattenedIndex;
+    llvm::SmallVector<uint64_t, 6> index;
+  };
+  using difference_type = int64_t;
+  using pointer = const value_type *;
+  using reference = const value_type &;
+  using iterator_category = std::forward_iterator_tag;
+
+  const llvm::ArrayRef<int64_t> shape;
+  const std::array<llvm::ArrayRef<int64_t>, N> strides;
+  value_type value;
+
+public:
+  // Begin iterator.
+  Strided_Iteraror(llvm::ArrayRef<int64_t> shape,
+      std::array<llvm::ArrayRef<int64_t>, N> strides)
+      : shape(shape), strides(strides), value({}, 0, {shape.size(), 0}) {
+    for (auto dim : shape)
+      assert(dim > 0 && "shape must describe non-empty tensor");
+    for (unsigned i = 0; i < N; ++i)
+      assert(shape.size() == strides[i].size() && "shape, strides mismatch");
+  }
+
+  // End iterator: ends after the given number of iterations.
+  Strided_Iteraror(size_t iterations) : value({}, iterations, {}) {}
+
+  // End iterator: ends after one traversal of shape.
+  Strided_Iteraror(llvm::ArrayRef<int64_t> shape)
+      : Strided_Iteraror(mlir::ShapedType::getNumElements(shape)) {}
+
+  Strided_Iteraror(const Strided_Iteraror &) = default;
+
+  Strided_Iteraror &operator=(const Strided_Iteraror &) = default;
+
+  bool operator==(const Strided_Iteraror &other) const {
+    return value.flattenedIndex == other.value.flattenedIndex;
+  }
+
+  reference operator*() const { return value; }
+
+  pointer operator->() const { return &value; }
+
+  Strided_Iteraror &operator++() {
+    ++(value.flattenedIndex);
+    for (auto axis = shape.size();;) {
+      if (axis == 0)
+        break;
+      --axis;
+      uint64_t dim = shape[axis];
+      for (unsigned i = 0; i < N; ++i)
+        value.locations[i] += strides[i][axis];
+      if (++(value.index[axis]) < dim)
+        break;
+      for (unsigned i = 0; i < N; ++i)
+        value.locations[i] -= dim * strides[i][axis];
+      value.index[axis] = 0;
+    }
+    return *this;
+  }
+
+  Strided_Iteraror operator++(int) {
+    Strided_Iteraror copy = *this;
+    ++*this;
+    return copy;
+  }
 };
 
 // template <typename Iterator, typename... Args,
