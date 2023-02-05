@@ -4,7 +4,7 @@
 // Strides template implementations
 //===----------------------------------------------------------------------===//
 
-#if 1 // defined(_MSC_VER)
+#if defined(_MSC_VER)
 
 // MSVC cannot figure out the parameter packs in the variadic
 // implementations of traverseStrides and mapStrides, so here we
@@ -12,7 +12,8 @@
 
 template <typename Iter, size_t N>
 struct StridedIterator
-    : public llvm::iterator_facade_base<StridedIterator<Iter, N>, std::forward_iterator_tag, std::pair<Iter, std::array<size_t, N>>> {
+    : public llvm::iterator_facade_base<StridedIterator<Iter, N>,
+          std::forward_iterator_tag, std::pair<Iter, std::array<size_t, N>>> {
   using value_type = std::pair<Iter, std::array<size_t, N>>;
 
   const llvm::ArrayRef<int64_t> shape;
@@ -21,8 +22,10 @@ struct StridedIterator
   llvm::SmallVector<uint64_t, 6> idx;
 
 public:
-  StridedIterator(llvm::ArrayRef<int64_t> shape, std::array<llvm::ArrayRef<int64_t>, N> strides, Iter iter)
-  : shape(shape), strides(strides), locations(iter, {}), idx(shape.size(), 0) {}
+  StridedIterator(llvm::ArrayRef<int64_t> shape,
+      std::array<llvm::ArrayRef<int64_t>, N> strides, Iter iter)
+      : shape(shape), strides(strides), locations(iter, {}),
+        idx(shape.size(), 0) {}
 
   StridedIterator(const StridedIterator &) = default;
 
@@ -34,9 +37,7 @@ public:
 
   const value_type &operator*() const { return locations; }
 
-  const value_type *operator->() const {
-    return &locations;
-  }
+  const value_type *operator->() const { return &locations; }
 
   StridedIterator &operator++() {
     ++(locations.first);
@@ -61,7 +62,8 @@ template <typename Iterator, typename Arg0, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, Action &&act) {
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
-  for (StridedIterator<Iterator, 1> it(shape, {src0.strides}, begin); it->first != end; ++it) {
+  for (StridedIterator<Iterator, 1> it(shape, {src0.strides}, begin);
+       it->first != end; ++it) {
     act(it->first, src0.begin() + it->second[0]);
   }
   return end;
@@ -71,7 +73,9 @@ template <typename Iterator, typename Arg0, typename Arg1, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
   Iterator end = begin + mlir::ShapedType::getNumElements(shape);
-  for (StridedIterator<Iterator, 2> it(shape, {src0.strides, src1.strides}, begin); it->first != end; ++it) {
+  for (StridedIterator<Iterator, 2> it(
+           shape, {src0.strides, src1.strides}, begin);
+       it->first != end; ++it) {
     act(it->first, src0.begin() + it->second[0], src1.begin() + it->second[1]);
   }
   return end;
@@ -80,7 +84,8 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
 template <typename Res, typename Arg0, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, Action &&act) {
-  for (StridedIterator<Res *, 1> it(shape, {src0.strides}, dst.begin()); it->first != dst.end(); ++it) {
+  for (StridedIterator<Res *, 1> it(shape, {src0.strides}, dst.begin());
+       it->first != dst.end(); ++it) {
     *(it->first) = act(src0.begin()[it->second[0]]);
   }
 }
@@ -88,8 +93,25 @@ void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
 template <typename Res, typename Arg0, typename Arg1, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act) {
-  for (StridedIterator<Res *, 2> it(shape, {src0.strides, src1.strides}, dst.begin()); it->first != dst.end(); ++it) {
-    *(it->first) = act(src0.begin()[it->second[0]], src1.begin()[it->second[1]]);
+  size_t pos0 = 0, pos1 = 0;
+  llvm::SmallVector<uint64_t, 6> index(shape.size(), 0);
+  for (auto d = dst.begin(); d != dst.end(); ++d) {
+    *d = act(src0[pos0], src1[pos1]);
+    for (auto axis = shape.size();;) {
+      if (axis == 0) {
+        assert(d + 1 == dst.end() && "index resets on last iteration");
+        break;
+      }
+      --axis;
+      uint64_t dim = shape[axis];
+      pos0 += src0.strides[axis];
+      pos1 += src1.strides[axis];
+      if (++(index[axis]) < dim)
+        break;
+      pos0 -= dim * src0.strides[axis];
+      pos1 -= dim * src1.strides[axis];
+      index[axis] = 0;
+    }
   }
 }
 
@@ -99,7 +121,8 @@ template <typename Iterator, typename... Args, typename Action>
 Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
     StridedArrayRef<Args>... src, Action &&act) {
   // Iterator it = begin;
-  // for (StridedIterator<Args...> srcs(shape, src...); srcs != nullptr; ++srcs, ++it)
+  // for (StridedIterator<Args...> srcs(shape, src...); srcs != nullptr; ++srcs,
+  // ++it)
   //   std::apply(act, std::tuple_cat(std::make_tuple(it), *srcs));
   // return it;
   auto traverse = [=](const auto &recurse, unsigned axis, Iterator it,
