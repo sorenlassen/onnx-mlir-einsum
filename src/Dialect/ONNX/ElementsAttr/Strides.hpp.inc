@@ -55,9 +55,9 @@ Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
 template <typename Res, typename Arg0, typename Action>
 void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
     StridedArrayRef<Arg0> src0, Action &&act) {
-  for (StridesIterator<1> it(shape, {src0.strides}), end(shape); it != end;
-       ++it)
-    dst[it->flattenedIndex] = act(src0[it->pos[0]]);
+  Res *end = traverseStrides<Res *, Arg0>(shape, dst.begin(), src0,
+      [&act](Res *res, const Arg0 *arg0) { *res = act(*arg0); });
+  assert(end == dst.end() && "traverses every dst element");
 }
 
 template <typename Res, typename Arg0, typename Arg1, typename Action>
