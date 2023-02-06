@@ -216,16 +216,26 @@ public:
   }
 };
 
-// template <typename Iterator, typename... Args,
-//     typename Action = llvm::function_ref<void(Iterator, const Args *...)>>
-// Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
-//     StridedArrayRef<Args>... src, Action &&act);
+template <typename Iterator, typename Arg0,
+    typename Action = llvm::function_ref<void(Iterator, const Arg0 *)>>
+Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
+    StridedArrayRef<Arg0> src0, Action &&act);
 
-// template <typename Res, typename... Args,
-//     typename Action = llvm::function_ref<Res(Args...)>>
-// void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res>
-// dst,
-//     StridedArrayRef<Args>... src, Action &&act);
+template <typename Iterator, typename Arg0, typename Arg1,
+    typename Action =
+        llvm::function_ref<void(Iterator, const Arg0 *, const Arg1 *)>>
+Iterator traverseStrides(llvm::ArrayRef<int64_t> shape, Iterator begin,
+    StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act);
+
+template <typename Res, typename Arg0,
+    typename Action = llvm::function_ref<Res(Arg0)>>
+void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
+    StridedArrayRef<Arg0> src0, Action &&act);
+
+template <typename Res, typename Arg0, typename Arg1,
+    typename Action = llvm::function_ref<Res(Arg0, Arg1)>>
+void mapStrides(llvm::ArrayRef<int64_t> shape, llvm::MutableArrayRef<Res> dst,
+    StridedArrayRef<Arg0> src0, StridedArrayRef<Arg1> src1, Action &&act);
 
 // Include template implementations.
 #include "Strides.hpp.inc"
