@@ -654,33 +654,30 @@ void ConstPropSliceImpl(ShapedType outputType,
     MutableArrayRef<WideNum> outputData) {
   size_t rank = outputType.getRank();
   auto outputShape = outputType.getShape();
-  std::vector<int64_t> outputStrides = getStrides(outputShape);
   std::vector<int64_t> inputStrides =
       getStrides(inputElements.getType().getShape());
-  size_t start = 0;
-  SmallVector<size_t, 4> steps(rank, 0);
+  ArrayBuffer<WideNum> inputBuffer = getElementsWideNums(inputElements);
+  auto start = inputBuffer.get().begin();
+  SmallVector<int64_t, 4> steps(rank, 0);
   for (size_t axis = 0; axis < rank; ++axis) {
     start += shapeHelper.starts[axis].getLiteral() * inputStrides[axis];
     steps[axis] = shapeHelper.steps[axis].getLiteral() * inputStrides[axis];
   }
-  ArrayBuffer<WideNum> inputBuffer = getElementsWideNums(inputElements);
-  ArrayRef<WideNum> inputData = inputBuffer.get();
-  auto traverse = [&](size_t axis, size_t srcPos, size_t dstPos,
-                      const auto &recurse) -> void {
+  auto traverse = [&](size_t axis, const WideNum *src, WideNum *dst,
+                      const auto &recurse) -> WideNum * {
     if (axis == rank) {
-      outputData[dstPos] = inputData[srcPos];
+      *dst = *src;
+      dst += 1;
     } else {
-      size_t srcStep = steps[axis];
-      size_t dstStride = outputStrides[axis];
-      size_t dimSize = outputShape[axis];
-      for (size_t i = 0; i < dimSize; ++i) {
-        recurse(axis + 1, srcPos, dstPos, recurse);
-        srcPos += srcStep;
-        dstPos += dstStride;
+      for (int64_t i = 0; i < outputShape[axis]; ++i) {
+        dst = recurse(axis + 1, src, dst, recurse);
+        src += steps[axis];
       }
     }
+    return dst;
   };
-  traverse(0, start, 0, traverse);
+  WideNum *end = traverse(0, start, outputData.begin(), traverse);
+  assert(end == outputData.end() && "traverses every output element");
 }
 
 Value ConstPropSlice(
