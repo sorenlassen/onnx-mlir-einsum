@@ -42,7 +42,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/iterator.h"
 
 #include <array>
 
