@@ -20,6 +20,7 @@
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
 #include "src/Dialect/ONNX/ElementsAttr/ElementsAttrHelper.hpp"
+#include "src/Dialect/ONNX/ElementsAttr/Strides.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
@@ -663,21 +664,9 @@ void ConstPropSliceImpl(ShapedType outputType,
     start += shapeHelper.starts[axis].getLiteral() * inputStrides[axis];
     steps[axis] = shapeHelper.steps[axis].getLiteral() * inputStrides[axis];
   }
-  auto traverse = [&](size_t axis, const WideNum *src, WideNum *dst,
-                      const auto &recurse) -> WideNum * {
-    if (axis == rank) {
-      *dst = *src;
-      dst += 1;
-    } else {
-      for (int64_t i = 0; i < outputShape[axis]; ++i) {
-        dst = recurse(axis + 1, src, dst, recurse);
-        src += steps[axis];
-      }
-    }
-    return dst;
-  };
-  WideNum *end = traverse(0, start, outputData.begin(), traverse);
-  assert(end == outputData.end() && "traverses every output element");
+  for (StridesIterator<1> it(outputShape, {steps}), end(outputShape); it != end;
+       ++it)
+    outputData[it->flattenedIndex] = *(start + it->pos[0]);
 }
 
 Value ConstPropSlice(
