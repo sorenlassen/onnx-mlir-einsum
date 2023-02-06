@@ -120,9 +120,27 @@ struct StridedArrayRef : public llvm::ArrayRef<T> {
       : Base(array), strides(strides) {}
 };
 
-// TODO: rename to StridedIterator
+// Suppose strided arrays {{array1,strides1},...,{arrayN,stridesN}} all
+// represent the same shape, then
+// it = StridesIterator<N>(shape, {strides1,...,stridesN}) iterates over the
+// shape's elements in row-major order, with it->index describing the shape's
+// corresponding multidimensional index, it->flattenedIndex the row-major order
+// flattened linear index, and it->pos is an array of positions pos1,...,posN
+// in array1,...,arrayN that represent the index. i.e.,
+// it->pos1 = getStridesPosition(it->index, strides1) etc.
+//
+// For example, this can be used to compare the contents of two strided arrays
+// with the same shape:
+//
+//   template <typename T, typename StridedArray = StridedArrayRef<T>>
+//   bool equal(ArrayRef<int64_t> shape, StridedArray lhs, StridedArray rhs) {
+//     StridesIterator<2> begin(shape, {lhs.strides, rhs.strides}), end(shape);
+//     return llvm::all_of(llvm::make_range(begin, end),
+//         [](const auto &it) { return src0[it.pos[0]] == src1[it.pos[1]]; })
+//   }
+//
 template <size_t N>
-class Strided_Iterator {
+class StridesIterator {
   struct value_type {
     value_type(unsigned rank, uint64_t flattenedIndex = 0)
         : pos{}, flattenedIndex(flattenedIndex), index(rank, 0) {}
@@ -141,7 +159,7 @@ class Strided_Iterator {
 
 public:
   // Begin iterator.
-  Strided_Iterator(llvm::ArrayRef<int64_t> shape,
+  StridesIterator(llvm::ArrayRef<int64_t> shape,
       std::array<llvm::ArrayRef<int64_t>, N> strides)
       : shape(shape), strides(strides), value(shape.size()) {
     for (auto dim : shape)
@@ -151,21 +169,21 @@ public:
   }
 
   // End iterator: ends after the given number of iterations.
-  Strided_Iterator(size_t iterations) : value{0, iterations} {}
+  StridesIterator(size_t iterations) : value{0, iterations} {}
 
   // End iterator: ends after one traversal of shape.
-  Strided_Iterator(llvm::ArrayRef<int64_t> shape)
-      : Strided_Iterator(mlir::ShapedType::getNumElements(shape)) {}
+  StridesIterator(llvm::ArrayRef<int64_t> shape)
+      : StridesIterator(mlir::ShapedType::getNumElements(shape)) {}
 
-  Strided_Iterator(const Strided_Iterator &) = default;
+  StridesIterator(const StridesIterator &) = default;
 
-  Strided_Iterator &operator=(const Strided_Iterator &) = default;
+  StridesIterator &operator=(const StridesIterator &) = default;
 
-  bool operator==(const Strided_Iterator &other) const {
+  bool operator==(const StridesIterator &other) const {
     return value.flattenedIndex == other.value.flattenedIndex;
   }
 
-  bool operator!=(const Strided_Iterator &other) const {
+  bool operator!=(const StridesIterator &other) const {
     return value.flattenedIndex != other.value.flattenedIndex;
   }
 
@@ -173,7 +191,7 @@ public:
 
   pointer operator->() const { return &value; }
 
-  Strided_Iterator &operator++() {
+  inline StridesIterator &operator++() {
     ++(value.flattenedIndex);
     for (auto axis = shape.size();;) {
       if (axis == 0)
@@ -191,8 +209,8 @@ public:
     return *this;
   }
 
-  Strided_Iterator operator++(int) {
-    Strided_Iterator copy = *this;
+  StridesIterator operator++(int) {
+    StridesIterator copy = *this;
     ++*this;
     return copy;
   }
