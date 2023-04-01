@@ -217,7 +217,7 @@ class OptOf<Type type> :
                 "$_self.cast<OptType>().getElementType()", "OptType">;
 
 def ONNXConstantOpFromDenseAttr: NativeCodeCall<
-  "onnx_mlir::createONNXConstantOpWithDenseAttr($_builder, $_loc, $0)">;
+  "$_builder.create<ONNXConstantOp>($_loc, Attribute(), $0)">;
 
 def createNoneIntegerConstant : NativeCodeCall<
   "onnx_mlir::createNoneIntegerConstant($_builder, $0.getDefiningOp()->getLoc())">;
