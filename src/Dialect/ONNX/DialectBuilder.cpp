@@ -202,10 +202,10 @@ Value OnnxBuilder::slice(Type outputType, Value input, Value starts, Value ends,
 // here with 1D vectors.
 Value OnnxBuilder::slice(Type outputType, Value input, int64_t start,
     int64_t end, int64_t step) const {
-  Value zeroVal = constant(b().getI64TensorAttr(ArrayRef<int64_t>({0})));
-  Value startVal = constant(b().getI64TensorAttr(ArrayRef<int64_t>({start})));
-  Value endVal = constant(b().getI64TensorAttr(ArrayRef<int64_t>({end})));
-  Value stepVal = constant(b().getI64TensorAttr(ArrayRef<int64_t>({step})));
+  Value zeroVal = constantInt64({0});
+  Value startVal = constantInt64({start});
+  Value endVal = constantInt64({end});
+  Value stepVal = constantInt64({step});
   return slice(outputType, input, startVal, endVal, /*axis*/ zeroVal, stepVal);
 }
 
