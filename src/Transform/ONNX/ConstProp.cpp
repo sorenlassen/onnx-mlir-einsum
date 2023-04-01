@@ -19,6 +19,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
+#include "src/Dialect/ONNX/DialectBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/ElementsAttrHelper.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/Strides.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
@@ -101,9 +102,8 @@ ElementsAttr getConstValueElements(Value constValue) {
 // Creates ONNXConstantOp with the location and result type from replacingValue.
 ONNXConstantOp createReplacingConstantOp(
     PatternRewriter &rewriter, Value replacingValue, ElementsAttr elements) {
-  return rewriter.create<ONNXConstantOp>(replacingValue.getLoc(),
-      replacingValue.getType(), Attribute(), elements, FloatAttr(), ArrayAttr(),
-      IntegerAttr(), ArrayAttr(), StringAttr(), ArrayAttr());
+  Location loc = replacingValue.getLoc();
+  return rewriter.create<ONNXConstantOp>(loc, Attribute(), elements);
 }
 
 // Helper to restrict specialization to non-bool types.
