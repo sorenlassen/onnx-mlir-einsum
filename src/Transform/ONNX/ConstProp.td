@@ -43,7 +43,7 @@ include "src/Dialect/ONNX/ONNX.td"
 
 def IsNotAConstant :
   Constraint<CPred<"! isa_and_nonnull<ONNXConstantOp>(($_self).getDefiningOp())">,
-  "operation is not a constant">;
+  "Operation is not a constant">;
 
 def IsFromDenseONNXConstantOp:
     Constraint<CPred<"isDenseONNXConstant($_self)">,
@@ -61,9 +61,8 @@ def IsVariadicOperandDenseONNXConstantOp:
   "Variadic operand is produced by dense ONNXConstantOps">;
 
 def HasStaticShape: Constraint<CPred<
-  "(isRankedShapedType($_self.getType()) && "
-  " $_self.getType().cast<ShapedType>().hasStaticShape())">,
-  "A value has static shape"
+  "hasStaticShape($_self.getType())">,
+  "Value has static shape"
 >;
 
 // Creation helpers:
