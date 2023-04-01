@@ -44,11 +44,10 @@ Value OnnxToKrnlBuilder::reshape(
     for (const IndexExpr &dim : shapeDims)
       shape.push_back(dim.getLiteral());
 
-    auto constantOp = createONNXConstantOpWithDenseAttr(
-        b(), loc(), b().getI64TensorAttr(shape));
+    auto shapeConstant = create.onnx.constantInt64(shape);
 
     Value reshapeRes = create.onnx.reshape(
-        MemRefType::get(shape, elementType), input, constantOp);
+        MemRefType::get(shape, elementType), input, shapeConstant);
 
     return reshapeRes;
   }
