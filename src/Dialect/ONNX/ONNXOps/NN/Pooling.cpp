@@ -185,12 +185,15 @@ template <>
 LogicalResult ONNXMaxPoolOpShapeHelper::computeShape() {
   ONNXMaxPoolOpAdaptor operandAdaptor = ONNXMaxPoolOpAdaptor(operands);
   ONNXMaxPoolOp poolOp = llvm::cast<ONNXMaxPoolOp>(op);
-  if (!isa<NoneType>(poolOp.getIndices().getType()))
-    return success();
-  return customComputeShape(operandAdaptor.getX(), /*W*/ nullptr,
-      poolOp.getKernelShape(), poolOp.getAutoPad(), poolOp.getPads(),
-      poolOp.getStrides(), poolOp.getDilations(), /*hasFilter*/ false,
-      poolOp.getCeilMode());
+  if (failed(customComputeShape(operandAdaptor.getX(), /*W*/ nullptr,
+          poolOp.getKernelShape(), poolOp.getAutoPad(), poolOp.getPads(),
+          poolOp.getStrides(), poolOp.getDilations(), /*hasFilter*/ false,
+          poolOp.getCeilMode())))
+    return failure();
+  if (!isa<NoneType>(poolOp.getIndices().getType())) {
+    setOutputDims(getOutputDims(0), 1);
+  }
+  return success();
 }
 
 } // namespace onnx_mlir

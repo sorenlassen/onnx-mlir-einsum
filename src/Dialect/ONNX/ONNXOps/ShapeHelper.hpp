@@ -394,13 +394,6 @@ struct ONNXGenericPoolOpShapeHelper : public ONNXOpShapeHelper {
       IndexExprBuilder *ieBuilder = nullptr, IndexExprScope *scope = nullptr)
       : ONNXOpShapeHelper(op, operands, ieBuilder, scope) {}
   virtual ~ONNXGenericPoolOpShapeHelper() {}
-  bool isImplemented() final {
-    if (auto maxPoolOp = llvm::dyn_cast<mlir::ONNXMaxPoolOp>(op)) {
-      return llvm::isa<mlir::NoneType>(maxPoolOp.getIndices().getType());
-    } else {
-      return true;
-    }
-  }
   mlir::LogicalResult computeShape() final;
   // Actual computation of the pool shape and parameters using every different
   // switches that differs between pooling and conv ops.
