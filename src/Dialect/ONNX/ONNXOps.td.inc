@@ -4244,6 +4244,7 @@ def ONNXMaxPoolOp:ONNX_Op<"MaxPool",
       return sh;
     }
   }];
+  let hasVerifier = 1;
 }
 
 def ONNXMaxRoiPoolOp:ONNX_Op<"MaxRoiPool",

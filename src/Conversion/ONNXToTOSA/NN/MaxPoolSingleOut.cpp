@@ -32,7 +32,7 @@ namespace {
 // This calculates the values that need to be added to the padding in order to
 // simulate the ceil mode
 llvm::SmallVector<int64_t> getCeilConstants(llvm::ArrayRef<int64_t> inputShape,
-    ONNXMaxPoolSingleOutOpShapeHelper &shapeHelper, int64_t ceilMode) {
+    ONNXMaxPoolOpShapeHelper &shapeHelper, int64_t ceilMode) {
   // This avoids having more if statements when creating the padding const.
   if (ceilMode == 0)
     return llvm::SmallVector<int64_t>{0, 0};
@@ -63,20 +63,25 @@ llvm::SmallVector<int64_t> getCeilConstants(llvm::ArrayRef<int64_t> inputShape,
   return llvm::SmallVector<int64_t>{xAxis, yAxis};
 }
 
-class ONNXMaxPoolSingleOutOpLoweringToTOSA : public ConversionPattern {
+class ONNXMaxPoolOpLoweringToTOSA : public ConversionPattern {
 public:
-  ONNXMaxPoolSingleOutOpLoweringToTOSA(MLIRContext *ctx)
-      : ConversionPattern(ONNXMaxPoolSingleOutOp::getOperationName(), 1, ctx) {}
+  ONNXMaxPoolOpLoweringToTOSA(MLIRContext *ctx)
+      : ConversionPattern(ONNXMaxPoolOp::getOperationName(), 1, ctx) {}
 
-  using OpAdaptor = typename ONNXMaxPoolSingleOutOp::Adaptor;
+  using OpAdaptor = typename ONNXMaxPoolOp::Adaptor;
   LogicalResult matchAndRewrite(Operation *op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const final {
-    auto maxpoolOp = llvm::cast<ONNXMaxPoolSingleOutOp>(op);
+    auto maxpoolOp = llvm::cast<ONNXMaxPoolOp>(op);
+
+    if (!isa<NoneType>(maxpoolOp.getIndices().getType()))
+      return rewriter.notifyMatchFailure(
+          op, "TOSA only supports maxpool single-out");
+
     Location loc = op->getLoc();
     OpAdaptor adaptor(operands, op->getAttrDictionary());
     // Get shape.
     IndexExprBuilderForTosa createTosaIE(rewriter, loc);
-    ONNXMaxPoolSingleOutOpShapeHelper shapeHelper(op, operands, &createTosaIE);
+    ONNXMaxPoolOpShapeHelper shapeHelper(op, operands, &createTosaIE);
     shapeHelper.computeShapeAndAssertOnFailure();
 
     TosaBuilder tosaBuilder(rewriter, loc);
@@ -155,10 +160,10 @@ public:
 
 } // namespace
 
-void populateLoweringONNXMaxPoolSingleOutOpToTOSAPattern(
-    ConversionTarget &target, RewritePatternSet &patterns,
-    TypeConverter &typeConverter, MLIRContext *ctx) {
-  patterns.insert<ONNXMaxPoolSingleOutOpLoweringToTOSA>(ctx);
+void populateLoweringONNXMaxPoolOpToTOSAPattern(ConversionTarget &target,
+    RewritePatternSet &patterns, TypeConverter &typeConverter,
+    MLIRContext *ctx) {
+  patterns.insert<ONNXMaxPoolOpLoweringToTOSA>(ctx);
 }
 
 } // namespace onnx_mlir

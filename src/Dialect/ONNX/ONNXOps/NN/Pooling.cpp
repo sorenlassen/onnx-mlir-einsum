@@ -182,10 +182,11 @@ LogicalResult ONNXGlobalMaxPoolOp::inferShapes(
 namespace onnx_mlir {
 
 template <>
-LogicalResult ONNXMaxPoolSingleOutOpShapeHelper::computeShape() {
-  ONNXMaxPoolSingleOutOpAdaptor operandAdaptor =
-      ONNXMaxPoolSingleOutOpAdaptor(operands);
-  ONNXMaxPoolSingleOutOp poolOp = llvm::cast<ONNXMaxPoolSingleOutOp>(op);
+LogicalResult ONNXMaxPoolOpShapeHelper::computeShape() {
+  ONNXMaxPoolOpAdaptor operandAdaptor = ONNXMaxPoolOpAdaptor(operands);
+  ONNXMaxPoolOp poolOp = llvm::cast<ONNXMaxPoolOp>(op);
+  if (!isa<NoneType>(poolOp.getIndices().getType()))
+    return success();
   return customComputeShape(operandAdaptor.getX(), /*W*/ nullptr,
       poolOp.getKernelShape(), poolOp.getAutoPad(), poolOp.getPads(),
       poolOp.getStrides(), poolOp.getDilations(), /*hasFilter*/ false,
@@ -194,9 +195,8 @@ LogicalResult ONNXMaxPoolSingleOutOpShapeHelper::computeShape() {
 
 } // namespace onnx_mlir
 
-LogicalResult ONNXMaxPoolSingleOutOp::verify() {
-  ONNXMaxPoolSingleOutOpAdaptor operandAdaptor =
-      ONNXMaxPoolSingleOutOpAdaptor(*this);
+LogicalResult ONNXMaxPoolOp::verify() {
+  ONNXMaxPoolOpAdaptor operandAdaptor = ONNXMaxPoolOpAdaptor(*this);
 
   // Mandatory and unsupported parameters.
   if (!getKernelShape())
@@ -218,19 +218,19 @@ LogicalResult ONNXMaxPoolSingleOutOp::verify() {
   }
 
   // Verify parameters.
-  if (failed(verifyKernelShape<ONNXMaxPoolSingleOutOp>(
+  if (failed(verifyKernelShape<ONNXMaxPoolOp>(
           this, nullptr, getKernelShape(), spatialRank)))
     return failure();
-  if (failed(verifyStrides<ONNXMaxPoolSingleOutOp>(this, spatialRank)))
+  if (failed(verifyStrides<ONNXMaxPoolOp>(this, spatialRank)))
     return failure();
-  if (failed(verifyDilations<ONNXMaxPoolSingleOutOp>(this, spatialRank)))
+  if (failed(verifyDilations<ONNXMaxPoolOp>(this, spatialRank)))
     return failure();
-  if (failed(verifyPadding<ONNXMaxPoolSingleOutOp>(this, spatialRank)))
+  if (failed(verifyPadding<ONNXMaxPoolOp>(this, spatialRank)))
     return failure();
   return success();
 }
 
-LogicalResult ONNXMaxPoolSingleOutOp::inferShapes(
+LogicalResult ONNXMaxPoolOp::inferShapes(
     std::function<void(Region &)> doShapeInference) {
   // Cannot infer shape if no shape exists.
   if (!hasShapeAndRank(getX()))
@@ -242,7 +242,7 @@ LogicalResult ONNXMaxPoolSingleOutOp::inferShapes(
 
   Type elementType = getX().getType().cast<ShapedType>().getElementType();
   IndexExprBuilderForAnalysis createIE(getLoc());
-  ONNXMaxPoolSingleOutOpShapeHelper shapeHelper(getOperation(), {}, &createIE);
+  ONNXMaxPoolOpShapeHelper shapeHelper(getOperation(), {}, &createIE);
   return shapeHelper.computeShapeAndUpdateType(elementType);
 }
 
@@ -270,7 +270,7 @@ template struct ONNXGenericGlobalPoolOpShapeHelper<ONNXGlobalAveragePoolOp>;
 template struct ONNXGenericGlobalPoolOpShapeHelper<ONNXGlobalLpPoolOp>;
 template struct ONNXGenericGlobalPoolOpShapeHelper<ONNXGlobalMaxPoolOp>;
 template struct ONNXGenericPoolOpShapeHelper<ONNXAveragePoolOp>;
-template struct ONNXGenericPoolOpShapeHelper<ONNXMaxPoolSingleOutOp>;
+template struct ONNXGenericPoolOpShapeHelper<ONNXMaxPoolOp>;
 template struct ONNXNonSpecificOpShapeHelper<ONNXMaxRoiPoolOp>;
 
 } // namespace onnx_mlir

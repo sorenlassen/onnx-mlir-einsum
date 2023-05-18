@@ -4708,7 +4708,7 @@ Effects: MemoryEffects::Effect{}
 | `Y` | tensor of 16-bit float values or tensor of 32-bit float values or tensor of 64-bit float values or tensor of 8-bit signless integer values or tensor of 8-bit unsigned integer values
 | `Indices` | tensor of 64-bit signless integer values or none type
 
-### `onnx.MaxPoolSingleOut` (::mlir::ONNXMaxPoolSingleOutOp)
+### `onnx.MaxPoolSingleOut` (::mlir::ONNXMaxPoolOp)
 
 ONNX MaxPool operation with a single output.
 

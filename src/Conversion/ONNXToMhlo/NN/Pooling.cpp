@@ -25,7 +25,7 @@ namespace {
 static Value createInitialValueForPoolingOp(
     Operation *op, Type elemType, ConversionPatternRewriter &rewriter) {
   Location loc = op->getLoc();
-  if (isa<ONNXMaxPoolSingleOutOp>(op)) {
+  if (isa<ONNXMaxPoolOp>(op)) {
     // returns negative infinity
     return rewriter.create<mhlo::ConstantOp>(
         loc, rewriter.getFloatAttr(elemType,
@@ -62,7 +62,7 @@ template <typename Op>
 void buildReduceBodyFor(Type elementType, Region *body, OpBuilder *builder);
 
 template <>
-void buildReduceBodyFor<ONNXMaxPoolSingleOutOp>(
+void buildReduceBodyFor<ONNXMaxPoolOp>(
     Type elementType, Region *body, OpBuilder *builder) {
   buildReduceBody<mhlo::MaxOp>(elementType, body, builder);
 }
@@ -108,6 +108,12 @@ struct ONNXPoolOpLoweringToMhlo : public ConversionPattern {
 
   LogicalResult matchAndRewrite(Operation *op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const final {
+    if (auto maxPoolOp = dyn_cast<ONNXMaxPoolOp>(op)) {
+      // Must be single out.
+      if (!isa<NoneType>(maxPoolOp.getIndices().getType()))
+        return failure();
+    }
+
     PoolOpAdaptor operandAdaptor(operands, op->getAttrDictionary());
     Location loc = op->getLoc();
     PoolOp poolOp = llvm::cast<PoolOp>(op);
@@ -218,8 +224,8 @@ struct ONNXPoolOpLoweringToMhlo : public ConversionPattern {
 
 void populateLoweringONNXPoolingOpToMhloPattern(
     RewritePatternSet &patterns, MLIRContext *ctx) {
-  patterns.insert<ONNXPoolOpLoweringToMhlo<ONNXMaxPoolSingleOutOp,
-      ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>>(ctx);
+  patterns.insert<ONNXPoolOpLoweringToMhlo<ONNXMaxPoolOp, ONNXMaxPoolOpAdaptor,
+      ONNXMaxPoolOpShapeHelper>>(ctx);
   patterns.insert<ONNXPoolOpLoweringToMhlo<ONNXAveragePoolOp,
       ONNXAveragePoolOpAdaptor, ONNXAveragePoolOpShapeHelper>>(ctx);
 }

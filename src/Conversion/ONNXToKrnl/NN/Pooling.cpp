@@ -21,7 +21,7 @@ namespace onnx_mlir {
 
 // Identity values
 template <>
-Value getIdentityValue<ONNXMaxPoolSingleOutOp>(
+Value getIdentityValue<ONNXMaxPoolOp>(
     ConversionPatternRewriter &rewriter, Location loc, Type type) {
   MultiDialectBuilder<MathBuilder> create(rewriter, loc);
   return create.math.negativeInf(type);
@@ -42,9 +42,9 @@ struct ScalarOp<ONNXAveragePoolOp> {
 };
 
 template <>
-Value emitScalarOpFor<ONNXMaxPoolSingleOutOp>(
-    ConversionPatternRewriter &rewriter, Location loc, Operation *op,
-    Type elementType, ArrayRef<Value> scalarOperands) {
+Value emitScalarOpFor<ONNXMaxPoolOp>(ConversionPatternRewriter &rewriter,
+    Location loc, Operation *op, Type elementType,
+    ArrayRef<Value> scalarOperands) {
   Value lhs = scalarOperands[0];
   Value rhs = scalarOperands[1];
   MultiDialectBuilder<MathBuilder> create(rewriter, loc);
@@ -62,8 +62,7 @@ std::vector<int64_t> getDilations(PoolOp poolOp) {
 
 // MaxPool has dilations attribute.
 template <>
-std::vector<int64_t> getDilations<ONNXMaxPoolSingleOutOp>(
-    ONNXMaxPoolSingleOutOp poolOp) {
+std::vector<int64_t> getDilations<ONNXMaxPoolOp>(ONNXMaxPoolOp poolOp) {
   std::vector<int64_t> dilations;
   auto dilationsAttribute = poolOp.getDilationsAttr();
   bool isDefaultDilations = true;
@@ -89,8 +88,7 @@ llvm::Optional<ArrayAttr> getDilationAttr(PoolOp poolOp) {
 
 // MaxPool has dilations attribute.
 template <>
-llvm::Optional<ArrayAttr> getDilationAttr<ONNXMaxPoolSingleOutOp>(
-    ONNXMaxPoolSingleOutOp poolOp) {
+llvm::Optional<ArrayAttr> getDilationAttr<ONNXMaxPoolOp>(ONNXMaxPoolOp poolOp) {
   return poolOp.getDilations();
 }
 
@@ -506,9 +504,8 @@ struct ONNXPoolOpLowering : public OpConversionPattern<PoolOp> {
 
 void populateLoweringONNXPoolingOpPattern(RewritePatternSet &patterns,
     TypeConverter &typeConverter, MLIRContext *ctx) {
-  patterns.insert<ONNXPoolOpLowering<ONNXMaxPoolSingleOutOp,
-      ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>>(
-      typeConverter, ctx);
+  patterns.insert<ONNXPoolOpLowering<ONNXMaxPoolOp, ONNXMaxPoolOpAdaptor,
+      ONNXMaxPoolOpShapeHelper>>(typeConverter, ctx);
   patterns.insert<ONNXPoolOpLowering<ONNXAveragePoolOp,
       ONNXAveragePoolOpAdaptor, ONNXAveragePoolOpShapeHelper>>(
       typeConverter, ctx);

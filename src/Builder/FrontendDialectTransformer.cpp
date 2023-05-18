@@ -782,18 +782,6 @@ private:
   }
 
   /*!
-   * Special handle for MaxPool operations.
-   */
-  void ImportNodeMaxPool(const onnx::NodeProto &node) {
-    int nOuts = node.output().size();
-    if (nOuts == 1) {
-      buildOperation<ONNXMaxPoolSingleOutOp>(node);
-    } else {
-      buildOperation<ONNXMaxPoolOp>(node);
-    }
-  }
-
-  /*!
    * Special handle for BatchNormalization operations.
    */
   void ImportNodeBatchNormalization(const onnx::NodeProto &node) {

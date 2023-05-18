@@ -337,7 +337,7 @@ def replaceONNXReduceMeanV13Pattern : Pat<
 >;
 
 //===----------------------------------------------------------------------===//
-// ONNXMaxPoolSingleOutOp %X = 
+// ONNXMaxPoolOp %X =
 //                 (ZHighUnstickOp
 //                     (ZHighMaxPoolOp
 //                         (ZHighStickOp %X),
@@ -347,36 +347,38 @@ def replaceONNXReduceMeanV13Pattern : Pat<
 //===----------------------------------------------------------------------===//
 
 def GetStrAttrPaddingtypeMaxPool : NativeCodeCall<
-  "$_builder.getStringAttr(getStrPaddingType<ONNXMaxPoolSingleOutOp,"
-  "ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>"
-  "($0.getDefiningOp<ONNXMaxPoolSingleOutOp>()))">;
+  "$_builder.getStringAttr(getStrPaddingType<ONNXMaxPoolOp,"
+  "ONNXMaxPoolOpAdaptor, ONNXMaxPoolOpShapeHelper>"
+  "($0.getDefiningOp<ONNXMaxPoolOp>()))">;
 
 def GetI64ArrayAttrKernelShapeMaxPool: NativeCodeCall<
-  "$_builder.getI64ArrayAttr(getArrayKernelShape<ONNXMaxPoolSingleOutOp,"
-  "ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>"
-  "($0.getDefiningOp<ONNXMaxPoolSingleOutOp>()))">;
+  "$_builder.getI64ArrayAttr(getArrayKernelShape<ONNXMaxPoolOp,"
+  "ONNXMaxPoolOpAdaptor, ONNXMaxPoolOpShapeHelper>"
+  "($0.getDefiningOp<ONNXMaxPoolOp>()))">;
 
 def GetI64ArrayAttrStridesMaxPool: NativeCodeCall<
-  "$_builder.getI64ArrayAttr(getArrayStrides<ONNXMaxPoolSingleOutOp,"
-  "ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>"
-  "($0.getDefiningOp<ONNXMaxPoolSingleOutOp>()))">;
+  "$_builder.getI64ArrayAttr(getArrayStrides<ONNXMaxPoolOp,"
+  "ONNXMaxPoolOpAdaptor, ONNXMaxPoolOpShapeHelper>"
+  "($0.getDefiningOp<ONNXMaxPoolOp>()))">;
 
-def replaceONNXMaxPoolSingleOutPattern : Pattern<
-  (ONNXMaxPoolSingleOutOp:$res $x, $_, $_, $_, $_, $_, $_, $_),
-  [
-    // Get attributes using shape helper
-    (GetStrAttrPaddingtypeMaxPool:$padtype $res),
-    (GetI64ArrayAttrKernelShapeMaxPool:$kernel_shape $res),
-    (GetI64ArrayAttrStridesMaxPool:$strides $res),
+// TODO: MAKE THIS WORK
+// def replaceONNXMaxPoolSingleOutPattern : Pattern<
+//   (ONNXMaxPoolOp:$res $x, $_, $_, $_, $_, $_, $_, $_),
+//   [
+//     // Get attributes using shape helper
+//     (GetStrAttrPaddingtypeMaxPool:$padtype $res__0),
+//     (GetI64ArrayAttrKernelShapeMaxPool:$kernel_shape $res__0),
+//     (GetI64ArrayAttrStridesMaxPool:$strides $res__0),
 
-    (ZHighUnstickOp
-       (ZHighMaxPool2DOp
-          (ZHighStickOp $x, (NHWCLayoutAttr)),
-          $kernel_shape,
-          $strides,
-          $padtype))
-  ]
->;
+//     (ZHighUnstickOp
+//        (ZHighMaxPool2DOp
+//           (ZHighStickOp $x, (NHWCLayoutAttr)),
+//           $kernel_shape,
+//           $strides,
+//           $padtype))
+//   ],
+//   [(IsNoneType:$res__1)]
+// >;
 
 //===----------------------------------------------------------------------===//
 // ONNXAveragePoolOp %X = 

@@ -399,7 +399,7 @@ import_handler_map_["MatMulInteger"] =
 import_handler_map_["Max"] = 
    &onnx_mlir::detail::FrontendGenImpl::buildOperation<mlir::ONNXMaxOp>;
 import_handler_map_["MaxPool"] = 
-   &onnx_mlir::detail::FrontendGenImpl::ImportNodeMaxPool;
+   &onnx_mlir::detail::FrontendGenImpl::buildOperation<mlir::ONNXMaxPoolOp>;
 import_handler_map_["MaxRoiPool"] = 
    &onnx_mlir::detail::FrontendGenImpl::buildOperation<mlir::ONNXMaxRoiPoolOp>;
 import_handler_map_["MaxUnpool"] = 

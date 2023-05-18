@@ -342,7 +342,7 @@ void ONNXToZHighLoweringPass::runOnOperation() {
   addDynamicallyLegalOpFor<ONNXExpOp>(&target, &dimAnalysis, execNodesOnCpu);
   addDynamicallyLegalOpFor<ONNXSoftmaxOp>(
       &target, &dimAnalysis, execNodesOnCpu);
-  addDynamicallyLegalOpFor<ONNXMaxPoolSingleOutOp>(
+  addDynamicallyLegalOpFor<ONNXMaxPoolOp>(
       &target, &dimAnalysis, execNodesOnCpu);
   addDynamicallyLegalOpFor<ONNXAveragePoolOp>(
       &target, &dimAnalysis, execNodesOnCpu);

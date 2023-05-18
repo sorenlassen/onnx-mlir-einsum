@@ -432,47 +432,6 @@ def ONNXBatchNormalizationInferenceModeOp: ONNX_Op<"BatchNormalizationInferenceM
 }
 
 //===----------------------------------------------------------------------===//
-// MaxPoolSingleOutOp
-def ONNXMaxPoolSingleOutOp: ONNX_Op<"MaxPoolSingleOut",
-    [Pure, DeclareOpInterfaceMethods<ShapeInferenceOpInterface>,
-    DeclareOpInterfaceMethods<ShapeHelperOpInterface>]> {
-  let summary = "ONNX MaxPool operation with a single output.";
-  let description = [{
-    ONNX MaxPool operation with a single output.
-    See ONNXMaxPoolOp for a full description of the MaxPool semantics.
-
-    This operation is not part of the standard and was added to assist onnx-mlir.
-  }];
-
-  let arguments = (ins AnyTypeOf<[AnyMemRef, AnyTensor]>:$X,
-                       DefaultValuedStrAttr<StrAttr, "NOTSET">:$auto_pad,
-                       DefaultValuedAttr<SI64Attr, "0">:$ceil_mode,
-                       OptionalAttr<I64ArrayAttr>:$dilations,
-                       DefaultValuedAttr<I64ArrayAttr, "{}">:$kernel_shape,
-                       OptionalAttr<I64ArrayAttr>:$pads,
-                       DefaultValuedAttr<SI64Attr, "0">:$storage_order,
-                       OptionalAttr<I64ArrayAttr>:$strides);
-  let results = (outs AnyTypeOf<[AnyMemRef, AnyTensor]>:$o_Y);
-
-  let hasVerifier = 1;
-
-  let extraClassDeclaration = [{
-    static int getNumberOfOperands() { return 1; }
-    static int getNumberOfResults() { return 1; }
-    static std::vector<int> getTypeMap() { return {20}; }
-  }];
-  
-  let extraClassDefinition = [{  
-    onnx_mlir::ONNXOpShapeHelper * ONNXMaxPoolSingleOutOp::getShapeHelper(mlir::Operation *op, mlir::ArrayRef<mlir::Value> oper, 
-        onnx_mlir::IndexExprBuilder *ieb, onnx_mlir::IndexExprScope *scope) {
-      onnx_mlir::ONNXOpShapeHelper *sh = new onnx_mlir::ONNXMaxPoolSingleOutOpShapeHelper(op, oper, ieb, scope);
-      assert(sh && "failed to allocate shape helper");
-      return sh;
-    }
-  }];
-}
-
-//===----------------------------------------------------------------------===//
 // ConcatShapeTransposeOp
 def ONNXConcatShapeTransposeOp: ONNX_Op<"ConcatShapeTranspose", [Pure,
     DeclareOpInterfaceMethods<ShapeInferenceOpInterface>,

@@ -699,18 +699,21 @@ bool isSuitableForZDNN<ONNXGRUOp>(
 
 /// Check legality for ONNXMaxPool.
 template <>
-bool isSuitableForZDNN<ONNXMaxPoolSingleOutOp>(
-    ONNXMaxPoolSingleOutOp op, const DimAnalysis *dimAnalysis) {
+bool isSuitableForZDNN<ONNXMaxPoolOp>(
+    ONNXMaxPoolOp op, const DimAnalysis *dimAnalysis) {
+  // Must be single out.
+  if (!isa<NoneType>(op.getIndices().getType()))
+    return false;
+
   // Check data type.
   if (!isValidElementTypeAndRank(op.getX()))
     return false;
 
-  ONNXMaxPoolSingleOutOpShapeHelper shapeHelper(op.getOperation(), {});
+  ONNXMaxPoolOpShapeHelper shapeHelper(op.getOperation(), {});
   shapeHelper.computeShapeAndAssertOnFailure();
 
-  if (!checkLegalityPoolOpsCommon<ONNXMaxPoolSingleOutOp,
-          ONNXMaxPoolSingleOutOpAdaptor, ONNXMaxPoolSingleOutOpShapeHelper>(
-          op, op.getO_Y()))
+  if (!checkLegalityPoolOpsCommon<ONNXMaxPoolOp, ONNXMaxPoolOpAdaptor,
+          ONNXMaxPoolOpShapeHelper>(op, op.getY()))
     return false;
 
   // dilations not supported. Only default one is accepted.

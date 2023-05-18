@@ -126,9 +126,8 @@ void populateLoweringONNXReduceMeanOpToTOSAPattern(mlir::ConversionTarget &,
 void populateLoweringONNXConvOpToTOSAPattern(mlir::ConversionTarget &,
     mlir::RewritePatternSet &, mlir::TypeConverter &, mlir::MLIRContext *);
 // `NN` directory methods:
-void populateLoweringONNXMaxPoolSingleOutOpToTOSAPattern(
-    mlir::ConversionTarget &, mlir::RewritePatternSet &, mlir::TypeConverter &,
-    mlir::MLIRContext *);
+void populateLoweringONNXMaxPoolOpToTOSAPattern(mlir::ConversionTarget &,
+    mlir::RewritePatternSet &, mlir::TypeConverter &, mlir::MLIRContext *);
 // `Tensor` directory methods:
 void populateLoweringONNXConstOpToTOSAPattern(mlir::ConversionTarget &,
     mlir::RewritePatternSet &, mlir::TypeConverter &, mlir::MLIRContext *);
