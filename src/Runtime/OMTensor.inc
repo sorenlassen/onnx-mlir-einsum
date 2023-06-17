@@ -134,6 +134,20 @@ static inline const char *getDataTypeName(OM_DATA_TYPE dataType) {
   return OM_DATA_TYPE_NAME[dataType];
 }
 
+// Adapted from https://stackoverflow.com/a/60047308
+static float f16_to_f32(uint16_t x) {
+  uint32_t e = (x & 0x7C00) >> 10; // exponent
+  uint32_t m = (x & 0x03FF) << 13; // mantissa
+  float fm = m;
+  // evil log2 bit hack to count leading zeros in denormalized format:
+  uint32_t v = (*(uint32_t *)&fm) >> 23;
+  uint32_t r = // sign : normalized : denormalized
+      (x & 0x8000) << 16 | (e != 0) * ((e + 112) << 23 | m) |
+      ((e == 0) & (m != 0)) *
+          ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
+  return *(float *)&r;
+}
+
 /* Helper function to print an element of a tensor */
 static inline void printElement(
     void *dataPtr, int64_t elemOffset, OM_DATA_TYPE dataType) {
@@ -169,8 +183,7 @@ static inline void printElement(
     printf("%lld", (long long)((int64_t *)dataPtr)[elemOffset]);
     break;
   case ONNX_TYPE_FLOAT16:
-    // TODO: Print as floating point number instead of hex.
-    printf("0x%04hX", ((uint16_t *)dataPtr)[elemOffset]);
+    printf("%f", f16_to_f32(((uint16_t *)dataPtr)[elemOffset]));
     break;
   case ONNX_TYPE_FLOAT:
     printf("%f", ((float *)dataPtr)[elemOffset]);

@@ -40,6 +40,7 @@ int main() {
 
   // Get the first tensor from output list.
   OMTensor *y = omTensorListGetOmtByIndex(output_list, 0);
+  omTensorPrint("Result tensor: ", y);
   float *outputPtr = (float *) omTensorGetDataPtr(y);
 
   // Print its content, should be all 3.
