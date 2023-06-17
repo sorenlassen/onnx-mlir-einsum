@@ -142,7 +142,7 @@ static float f16_to_f32(uint16_t x) {
   // evil log2 bit hack to count leading zeros in denormalized format:
   uint32_t v = (*(uint32_t *)&fm) >> 23;
   uint32_t r = // sign : normalized : denormalized
-      (x & 0x8000) << 16 | (e != 0) * ((e + 112) << 23 | m) |
+      (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
       ((e == 0) & (m != 0)) *
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
   return *(float *)&r;
