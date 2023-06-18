@@ -3,6 +3,33 @@
 
 OMTensorList *run_main_graph(OMTensorList *);
 
+// Adapted from https://stackoverflow.com/a/60047308
+static float f16_to_f32(uint16_t x) {
+  uint32_t e = (x & 0x7C00) >> 10; // exponent
+  uint32_t m = (x & 0x03FF) << 13; // mantissa
+  float fm = m;
+  // evil log2 bit hack to count leading zeros in denormalized format:
+  uint32_t v = (*(uint32_t *)&fm) >> 23;
+  uint32_t r = // sign : normalized : denormalized
+      (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
+      ((e == 0) & (m != 0)) *
+          ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
+  return *(float *)&r;
+}
+uint16_t f32_to_f16(float x) {
+  // round-to-nearest-even: add last bit after truncated mantissa
+  uint32_t b = (*(uint32_t *)&x) + 0x00001000;
+  uint32_t e = (b & 0x7F800000) >> 23; // exponent
+  uint32_t m = b & 0x007FFFFF;         // mantissa
+  // in line below: 0x007FF000 = 0x00800000 - 0x00001000
+  //                           = decimal indicator flag - initial rounding
+  return // sign : normalized : denormalized : saturate
+      (b & 0x80000000u) >> 16 |
+      (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13) |
+      ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1) |
+      (e > 143) * 0x7FFF;
+}
+
 OMTensorList *create_input_list() {
   // Shared shape & rank.
   int64_t shape[] = {3, 2};
@@ -10,17 +37,19 @@ OMTensorList *create_input_list() {
   int64_t rank = 2;
 
   // Construct float arrays filled with 1s or 2s.
-  float *x1Data = (float *)malloc(sizeof(float) * num_elements);
+  uint16_t *x1Data = (uint16_t *)malloc(sizeof(uint16_t) * num_elements);
   for (int i = 0; i < num_elements; i++)
-    x1Data[i] = 1.0;
-  float *x2Data = (float *)malloc(sizeof(float) * num_elements);
+    x1Data[i] = f32_to_f16(1.0);
+  uint16_t *x2Data = (uint16_t *)malloc(sizeof(uint16_t) * num_elements);
   for (int i = 0; i < num_elements; i++)
-    x2Data[i] = 2.0;
+    x2Data[i] = f32_to_f16(2.0);
 
   // Use omTensorCreateWithOwnership "true" so float arrays are automatically
   // freed when the Tensors are destroyed.
-  OMTensor *x1 = omTensorCreateWithOwnership(x1Data, shape, rank, ONNX_TYPE_FLOAT, true);
-  OMTensor *x2 = omTensorCreateWithOwnership(x2Data, shape, rank, ONNX_TYPE_FLOAT, true);
+  OMTensor *x1 =
+      omTensorCreateWithOwnership(x1Data, shape, rank, ONNX_TYPE_FLOAT16, true);
+  OMTensor *x2 =
+      omTensorCreateWithOwnership(x2Data, shape, rank, ONNX_TYPE_FLOAT16, true);
 
   // Construct a TensorList using the Tensors
   OMTensor *list[2] = {x1, x2};
@@ -40,11 +69,12 @@ int main() {
 
   // Get the first tensor from output list.
   OMTensor *y = omTensorListGetOmtByIndex(output_list, 0);
-  float *outputPtr = (float *) omTensorGetDataPtr(y);
+  omTensorPrint("Result tensor: ", y);
+  uint16_t *outputPtr = (uint16_t *) omTensorGetDataPtr(y);
 
   // Print its content, should be all 3.
   for (int i = 0; i < 6; i++)
-    printf("%f ", outputPtr[i]);
+    printf("%f ", f16_to_f32(outputPtr[i]));
   printf("\n");
 
   // Destory the list and the tensors inside of it.
