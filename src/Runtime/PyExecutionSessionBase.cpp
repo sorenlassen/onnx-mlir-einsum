@@ -136,6 +136,7 @@ std::vector<py::array> PyExecutionSessionBase::pyRun(
           (int64_t)inputPyArray.ndim(), dtype, ownData);
       omTensorSetStridesWithPyArrayStrides(inputOMTensor, safeStrides.data());
     }
+    omTensorPrint("PyExecutionSessionBase input:", inputOMTensor);
     omts.emplace_back(inputOMTensor);
   }
 
@@ -146,6 +147,7 @@ std::vector<py::array> PyExecutionSessionBase::pyRun(
   std::vector<py::array> outputPyArrays;
   for (int64_t i = 0; i < omTensorListGetSize(wrappedOutput); i++) {
     auto *omt = omTensorListGetOmtByIndex(wrappedOutput, i);
+    omTensorPrint("PyExecutionSessionBase output:", omt);
     auto shape = std::vector<int64_t>(
         omTensorGetShape(omt), omTensorGetShape(omt) + omTensorGetRank(omt));
 
