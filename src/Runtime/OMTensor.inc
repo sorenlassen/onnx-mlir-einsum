@@ -147,6 +147,23 @@ static float f16_to_f32(uint16_t x) {
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
   return *(float *)&r;
 }
+static uint16_t f32_to_f16(float x) {
+  // round-to-nearest-even: add last bit after truncated mantissa
+  uint32_t b = (*(uint32_t *)&x) + 0x00001000;
+  uint32_t e = (b & 0x7F800000) >> 23; // exponent
+  uint32_t m = b & 0x007FFFFF;         // mantissa
+  // in line below: 0x007FF000 = 0x00800000 - 0x00001000
+  //                           = decimal indicator flag - initial rounding
+  return // sign : normalized : denormalized : saturate
+      (b & 0x80000000u) >> 16 |
+      (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13) |
+      ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1) |
+      (e > 143) * 0x7FFF;
+}
+
+float __extendhfsf2(uint16_t a) { return f16_to_f32(a); }
+float __gnu_h2f_ieee(uint16_t a) { return f16_to_f32(a); }
+uint16_t __truncdfhf2(double a) { return f32_to_f16(a); }
 
 /* Helper function to print an element of a tensor */
 static inline void printElement(
