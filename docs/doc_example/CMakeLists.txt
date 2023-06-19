@@ -24,19 +24,38 @@ configure_file(
   COPYONLY
   )
 
+configure_file(
+  ${CMAKE_CURRENT_SOURCE_DIR}/gen_add_f16_onnx.py
+  ${CMAKE_CURRENT_BINARY_DIR}/gen_add_f16_onnx.py
+  COPYONLY
+  )
+
 if (WIN32)
   set(OMRuntimeTestModelLibraryName add)
   set(OMRuntimeTestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeTestModelLibraryName}${CMAKE_SHARED_LIBRARY_SUFFIX})
   list(APPEND OMRuntimeTestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeTestModelLibraryName}${CMAKE_LINK_LIBRARY_SUFFIX})
+  set(OMRuntimeF16TestModelLibraryName add_f16)
+  set(OMRuntimeF16TestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_SHARED_LIBRARY_SUFFIX})
+  list(APPEND OMRuntimeF16TestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_LINK_LIBRARY_SUFFIX})
 else()
   set(OMRuntimeTestModelLibraryName libadd)
-  set(OMRuntimeTestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeTestModelLibraryName}${CMAKE_SHARED_MODULE_SUFFIX})
+  set(OMRuntimeTestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_SHARED_MODULE_SUFFIX})
+  set(OMRuntimeF16TestModelLibraryName libadd_f16)
+  set(OMRuntimeF16TestModelLibraryFiles ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_SHARED_MODULE_SUFFIX})
 endif()
 
 add_custom_command(
   OUTPUT ${OMRuntimeTestModelLibraryFiles}
   COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/gen_add_onnx.py
   COMMAND onnx-mlir add.onnx -o ${OMRuntimeTestModelLibraryName}
+  WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+  DEPENDS onnx-mlir
+  )
+
+add_custom_command(
+  OUTPUT ${OMRuntimeF16TestModelLibraryFiles}
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/gen_add_f16_onnx.py
+  COMMAND onnx-mlir add_f16.onnx -o ${OMRuntimeF16TestModelLibraryName}
   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
   DEPENDS onnx-mlir
   )
@@ -63,6 +82,28 @@ else()
     )
 endif()
 
+add_custom_target(OMRuntimeF16TestModel
+  DEPENDS ${OMRuntimeF16TestModelLibraryFiles}
+  )
+
+add_library(OMRuntimeF16TestModelLibrary SHARED IMPORTED)
+add_dependencies(OMRuntimeF16TestModelLibrary OMRuntimeF16TestModel)
+if (WIN32)
+  set_target_properties(OMRuntimeF16TestModelLibrary PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_SHARED_LIBRARY_SUFFIX}
+    )
+  set_target_properties(OMRuntimeF16TestModelLibrary PROPERTIES
+    IMPORTED_IMPLIB ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_LINK_LIBRARY_SUFFIX}
+    )
+else()
+  set_target_properties(OMRuntimeF16TestModelLibrary PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_BINARY_DIR}/${OMRuntimeF16TestModelLibraryName}${CMAKE_SHARED_MODULE_SUFFIX}
+    )
+  set_target_properties(OMRuntimeF16TestModelLibrary PROPERTIES
+    IMPORTED_NO_SONAME TRUE
+    )
+endif()
+
 add_onnx_mlir_executable(OMRuntimeTest
   main.c
 
@@ -77,6 +118,21 @@ add_onnx_mlir_executable(OMRuntimeTest
   )
 
 set_output_directory(OMRuntimeTest BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
+add_onnx_mlir_executable(OMRuntimeF16Test
+  main_f16.c
+
+  NO_INSTALL
+
+  INCLUDE_DIRS PRIVATE
+  ${ONNX_MLIR_SRC_ROOT}/include
+
+  LINK_LIBS PRIVATE
+  OMRuntimeF16TestModelLibrary
+  cruntime
+  )
+
+set_output_directory(OMRuntimeF16Test BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
 add_onnx_mlir_executable(OMRuntimeCppTest
   main.cpp
@@ -93,13 +149,39 @@ add_onnx_mlir_executable(OMRuntimeCppTest
 
 set_output_directory(OMRuntimeCppTest BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 
+add_onnx_mlir_executable(OMRuntimeF16CppTest
+  main_f16.cpp
+
+  NO_INSTALL
+
+  INCLUDE_DIRS PRIVATE
+  ${ONNX_MLIR_SRC_ROOT}/include
+
+  LINK_LIBS PRIVATE
+  OMCompiler
+  OMExecutionSession
+  )
+
+set_output_directory(OMRuntimeF16CppTest BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
+
 add_test(NAME OMRuntimeTest COMMAND OMRuntimeTest WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_property(TARGET OMRuntimeTest PROPERTY FOLDER "Docs")
 set_tests_properties(OMRuntimeTest PROPERTIES LABELS doc-example)
 add_dependencies(doc-example OMRuntimeTest)
+
+add_test(NAME OMRuntimeF16Test COMMAND OMRuntimeF16Test WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_property(TARGET OMRuntimeF16Test PROPERTY FOLDER "Docs")
+set_tests_properties(OMRuntimeF16Test PROPERTIES LABELS doc-example)
+add_dependencies(doc-example OMRuntimeF16Test)
 
 add_test(NAME OMRuntimeCppTest COMMAND OMRuntimeCppTest WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 set_property(TARGET OMRuntimeCppTest PROPERTY FOLDER "Docs")
 set_tests_properties(OMRuntimeCppTest PROPERTIES LABELS doc-example)
 set_tests_properties(OMRuntimeCppTest PROPERTIES ENVIRONMENT "ONNX_MLIR_LIBRARY_PATH=${ONNX_MLIR_LIBRARY_PATH}")
 add_dependencies(doc-example OMRuntimeCppTest)
+
+add_test(NAME OMRuntimeF16CppTest COMMAND OMRuntimeF16CppTest WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_property(TARGET OMRuntimeF16CppTest PROPERTY FOLDER "Docs")
+set_tests_properties(OMRuntimeF16CppTest PROPERTIES LABELS doc-example)
+set_tests_properties(OMRuntimeF16CppTest PROPERTIES ENVIRONMENT "ONNX_MLIR_LIBRARY_PATH=${ONNX_MLIR_LIBRARY_PATH}")
+add_dependencies(doc-example OMRuntimeF16CppTest)
