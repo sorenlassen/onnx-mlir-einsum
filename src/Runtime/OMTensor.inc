@@ -460,6 +460,7 @@ void omTensorPrint(const char *msg, const OMTensor *tensor) {
   const int64_t rank = omTensorGetRank(tensor);
   const int64_t *shape = omTensorGetShape(tensor);
   const int64_t *strides = omTensorGetStrides(tensor);
+  const long long numElems = omTensorGetNumElems(tensor);
   void *dataPtr = omTensorGetDataPtr(tensor);
 
   // Process format if any (default is signature and data).
@@ -490,7 +491,7 @@ void omTensorPrint(const char *msg, const OMTensor *tensor) {
     // Print detailed info.
     printf("\trank = %lld\n", (long long)rank);
     printf("\tdataType = %s\n", getDataTypeName(dataType));
-    printf("\tnumElems = %lld\n", (long long)omTensorGetNumElems(tensor));
+    printf("\tnumElems = %lld\n", numElems);
     printf("\tshape: ");
     for (int64_t i = 0; i < rank; i++)
       printf("[%lld]", (long long)shape[i]);
@@ -554,7 +555,12 @@ void omTensorPrint(const char *msg, const OMTensor *tensor) {
 
   if (dataInfo) {
     printf("\tdata: (");
+    if (numElems > 30) printf("TOO LARGE numElems=%lld", numElems);
+    else
     switch (rank) {
+    case 0:
+      printElement(dataPtr, 0, dataType);
+      break;
     case 1: {
       int64_t indexes[1];
       LOOP_1(0, i, shape[0])
@@ -572,7 +578,8 @@ void omTensorPrint(const char *msg, const OMTensor *tensor) {
       LOOP_4(0, i, shape[0], j, shape[1], k, shape[2], l, shape[3])
     } break;
     default:
-      assert(false && "not implemented");
+      printf("NOT IMPLEMENTED rank=%d", (int)rank);
+      // assert(false && "not implemented");
     }
     printf(")\n");
   }
