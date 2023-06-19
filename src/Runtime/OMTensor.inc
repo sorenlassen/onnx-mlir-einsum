@@ -163,6 +163,7 @@ static uint16_t f32_to_f16(float x) {
 
 float __extendhfsf2(uint16_t a) { return f16_to_f32(a); }
 float __gnu_h2f_ieee(uint16_t a) { return f16_to_f32(a); }
+uint16_t __gnu_f2h_ieee(double a) { return f32_to_f16(a); }
 uint16_t __truncdfhf2(double a) { return f32_to_f16(a); }
 
 /* Helper function to print an element of a tensor */
