@@ -1373,9 +1373,9 @@ class EndiannessAwareExecutionSession(object):
         # Run the model
         if args.emit == "lib":
             session = OMExecutionSession(self.exec_name)
+            print('input=', inputs, file=sys.stderr)
             outputs = session.run(inputs)
-            # print('input='+str(inputs), file=sys.stderr)
-            # print('output='+str(outputs), file=sys.stderr)
+            print('output=', outputs, file=sys.stderr)
         elif args.emit == "jni":
             outputs = JniExecutionSession(self.exec_name, inputs)
 
