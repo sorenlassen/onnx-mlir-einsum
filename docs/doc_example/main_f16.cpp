@@ -17,7 +17,7 @@ static float f16_to_f32(uint16_t x) {
       (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
       ((e == 0) & (m != 0)) *
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
-  return *(float *)&r;
+  return *reinterpret_cast<float *>(&r);
 }
 static uint16_t f32_to_f16(float x) {
   // round-to-nearest-even: add last bit after truncated mantissa
