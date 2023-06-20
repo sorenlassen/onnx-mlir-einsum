@@ -51,7 +51,7 @@ int * __attribute__((__weak__)) __errno_location(void) { return &errno; }
 #endif
 
 // Adapted from https://stackoverflow.com/a/60047308
-float f16_to_f32(uint16_t x) {
+static float f16_to_f32(uint16_t x) {
   uint32_t e = (x & 0x7C00) >> 10; // exponent
   uint32_t m = (x & 0x03FF) << 13; // mantissa
   float fm = m;
@@ -63,7 +63,7 @@ float f16_to_f32(uint16_t x) {
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
   return *(float *)&r;
 }
-uint16_t f32_to_f16(float x) {
+static uint16_t f32_to_f16(float x) {
   // round-to-nearest-even: add last bit after truncated mantissa
   uint32_t b = (*(uint32_t *)&x) + 0x00001000;
   uint32_t e = (b & 0x7F800000) >> 23; // exponent
