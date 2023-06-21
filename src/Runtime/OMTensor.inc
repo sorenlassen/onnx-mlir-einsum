@@ -51,21 +51,30 @@ int * __attribute__((__weak__)) __errno_location(void) { return &errno; }
 #endif
 
 // Adapted from https://stackoverflow.com/a/60047308
+static uint32_t as_uint(const float x) {
+  uint32_t ret;
+  memcpy(&ret, &x, sizeof(x));
+  return ret;
+}
+float as_float(const uint32_t x) {
+  float ret;
+  memcpy(&ret, &x, sizeof(x));
+  return ret;
+}
 static float f16_to_f32(uint16_t x) {
   uint32_t e = (x & 0x7C00) >> 10; // exponent
   uint32_t m = (x & 0x03FF) << 13; // mantissa
-  float fm = m;
   // evil log2 bit hack to count leading zeros in denormalized format:
-  uint32_t v = (*(uint32_t *)&fm) >> 23;
+  uint32_t v = as_uint((float)m) >> 23;
   uint32_t r = // sign : normalized : denormalized
       (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
       ((e == 0) & (m != 0)) *
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
-  return *(float *)&r;
+  return as_float(r);
 }
 static uint16_t f32_to_f16(float x) {
   // round-to-nearest-even: add last bit after truncated mantissa
-  uint32_t b = (*(uint32_t *)&x) + 0x00001000;
+  uint32_t b = as_uint(x) + 0x00001000;
   uint32_t e = (b & 0x7F800000) >> 23; // exponent
   uint32_t m = b & 0x007FFFFF;         // mantissa
   // in line below: 0x007FF000 = 0x00800000 - 0x00001000
@@ -76,6 +85,7 @@ static uint16_t f32_to_f16(float x) {
       ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1) |
       (e > 143) * 0x7FFF;
 }
+
 float __extendhfsf2(uint16_t a) { return f16_to_f32(a); }
 float __gnu_h2f_ieee(uint16_t a) { return f16_to_f32(a); }
 uint16_t __gnu_f2h_ieee(float a) { return f32_to_f16(a); }

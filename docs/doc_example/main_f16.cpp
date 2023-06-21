@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <iostream>
+#include <cstring>
 
 #include <OnnxMlirCompiler.h>
 #include <OnnxMlirRuntime.h>
@@ -7,21 +8,30 @@
 #include "src/Runtime/ExecutionSession.hpp"
 
 // Adapted from https://stackoverflow.com/a/60047308
+static uint32_t as_uint(const float x) {
+  uint32_t ret;
+  std::memcpy(&ret, &x, sizeof(x));
+  return ret;
+}
+float as_float(const uint32_t x) {
+  float ret;
+  std::memcpy(&ret, &x, sizeof(x));
+  return ret;
+}
 static float f16_to_f32(uint16_t x) {
   uint32_t e = (x & 0x7C00) >> 10; // exponent
   uint32_t m = (x & 0x03FF) << 13; // mantissa
-  float fm = m;
   // evil log2 bit hack to count leading zeros in denormalized format:
-  uint32_t v = (*reinterpret_cast<uint32_t *>(&fm)) >> 23;
+  uint32_t v = as_uint(static_cast<float>(m)) >> 23;
   uint32_t r = // sign : normalized : denormalized
       (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
       ((e == 0) & (m != 0)) *
           ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
-  return *reinterpret_cast<float *>(&r);
+  return as_float(r);
 }
 static uint16_t f32_to_f16(float x) {
   // round-to-nearest-even: add last bit after truncated mantissa
-  uint32_t b = (*reinterpret_cast<uint32_t *>(&x)) + 0x00001000;
+  uint32_t b = as_uint(x) + 0x00001000;
   uint32_t e = (b & 0x7F800000) >> 23; // exponent
   uint32_t m = b & 0x007FFFFF;         // mantissa
   // in line below: 0x007FF000 = 0x00800000 - 0x00001000
