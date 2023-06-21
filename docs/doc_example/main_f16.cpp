@@ -1,6 +1,6 @@
+#include <cstring>
 #include <errno.h>
 #include <iostream>
-#include <cstring>
 
 #include <OnnxMlirCompiler.h>
 #include <OnnxMlirRuntime.h>
@@ -13,7 +13,7 @@ static uint32_t as_uint(const float x) {
   std::memcpy(&ret, &x, sizeof(x));
   return ret;
 }
-float as_float(const uint32_t x) {
+static float as_float(const uint32_t x) {
   float ret;
   std::memcpy(&ret, &x, sizeof(x));
   return ret;
@@ -130,8 +130,8 @@ int main(int argc, char *argv[]) {
   // Print its content, should be all 3.
   for (int i = 0; i < 6; i++) {
     if (f16_to_f32(outputPtr[i]) != 3.0) {
-      std::cerr << "Iteration " << i << ": expected 3.0, got " << f16_to_f32(outputPtr[i])
-                << "." << std::endl;
+      std::cerr << "Iteration " << i << ": expected 3.0, got "
+                << f16_to_f32(outputPtr[i]) << "." << std::endl;
       return 100;
     }
   }

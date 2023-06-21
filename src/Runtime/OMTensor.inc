@@ -56,7 +56,7 @@ static uint32_t as_uint(const float x) {
   memcpy(&ret, &x, sizeof(x));
   return ret;
 }
-float as_float(const uint32_t x) {
+static float as_float(const uint32_t x) {
   float ret;
   memcpy(&ret, &x, sizeof(x));
   return ret;
