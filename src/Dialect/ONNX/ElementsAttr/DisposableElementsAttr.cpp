@@ -63,6 +63,8 @@ DisposableElementsAttr DisposableElementsAttr::create(ShapedType type,
   assert((transformer != nullptr ||
              wideBTypeOfBType(bufferBType) == wideBTypeOfBType(btype)) &&
          "buffer wide type mismatch requires transformer");
+  assert(llvm::all_of(strides, [](int64_t stride) { return stride >= 0; }) &&
+         "strides must be non-negative");
   bool isContiguous = areStridesContiguous(type.getShape(), strides);
   int64_t numBufferElements = isContiguous
                                   ? type.getNumElements()
