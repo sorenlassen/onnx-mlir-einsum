@@ -120,6 +120,8 @@ void printDisposablElementsAttr(
 }
 #else
 Attribute parseDisposablElementsAttr(AsmParser &parser, Type type) {
+  DisposablePool *pool = DisposablePool::get<ONNXDialect>(context);
+  // ...
   return DisposableElementsAttr::parse(
       parser, type, [&](size_t id, ElementsAttr &elms) -> ParseResult {
         return OnnxElementsAttrBuilder(type.getContext())
@@ -129,6 +131,8 @@ Attribute parseDisposablElementsAttr(AsmParser &parser, Type type) {
 
 void printDisposablElementsAttr(
     AsmPrinter &printer, DisposableElementsAttr disposable) {
+  DisposablePool *pool = DisposablePool::get<ONNXDialect>(context);
+  // ...
   disposable.printWithoutType(printer);
 }
 

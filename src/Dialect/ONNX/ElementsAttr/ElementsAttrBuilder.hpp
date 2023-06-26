@@ -41,6 +41,12 @@ public:
       std::shared_ptr<llvm::MemoryBuffer> membuf, uint64_t offset,
       uint64_t length);
 
+#if 0
+  mlir::ElementsAttr fromFile(mlir::ShapedType type,
+      llvm::StringRef location, uint64_t offset,
+      uint64_t length);
+#endif
+
   // Wraps elements in a DisposableElementsAttr if it isn't already a
   // DisposableElementsAttr, provided the underlying DisposablePool is active.
   // If elements is DenseElementsAttr the wrapper points into elements' raw
