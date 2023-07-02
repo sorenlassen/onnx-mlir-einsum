@@ -44,53 +44,19 @@
 #include "src/Runtime/OMTensorHelper.hpp"
 #endif
 
+#include "src/Support/SmallFPConversion.h"
+
 #if defined(__APPLE__)
 // __errno_location() is called from krnl::emitErrNo() to set errno in
 // generated llvm IR, but it somehow doesn't come out of the box on MacOS.
 int * __attribute__((__weak__)) __errno_location(void) { return &errno; }
 #endif
 
-// Adapted from https://stackoverflow.com/a/60047308
-static uint32_t as_uint(const float x) {
-  uint32_t ret;
-  memcpy(&ret, &x, sizeof(x));
-  return ret;
-}
-static float as_float(const uint32_t x) {
-  float ret;
-  memcpy(&ret, &x, sizeof(x));
-  return ret;
-}
-static float f16_to_f32(uint16_t x) {
-  uint32_t e = (x & 0x7C00) >> 10; // exponent
-  uint32_t m = (x & 0x03FF) << 13; // mantissa
-  // evil log2 bit hack to count leading zeros in denormalized format:
-  uint32_t v = as_uint((float)m) >> 23;
-  uint32_t r = // sign : normalized : denormalized
-      (x & 0x8000u) << 16 | (e != 0) * ((e + 112) << 23 | m) |
-      ((e == 0) & (m != 0)) *
-          ((v - 37) << 23 | ((m << (150 - v)) & 0x007FE000));
-  return as_float(r);
-}
-static uint16_t f32_to_f16(float x) {
-  // round-to-nearest-even: add last bit after truncated mantissa
-  uint32_t b = as_uint(x) + 0x00001000;
-  uint32_t e = (b & 0x7F800000) >> 23; // exponent
-  uint32_t m = b & 0x007FFFFF;         // mantissa
-  // in line below: 0x007FF000 = 0x00800000 - 0x00001000
-  //                           = decimal indicator flag - initial rounding
-  return // sign : normalized : denormalized : saturate
-      (b & 0x80000000u) >> 16 |
-      (e > 112) * ((((e - 112) << 10) & 0x7C00) | m >> 13) |
-      ((e < 113) & (e > 101)) * ((((0x007FF000 + m) >> (125 - e)) + 1) >> 1) |
-      (e > 143) * 0x7FFF;
-}
-
-float __extendhfsf2(uint16_t a) { return f16_to_f32(a); }
-float __gnu_h2f_ieee(uint16_t a) { return f16_to_f32(a); }
-uint16_t __gnu_f2h_ieee(float a) { return f32_to_f16(a); }
-uint16_t __truncsfhf2(float a) { return f32_to_f16(a); }
-uint16_t __truncdfhf2(double a) { return f32_to_f16(a); }
+float __extendhfsf2(uint16_t a) { return om_f16_to_f32(a); }
+float __gnu_h2f_ieee(uint16_t a) { return om_f16_to_f32(a); }
+uint16_t __gnu_f2h_ieee(float a) { return om_f32_to_f16(a); }
+uint16_t __truncsfhf2(float a) { return om_f32_to_f16(a); }
+uint16_t __truncdfhf2(double a) { return om_f32_to_f16(a); }
 
 struct OMTensor {
 #ifdef __cplusplus
@@ -211,7 +177,7 @@ static inline void printElement(
     printf("%lld", (long long)((int64_t *)dataPtr)[elemOffset]);
     break;
   case ONNX_TYPE_FLOAT16:
-    printf("%f", f16_to_f32(((uint16_t *)dataPtr)[elemOffset]));
+    printf("%f", om_f16_to_f32(((uint16_t *)dataPtr)[elemOffset]));
     break;
   case ONNX_TYPE_FLOAT:
     printf("%f", ((float *)dataPtr)[elemOffset]);

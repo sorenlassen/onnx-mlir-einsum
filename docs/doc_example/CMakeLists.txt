@@ -155,6 +155,7 @@ add_onnx_mlir_executable(OMRuntimeF16Test
 
   INCLUDE_DIRS PRIVATE
   ${ONNX_MLIR_SRC_ROOT}/include
+  ${ONNX_MLIR_SRC_ROOT}/src/Support # SmallFPConversion.h
 
   LINK_LIBS PRIVATE
   OMRuntimeF16TestModelLibrary
