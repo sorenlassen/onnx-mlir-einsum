@@ -88,6 +88,9 @@ inline uint16_t om_f32_to_f16(float f32) {
 
 #endif
 
+// Implementation adapted from the answers to
+// https://stackoverflow.com/questions/55253233/convert-fp32-to-bfloat16-in-c
+
 inline float om_bf16_to_f32(uint16_t u16) {
   uint32_t u32 = u16;
   SMALL_FP_BIT_CAST(float, f32, u32);
