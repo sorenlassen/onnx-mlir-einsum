@@ -22,6 +22,7 @@ add_onnx_mlir_library(OMSupport
 
 add_onnx_mlir_library(OMMlirUtilities
   SmallFP.cpp
+  SmallFPConversion.c
   TypeUtilities.cpp
   # Expect to have other utilities for Attribute and Value in the future.
   # AttributeUtilities.cpp
