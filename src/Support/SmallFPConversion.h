@@ -8,6 +8,22 @@
 extern "C" {
 #endif
 
+// Work around gcc failures:
+//
+// MacOS amd64:
+//   Undefined symbols for architecture x86_64: "_om_f16_to_f32",
+//   referenced from: _printElement in libcruntime.a(OMTensor.c.o)
+//
+// Jenkins linux:
+//   /usr/bin/ld: libcruntime.a(OMTensor.c.o): in function `printElement':
+//   src/Runtime/OMTensor.inc:180: undefined reference to `om_f16_to_f32'
+//
+#ifdef __GNUC__
+#define SMALL_FP_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define SMALL_FP_ALWAYS_INLINE
+#endif
+
 // Defines variable TO of type TO_TYPE and copies bytes from variable FROM.
 // Using memcpy because the simpler definition
 //
@@ -34,15 +50,6 @@ extern "C" {
 
 // https://www.intel.com/content/www/us/en/docs/cpp-compiler/developer-guide-reference/2021-9/details-about-intrinsics-for-half-floats.html
 #include <immintrin.h>
-
-#ifdef __GNUC__
-// Work around gcc failure:
-//   Undefined symbols for architecture x86_64: "_om_f16_to_f32",
-//   referenced from: _printElement in libcruntime.a(OMTensor.c.o)
-#define SMALL_FP_ALWAYS_INLINE __attribute__((always_inline))
-#else
-#define SMALL_FP_ALWAYS_INLINE
-#endif
 
 inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) {
   return _cvtsh_ss(u16);
