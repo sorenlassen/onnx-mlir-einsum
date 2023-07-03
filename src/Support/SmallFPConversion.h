@@ -9,14 +9,15 @@ extern "C" {
 #endif
 
 // Defines variable TO of type TO_TYPE and copies bytes from variable FROM.
-#if 0
-#define SMALL_FP_BIT_CAST(TO_TYPE, TO, FROM) TO_TYPE TO = *(const TO_TYPE *)FROM
-#else
+// Using memcpy because the simpler definition
+//
+//   #define SMALL_FP_BIT_CAST(TYPE, TO, FROM) TYPE TO = *(const TYPE *)FROM
+//
+// might violate the rules about strict aliasing in C++.
 #define SMALL_FP_BIT_CAST(TO_TYPE, TO, FROM)                                   \
   TO_TYPE TO;                                                                  \
   static_assert(sizeof(TO) == sizeof(FROM), "only bit cast same sizes");       \
   memcpy(&TO, &FROM, sizeof(FROM))
-#endif
 
 // When the CPU is known to support native conversion between float and float_16
 // we define FLOAT16_TO_FLOAT32(u16) and FLOAT32_TO_FLOAT16(f32) macros, used in
@@ -34,11 +35,22 @@ extern "C" {
 // https://www.intel.com/content/www/us/en/docs/cpp-compiler/developer-guide-reference/2021-9/details-about-intrinsics-for-half-floats.html
 #include <immintrin.h>
 
-inline float om_f16_to_f32(uint16_t u16) { return _cvtsh_ss(u16); }
+#ifdef __GNUC__
+// Work around gcc failure:
+//   Undefined symbols for architecture x86_64: "_om_f16_to_f32",
+//   referenced from: _printElement in libcruntime.a(OMTensor.c.o)
+#define SMALL_FP_ALWAYS_INLINE __attribute__((always_inline))
+#else
+#define SMALL_FP_ALWAYS_INLINE
+#endif
 
-inline uint16_t om_f32_to_f16(float f32) {
+inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) { return _cvtsh_ss(u16); }
+
+inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_f16(float f32) {
   return _cvtss_sh(f32, /*ROUND TO NEAREST EVEN*/ 0);
 }
+
+#undef SMALL_FP_ALWAYS_INLINE
 
 #elif defined(__ARM_FP16_FORMAT_IEEE)
 // On MacBook Pro no build config is needed to define __ARM_FP16_FORMAT_IEEE.
