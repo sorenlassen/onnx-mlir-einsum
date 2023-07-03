@@ -1,6 +1,6 @@
 #include <OnnxMlirRuntime.h>
 
-#include "SmallFPConversion.h" // from src/Support
+#include "src/Support/SmallFPConversion.h" // from src/Support
 
 #include <stdio.h>
 #include <string.h>

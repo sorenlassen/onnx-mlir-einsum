@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Defines variable TO of type TO_TYPE and copies bytes from variable FROM.
 #if 0
 #define SMALL_FP_BIT_CAST(TO_TYPE, TO, FROM) TO_TYPE TO = *(const TO_TYPE *)FROM
@@ -103,3 +107,7 @@ inline uint16_t om_f32_to_bf16(float f32) {
 }
 
 #undef SMALL_FP_BIT_CAST
+
+#ifdef __cplusplus
+}
+#endif

@@ -22,6 +22,7 @@ add_onnx_mlir_library(cruntime STATIC
   OnnxDataType.c
 
   DEPENDS
+  SmallFPConversion
   AcceleratorsInc
 
   EXCLUDE_FROM_OM_LIBS
