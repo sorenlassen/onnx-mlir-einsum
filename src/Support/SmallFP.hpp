@@ -87,12 +87,6 @@ extern template class SmallFPBase<float_8e4m3fnuz, 8>;
 extern template class SmallFPBase<float_8e5m2, 8>;
 extern template class SmallFPBase<float_8e5m2fnuz, 8>;
 
-// TODO: Replace with std::bit_cast in C++20.
-template <class To, class From>
-To bitcast(From x) {
-  return *reinterpret_cast<To *>(&x);
-}
-
 } // namespace detail
 
 template <class T>
