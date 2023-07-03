@@ -44,7 +44,9 @@ extern "C" {
 #define SMALL_FP_ALWAYS_INLINE
 #endif
 
-inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) { return _cvtsh_ss(u16); }
+inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) {
+  return _cvtsh_ss(u16);
+}
 
 inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_f16(float f32) {
   return _cvtss_sh(f32, /*ROUND TO NEAREST EVEN*/ 0);
