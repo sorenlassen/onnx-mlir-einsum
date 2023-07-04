@@ -59,19 +59,17 @@ inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_f16(float f32) {
   return _cvtss_sh(f32, /*ROUND TO NEAREST EVEN*/ 0);
 }
 
-#undef SMALL_FP_ALWAYS_INLINE
-
 #elif defined(__ARM_FP16_FORMAT_IEEE)
 // On MacBook Pro no build config is needed to define __ARM_FP16_FORMAT_IEEE.
 
 // https://arm-software.github.io/acle/main/acle.html#half-precision-floating-point
 
-inline float om_f16_to_f32(uint16_t u16) {
+inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) {
   SMALL_FP_BIT_CAST(__fp16, f16, u16);
   return (float)f16;
 }
 
-inline uint16_t om_f32_to_f16(float f32) {
+inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_f16(float f32) {
   __fp16 f16 = (__fp16)f32;
   SMALL_FP_BIT_CAST(uint16_t, u16, f16);
   return u16;
@@ -81,7 +79,7 @@ inline uint16_t om_f32_to_f16(float f32) {
 
 // Implementation adapted from https://stackoverflow.com/a/60047308
 
-inline float om_f16_to_f32(uint16_t u16) {
+inline float SMALL_FP_ALWAYS_INLINE om_f16_to_f32(uint16_t u16) {
   uint32_t e = (u16 & 0x7C00) >> 10; // exponent
   uint32_t m = (u16 & 0x03FF) << 13; // mantissa
   // evil log2 bit hack to count leading zeros in denormalized format:
@@ -96,7 +94,7 @@ inline float om_f16_to_f32(uint16_t u16) {
   return f32;
 }
 
-inline uint16_t om_f32_to_f16(float f32) {
+inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_f16(float f32) {
   // round-to-nearest-even: add last bit after truncated mantissa
   SMALL_FP_BIT_CAST(uint32_t, u32, f32);
   uint32_t b = u32 + 0x00001000;
@@ -116,18 +114,20 @@ inline uint16_t om_f32_to_f16(float f32) {
 // Implementation adapted from the answers to
 // https://stackoverflow.com/questions/55253233/convert-fp32-to-bfloat16-in-c
 
-inline float om_bf16_to_f32(uint16_t u16) {
+inline float SMALL_FP_ALWAYS_INLINE om_bf16_to_f32(uint16_t u16) {
   uint32_t u32 = ((uint32_t)u16) << 16;
   SMALL_FP_BIT_CAST(float, f32, u32);
   return f32;
 }
 
-inline uint16_t om_f32_to_bf16(float f32) {
+inline uint16_t SMALL_FP_ALWAYS_INLINE om_f32_to_bf16(float f32) {
   SMALL_FP_BIT_CAST(uint32_t, u32, f32);
   return u32 >> 16;
 }
 
 #undef SMALL_FP_BIT_CAST
+
+#undef SMALL_FP_ALWAYS_INLINE
 
 #ifdef __cplusplus
 }
