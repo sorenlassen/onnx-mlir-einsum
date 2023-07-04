@@ -20,9 +20,9 @@ add_onnx_mlir_library(cruntime STATIC
   OMTensor.c
   OMTensorList.c
   OnnxDataType.c
+  ${ONNX_MLIR_SRC_ROOT}/src/Support/SmallFPConversion.c
 
   DEPENDS
-  SmallFPConversion
   AcceleratorsInc
 
   EXCLUDE_FROM_OM_LIBS

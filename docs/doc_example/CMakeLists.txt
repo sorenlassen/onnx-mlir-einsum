@@ -155,10 +155,10 @@ add_onnx_mlir_executable(OMRuntimeF16Test
 
   INCLUDE_DIRS PRIVATE
   ${ONNX_MLIR_SRC_ROOT}/include
+  ${ONNX_MLIR_SRC_ROOT} # to access src/Support/SmallFPConversion.h
 
   LINK_LIBS PRIVATE
   OMRuntimeF16TestModelLibrary
-  SmallFPConversion
   )
 
 set_output_directory(OMRuntimeF16Test BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR} LIBRARY_DIR ${CMAKE_CURRENT_BINARY_DIR})

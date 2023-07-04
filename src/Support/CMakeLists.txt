@@ -34,12 +34,3 @@ add_onnx_mlir_library(OMMlirUtilities
   LINK_LIBS PUBLIC
   MLIRIR
   )
-
-add_onnx_mlir_library(SmallFPConversion STATIC
-  SmallFPConversion.c
-  )
-set_target_properties(SmallFPConversion
-  PROPERTIES
-  LANGUAGE C
-  POSITION_INDEPENDENT_CODE TRUE
-  )
