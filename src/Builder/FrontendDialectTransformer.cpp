@@ -342,23 +342,6 @@ private:
     return onnxType;
   }
 
-  Value ImportTensor(const onnx::TensorProto &tensor) {
-    mlir::ElementsAttr mlirAttr;
-    if (tensor.has_data_location() &&
-        tensor.data_location() == onnx::TensorProto::EXTERNAL) {
-      ExternalDataFileSlice fileSlice = readExternalData(tensor);
-      mlirAttr = onnxTensorProtoToElmAttr(&context_, tensor, &fileSlice);
-    } else {
-      mlirAttr = onnxTensorProtoToElmAttr(&context_, tensor);
-    }
-    // Use the tensor name as Location.
-    auto loc =
-        NameLoc::get(builder_.getStringAttr("Initializer_" + tensor.name()));
-    Value initializer = createConstantValue(mlirAttr, loc);
-    num_of_parameters_ += mlirAttr.getShapedType().getNumElements();
-    return initializer;
-  }
-
   /*!
    * Import an onnx tensor type by determining and returning its type
    * @param type_proto onnx tensor TypeProto.
@@ -446,57 +429,47 @@ private:
     return std::optional<Type>();
   }
 
-  NamedAttribute convertOnnxAttributeProtoToMlirNamedAttribute(
-      onnx::AttributeProto attr) {
-    Attribute mlirAttr;
+  ElementsAttr ImportTensor(const onnx::TensorProto &tensor) {
+    if (tensor.has_data_location() &&
+        tensor.data_location() == onnx::TensorProto::EXTERNAL) {
+      ExternalDataFileSlice fileSlice = readExternalData(tensor);
+      return onnxTensorProtoToElmAttr(&context_, tensor, &fileSlice);
+    } else {
+      return onnxTensorProtoToElmAttr(&context_, tensor);
+    }
+  }
+
+  Attribute ImportAttribute(onnx::AttributeProto attr) {
     switch (attr.type()) {
     case onnx::AttributeProto::FLOAT:
-      mlirAttr = builder_.getF32FloatAttr(attr.f());
-      break;
+      return builder_.getF32FloatAttr(attr.f());
     case onnx::AttributeProto::INT:
-      mlirAttr =
-          IntegerAttr::get(builder_.getIntegerType(64, /*isSigned=*/true),
-              APInt(64, /*value=*/attr.i(), /*isSigned=*/true));
-      break;
+      return builder_.getIntegerAttr(
+          builder_.getIntegerType(64, /*isSigned=*/true), attr.i());
     case onnx::AttributeProto::STRING:
-      mlirAttr = builder_.getStringAttr(attr.s());
-      break;
+      return builder_.getStringAttr(attr.s());
     case onnx::AttributeProto::FLOATS:
-      mlirAttr = builder_.getF32ArrayAttr(
+      return builder_.getF32ArrayAttr(
           llvm::ArrayRef(attr.floats().data(), attr.floats().size()));
-      break;
     case onnx::AttributeProto::INTS:
-      mlirAttr = builder_.getI64ArrayAttr(
+      return builder_.getI64ArrayAttr(
           llvm::ArrayRef(attr.ints().data(), attr.ints().size()));
-      break;
-    case onnx::AttributeProto::TENSOR: {
-      const onnx::TensorProto &tensor = attr.t();
-      if (tensor.has_data_location() &&
-          tensor.data_location() == onnx::TensorProto::EXTERNAL) {
-        ExternalDataFileSlice fileSlice = readExternalData(tensor);
-        mlirAttr = onnxTensorProtoToElmAttr(&context_, tensor, &fileSlice);
-      } else {
-        mlirAttr = onnxTensorProtoToElmAttr(&context_, tensor);
-      }
-    } break;
+    case onnx::AttributeProto::TENSOR:
+      return ImportTensor(attr.t());
     case onnx::AttributeProto::STRINGS: {
       llvm::SmallVector<StringRef, 4> vectorStringRef;
       for (const auto &item : attr.strings()) {
         vectorStringRef.push_back(llvm::StringRef(item));
       }
-      mlirAttr = builder_.getStrArrayAttr(llvm::ArrayRef(vectorStringRef));
-    } break;
+      return builder_.getStrArrayAttr(llvm::ArrayRef(vectorStringRef));
+    }
     case onnx::AttributeProto::TYPE_PROTO:
-      mlirAttr = TypeAttr::get(ImportType(attr.tp()));
-      break;
+      return TypeAttr::get(ImportType(attr.tp()));
     case onnx::AttributeProto::GRAPH:
       llvm_unreachable("Subgraph attribute is imported as regions.");
-      break;
     default:
       llvm_unreachable("datatype for attribute is not implemented");
-      break;
     }
-    return builder_.getNamedAttr(attr.name(), mlirAttr);
   }
 
   std::vector<NamedAttribute> ImportNodeAttributes(
@@ -507,7 +480,8 @@ private:
       // Ignore subgraph attributes, as they will be imported as regions.
       if (attr.type() == onnx::AttributeProto_AttributeType_GRAPH)
         continue;
-      attributes.push_back(convertOnnxAttributeProtoToMlirNamedAttribute(attr));
+      Attribute mlirAttr = ImportAttribute(attr);
+      attributes.push_back(builder_.getNamedAttr(attr.name(), mlirAttr));
     }
 
     // If the node has a name, then import it.
@@ -540,7 +514,13 @@ private:
     // Maintain a mapping between the parameter and its initializer.
     std::unordered_set<std::string> initializerNames;
     for (const auto &initializer : graph.initializer()) {
-      BindOnnxName(initializer.name(), ImportTensor(initializer));
+      ElementsAttr mlirAttr = ImportTensor(initializer);
+      num_of_parameters_ += mlirAttr.getNumElements();
+      // Use the tensor name as Location.
+      std::string locName = "Initializer_" + initializer.name();
+      auto loc = NameLoc::get(builder_.getStringAttr(locName));
+      Value value = createConstantValue(mlirAttr, loc);
+      BindOnnxName(initializer.name(), value);
       initializerNames.insert(initializer.name());
     }
 
