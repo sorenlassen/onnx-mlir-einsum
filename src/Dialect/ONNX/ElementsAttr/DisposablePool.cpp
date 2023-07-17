@@ -86,7 +86,8 @@ void DisposablePool::scrub(ModuleOp moduleOp, OpAttrDictionary opsAttrs) {
             disposable.getId(), std::make_pair(disposable, nullptr));
       });
 
-  {
+  MLIRContext *ctx = moduleOp.getContext();
+  if (ctx->isMultithreadingEnabled()) {
     // The mutex protects access to the iterator 'next' which is progressed as
     // translations are fetched in batches to be processed by the parallel
     // workers in work().
@@ -128,8 +129,12 @@ void DisposablePool::scrub(ModuleOp moduleOp, OpAttrDictionary opsAttrs) {
         }
       }
     };
-    MLIRContext *ctx = moduleOp.getContext();
     parallelFor(ctx, 0, ctx->getNumThreads(), work);
+  } else {
+    for (auto &[id, translation] : translations) {
+      auto &[disposable, dense] = translation;
+      dense = disposable.toDenseElementsAttr();
+    }
   }
 
   walkOpsAttrs(moduleOp, opsAttrs,
