@@ -28,7 +28,6 @@
 #include "mlir/Transforms/Passes.h"
 #include "onnx-mlir/Compiler/OMCompilerTypes.h"
 #include "src/Builder/FrontendDialectTransformer.hpp"
-#include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Pass/Passes.hpp"
