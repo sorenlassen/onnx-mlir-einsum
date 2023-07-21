@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassRegistry.h"
+#include "mlir/InitAllPasses.h"
 
 namespace onnx_mlir {
 

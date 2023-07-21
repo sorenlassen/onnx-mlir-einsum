@@ -12,12 +12,14 @@
 
 #pragma once
 
-#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassRegistry.h"
+
+#include "src/Compiler/CompilerOptions.hpp"
 #include "src/Pass/Passes.hpp"
 
 namespace onnx_mlir {
 
-void initOMPasses(int optLevel) {
+void initOMPasses() {
   // All passes implemented within onnx-mlir should register within this
   // function to make themselves available as a command-line option.
 
@@ -76,7 +78,8 @@ void initOMPasses(int optLevel) {
     return krnl::createConvertKrnlToAffinePass();
   });
 
-  mlir::registerPass([optLevel]() -> std::unique_ptr<mlir::Pass> {
+  mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
+    int optLevel = OptimizationLevel;
     return createLowerToKrnlPass(/*enableTiling*/ optLevel >= 3,
         /*enableSIMD, should consider disableSimdOption*/ optLevel >= 3,
         /*enableParallel*/ false);

@@ -155,7 +155,7 @@ int main(int argc, char **argv) {
   registerSCFPasses();
   bufferization::registerBufferizationPasses();
 
-  onnx_mlir::initOMPasses(OptimizationLevel);
+  onnx_mlir::initOMPasses();
   onnx_mlir::initMLIRPasses();
 
   // Initialize passes for accelerators.
