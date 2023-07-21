@@ -26,4 +26,5 @@ void initMLIRPasses() {
     return mlir::createPrintOpStatsPass();
   });
 }
+
 } // namespace onnx_mlir

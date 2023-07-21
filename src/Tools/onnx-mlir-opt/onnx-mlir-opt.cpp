@@ -37,9 +37,9 @@
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
-#include "src/InitMLIRPasses.hpp"
-#include "src/InitOMPasses.hpp"
-#include "src/Pass/Passes.hpp"
+
+#include "InitMLIRPasses.hpp"
+#include "InitOMPasses.hpp"
 
 using namespace mlir;
 using namespace onnx_mlir;
