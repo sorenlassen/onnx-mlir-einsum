@@ -28,14 +28,38 @@ LogicalResult ONNXPadOpShapeHelper::computeShape() {
   ONNXPadOpAdaptor operandAdaptor(operands);
   Value dataOperand = operandAdaptor.getData();
   Value padsOperand = operandAdaptor.getPads();
+  Value axesOperand = operandAdaptor.getAxes();
   DimsExpr outputDims;
 
   // Get info about input data operand.
   uint64_t dataRank = createIE->getShapedTypeRank(dataOperand);
 
   // Initialize context and results (pads & output)
-  pads.resize(2 * dataRank); // pads two sides of each axis.
+  pads.assign(2 * dataRank, LiteralIndexExpr(0)); // pads two sides of each axis
   outputDims.resize(dataRank);
+
+  SmallVector<uint64_t> axes;
+  if (isa<NoneType>(axesOperand.getType())) {
+    for (uint64_t i = 0; i < dataRank; ++i)
+      axes.push_back(i);
+  } else {
+    ONNXConstantOp constOp = cast<ONNXConstantOp>(axesOperand.getDefiningOp());
+    ElementsAttr elements = constOp.getValueAttr().cast<ElementsAttr>();
+    for (APInt a : elements.getValues<APInt>()) {
+      int64_t i = a.getSExtValue();
+      if (i < 0)
+        i += dataRank;
+      axes.push_back(i);
+    }
+    // Populate non-axes dims in outputDims. The axes dims are filled in later.
+    llvm::SmallDenseSet<uint64_t> axesSet(axes.begin(), axes.end());
+    for (uint64_t axis = 0; axis < dataRank; ++axis) {
+      if (!axesSet.contains(axis)) {
+        DimIndexExpr dimInput(createIE->getShapeAsDim(dataOperand, axis));
+        outputDims[axis] = dimInput;
+      }
+    }
+  }
 
   // `pads` format is : [x1_begin, x2_begin,...,x1_end, x2_end,...],
   // where
@@ -43,23 +67,24 @@ LogicalResult ONNXPadOpShapeHelper::computeShape() {
   // - xi_end: the number of pad values added at the end of axis `i`.
 
   // Calculate output dimension sizes.
-  for (uint64_t i = 0; i < dataRank; i++) {
+  for (uint64_t i = 0; i < axes.size(); i++) {
+    uint64_t axis = axes[i];
     // Get begin/end pads.
     SymbolIndexExpr padBegin(createIE->getIntFromArrayAsSymbol(padsOperand, i));
     SymbolIndexExpr padEnd(
-        createIE->getIntFromArrayAsSymbol(padsOperand, i + dataRank));
+        createIE->getIntFromArrayAsSymbol(padsOperand, i + axes.size()));
     if (padBegin.isUndefined() || padEnd.isUndefined())
       return op->emitError("pad parameter could not be processed");
     // Get input dim.
-    DimIndexExpr dimInput(createIE->getShapeAsDim(dataOperand, i));
+    DimIndexExpr dimInput(createIE->getShapeAsDim(dataOperand, axis));
 
     // Calculation for output size.
     IndexExpr dimOutputFinal = (padBegin + dimInput) + padEnd;
 
     // Save results.
-    pads[i] = padBegin;
-    pads[i + dataRank] = padEnd;
-    outputDims[i] = dimOutputFinal;
+    pads[axis] = padBegin;
+    pads[axis + dataRank] = padEnd;
+    outputDims[axis] = dimOutputFinal;
   }
 
   // Save the final result.
