@@ -46,17 +46,22 @@ struct ONNXOpTransformPass : public mlir::PassWrapper<ONNXOpTransformPass,
       "onnx-op-transform-simd-data-layout",
       llvm::cl::desc("Enable SIMD data layout opt in op transform passes."),
       llvm::cl::init(false)};
+  Option<int> onnxOpTransformConstPropExpansionBound{*this,
+      "onnx-op-transform-const-prop-expansion-bound",
+      llvm::cl::desc("const prop expansion bound for op transform passes."),
+      llvm::cl::init(-1)};
 
   ONNXOpTransformPass() = default;
   ONNXOpTransformPass(const ONNXOpTransformPass &pass)
       : mlir::PassWrapper<ONNXOpTransformPass,
             OperationPass<mlir::ModuleOp>>() {}
   ONNXOpTransformPass(int threshold, bool report, bool targetCPU,
-      bool enableSimdDataLayoutOpt) {
+      bool enableSimdDataLayoutOpt, int constPropExpansionBound) {
     this->onnxOpTransformThreshold = threshold;
     this->onnxOpTransformReport = report;
     this->onnxOpTransformTargetCPU = targetCPU;
     this->onnxOpTransformEnableSimdDataLayout = enableSimdDataLayoutOpt;
+    this->onnxOpTransformConstPropExpansionBound = constPropExpansionBound;
   }
 
   void runOnOperation() final;
@@ -86,7 +91,8 @@ void ONNXOpTransformPass::runOnOperation() {
           onnx_mlir::createShapeInferencePass());
     }
     dynamicPM.addNestedPass<func::FuncOp>(
-        onnx_mlir::createConstPropONNXToONNXPass());
+        onnx_mlir::createConstPropONNXToONNXPass(
+            onnxOpTransformConstPropExpansionBound));
     if (failed(runPipeline(dynamicPM, module)))
       return signalPassFailure();
     OperationFingerPrint after(module);
@@ -115,8 +121,9 @@ std::unique_ptr<mlir::Pass> onnx_mlir::createONNXOpTransformPass() {
   return std::make_unique<ONNXOpTransformPass>();
 }
 
-std::unique_ptr<mlir::Pass> onnx_mlir::createONNXOpTransformPass(
-    int threshold, bool report, bool targetCPU, bool enableSimdDataLayoutOpt) {
-  return std::make_unique<ONNXOpTransformPass>(
-      threshold, report, targetCPU, enableSimdDataLayoutOpt);
+std::unique_ptr<mlir::Pass> onnx_mlir::createONNXOpTransformPass(int threshold,
+    bool report, bool targetCPU, bool enableSimdDataLayoutOpt,
+    int constPropExpansionBound) {
+  return std::make_unique<ONNXOpTransformPass>(threshold, report, targetCPU,
+      enableSimdDataLayoutOpt, constPropExpansionBound);
 }

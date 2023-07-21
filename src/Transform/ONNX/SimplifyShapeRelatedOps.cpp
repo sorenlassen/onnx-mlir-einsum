@@ -464,14 +464,14 @@ struct SimplifyShapeRelatedOpsPass
     return "Perform ONNX to ONNX optimizations for shape-related operations";
   }
 
-  SimplifyShapeRelatedOpsPass(bool report) : report(report) {}
+  SimplifyShapeRelatedOpsPass(int constPropExpansionBound) : constPropExpansionBound(constPropExpansionBound) {}
 
   void runOnOperation() final;
 
 private:
   void topDownShapeSimplification(MLIRContext *context, ModuleOp moduleOp);
 
-  bool report;
+  int constPropExpansionBound;
 };
 
 void SimplifyShapeRelatedOpsPass::topDownShapeSimplification(
@@ -521,7 +521,7 @@ void SimplifyShapeRelatedOpsPass::runOnOperation() {
   for (unsigned i = 0; i < 3; ++i) {
     topDownShapeSimplification(context, moduleOp);
     OpPassManager pm("builtin.module");
-    pm.addNestedPass<func::FuncOp>(onnx_mlir::createConstPropONNXToONNXPass(report));
+    pm.addNestedPass<func::FuncOp>(onnx_mlir::createConstPropONNXToONNXPass(constPropExpansionBound));
     pm.addNestedPass<func::FuncOp>(onnx_mlir::createShapeInferencePass());
     pm.addPass(mlir::createCanonicalizerPass());
     if (failed(runPipeline(pm, moduleOp)))
@@ -536,8 +536,8 @@ namespace onnx_mlir {
 /*!
  * Create a SimplifyShapeRelatedOps pass.
  */
-std::unique_ptr<mlir::Pass> createSimplifyShapeRelatedOpsPass(bool report) {
-  return std::make_unique<SimplifyShapeRelatedOpsPass>(report);
+std::unique_ptr<mlir::Pass> createSimplifyShapeRelatedOpsPass(int constPropExpansionBound) {
+  return std::make_unique<SimplifyShapeRelatedOpsPass>(constPropExpansionBound);
 }
 
 } // namespace onnx_mlir

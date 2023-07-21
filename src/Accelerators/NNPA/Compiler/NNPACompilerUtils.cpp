@@ -53,8 +53,8 @@ void addONNXToZHighPasses(
     pm.addPass(onnx_mlir::createRewriteONNXForZHighPass(execNodesOnCpu));
     // Simplify shape-related ops, including ShapeOp-to-DimOp replacement,
     // constant propagation, shape inference and canonicalize.
-    pm.addPass(
-        onnx_mlir::createSimplifyShapeRelatedOpsPass(onnxConstPropReport));
+    pm.addPass(onnx_mlir::createSimplifyShapeRelatedOpsPass(
+        onnxConstPropExpansionCount));
   }
   // Insert an instrumentation before lowering onnx to zhigh to get onnx level
   // profiling.
@@ -66,7 +66,7 @@ void addONNXToZHighPasses(
   // There are more opportunities for const propagation once all zhigh ops were
   // generated.
   pm.addNestedPass<func::FuncOp>(
-      onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropReport));
+      onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropExpansionBound));
   pm.addPass(mlir::createCanonicalizerPass());
   // Layout propagation at ZHighIR.
   pm.addNestedPass<func::FuncOp>(
@@ -80,7 +80,7 @@ void addONNXToZHighPasses(
     pm.addNestedPass<func::FuncOp>(
         onnx_mlir::zhigh::createZHighClipToDLFloatPass());
     pm.addNestedPass<func::FuncOp>(
-        onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropReport));
+        onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropExpansionBound));
   }
   // Constant propagation at ZHighIR: constant stickify.
   // Only support BE machines.

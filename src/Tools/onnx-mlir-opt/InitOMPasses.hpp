@@ -48,7 +48,7 @@ void initOMPasses() {
   });
 
   mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
-    return createConstPropONNXToONNXPass();
+    return createConstPropONNXToONNXPass(onnxConstPropExpansionBound);
   });
 
   mlir::registerPass(
@@ -110,7 +110,7 @@ void initOMPasses() {
   });
 
   mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
-    return createSimplifyShapeRelatedOpsPass();
+    return createSimplifyShapeRelatedOpsPass(onnxConstPropExpansionBound);
   });
 
   mlir::registerPass([]() -> std::unique_ptr<mlir::Pass> {
