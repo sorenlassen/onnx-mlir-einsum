@@ -74,20 +74,53 @@ LogicalResult ONNXPadOpShapeHelper::computeShape() {
 //===----------------------------------------------------------------------===//
 
 LogicalResult ONNXPadOp::verify() {
-  ShapedType dataTy = getData().getType().cast<ShapedType>();
-  Type constTy = getConstantValue().getType();
+  ShapedType dataTy = cast<ShapedType>(getData().getType());
 
-  if (!isNoneValue(getConstantValue())) {
+  ShapedType padsTy = cast<ShapedType>(getPads().getType());
+  if (padsTy.hasRank() && padsTy.getRank() != 1)
+    return emitOpError("non-1D pads: ") << padsTy;
+
+  Type constTy = getConstantValue().getType();
+  if (!isa<NoneType>(constTy)) {
     // Check that the constant has the same element type as the input
-    ShapedType shapedConstTy = constTy.cast<ShapedType>();
+    ShapedType shapedConstTy = cast<ShapedType>(constTy);
     if (dataTy.getElementType() != shapedConstTy.getElementType()) {
       return emitOpError("Pad with constant_value that doesn't match the "
                          "element type of the input.");
     }
   }
 
-  if (!isNoneValue(getAxes())) {
-    return emitOpError("Axes input is not currently supported");
+  Type axesTy = getAxes().getType();
+  if (!isa<NoneType>(axesTy)) {
+    if (!isDenseONNXConstant(getAxes()))
+      return emitOpError("non-constant axes input is not currently supported");
+    if (cast<ShapedType>(axesTy).getRank() != 1)
+      return emitOpError("non-1D axes: ") << axesTy;
+    int64_t axesCount = cast<ShapedType>(axesTy).getDimSize(0);
+    if (padsTy.hasStaticShape() && padsTy.getDimSize(0) != 2 * axesCount)
+      return emitOpError("pads and axes count mismatch: ")
+             << padsTy << " vs " << axesTy;
+    if (dataTy.hasRank()) {
+      ONNXConstantOp constOp = cast<ONNXConstantOp>(getAxes().getDefiningOp());
+      ElementsAttr elements = constOp.getValueAttr().cast<ElementsAttr>();
+      if (elements.getShapedType().getRank() != 1)
+        return emitOpError("non-1D axes: ") << elements.getShapedType();
+      llvm::SmallDenseSet<int64_t> axes;
+      for (APInt a : elements.getValues<APInt>()) {
+        int64_t i = a.getSExtValue();
+        if (i < 0)
+          i += dataTy.getRank();
+        if (!(0 <= i && i < dataTy.getRank()))
+          return emitOpError("axis out of range: ") << a.getSExtValue();
+        auto [_, inserted] = axes.insert(i);
+        if (!inserted)
+          return emitOpError("repeated axis: ") << a.getSExtValue();
+      }
+    }
+  } else if (dataTy.hasRank()) {
+    if (padsTy.hasStaticShape() && padsTy.getDimSize(0) != 2 * dataTy.getRank())
+      return emitOpError("pads count doesn't match data rank: ")
+             << padsTy << " vs " << dataTy;
   }
 
   return success();
