@@ -30,6 +30,7 @@
 #include <mlir/Support/FileUtilities.h>
 #include <mlir/Tools/mlir-opt/MlirOptMain.h>
 
+#include "RegisterPasses.hpp"
 #include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
@@ -38,9 +39,6 @@
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
-#include "src/InitMLIRPasses.hpp"
-#include "src/InitOMPasses.hpp"
-#include "src/Pass/Passes.hpp"
 
 using namespace mlir;
 using namespace onnx_mlir;
@@ -148,22 +146,7 @@ int main(int argc, char **argv) {
   for (auto *accel : onnx_mlir::accel::Accelerator::getAccelerators())
     accel->registerDialects(registry);
 
-  registerTransformsPasses();
-  affine::registerAffinePasses();
-  func::registerFuncPasses();
-  registerLinalgPasses();
-  memref::registerMemRefPasses();
-  registerSCFPasses();
-  bufferization::registerBufferizationPasses();
-
-  onnx_mlir::initMLIRPasses();
-
-  onnx_mlir::configurePasses();
-  onnx_mlir::initOMPasses(OptimizationLevel);
-
-  // Initialize passes for accelerators.
-  for (auto *accel : onnx_mlir::accel::Accelerator::getAccelerators())
-    accel->initPasses(OptimizationLevel);
+  registerPasses(OptimizationLevel);
 
   // Register any command line options.
   mlir::registerAsmPrinterCLOptions();
