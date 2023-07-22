@@ -110,20 +110,7 @@ void scanAndSetMAccel(int argc, char **argv) {
   }
 }
 
-int main(int argc, char **argv) {
-  llvm::InitLLVM y(argc, argv);
-  // Scan Opt Level manually now as it is needed for initializing the OM
-  // Passes.
-  scanAndSetOptLevel(argc, argv);
-  // Scan maccel manually now as it is needed for initializing the OM Passes.
-  scanAndSetMAccel(argc, argv);
-
-  // Hide unrelated options except common ones and the onnx-mlir-opt options
-  // defined above.
-  llvm::cl::HideUnrelatedOptions(
-      {&onnx_mlir::OnnxMlirCommonOptions, &OnnxMlirOptOptions});
-
-  mlir::DialectRegistry registry;
+void registerDialects(mlir::DialectRegistry &registry) {
   registry.insert<mlir::arith::ArithDialect>();
   registry.insert<mlir::linalg::LinalgDialect>();
   registry.insert<mlir::affine::AffineDialect>();
@@ -139,13 +126,35 @@ int main(int argc, char **argv) {
   registry.insert<mlir::tosa::TosaDialect>();
   registry.insert<mlir::cf::ControlFlowDialect>();
 
-  // Initialize accelerators if they exist.
-  onnx_mlir::accel::initAccelerators(maccel);
-
   // Register dialects for accelerators.
   for (auto *accel : onnx_mlir::accel::Accelerator::getAccelerators())
     accel->registerDialects(registry);
+}
 
+int main(int argc, char **argv) {
+  llvm::InitLLVM y(argc, argv);
+
+  // Hide unrelated options except common ones and the onnx-mlir-opt options
+  // defined above.
+  llvm::cl::HideUnrelatedOptions(
+      {&onnx_mlir::OnnxMlirCommonOptions, &OnnxMlirOptOptions});
+
+  // Scan Opt Level manually now as it is needed to register passes
+  // before command line options are parsed.
+  scanAndSetOptLevel(argc, argv);
+
+  // Scan maccel manually now as it is needed to initialize accelerators
+  // before ParseCommandLineOptions() is called.
+  scanAndSetMAccel(argc, argv);
+
+  // Initialize accelerators if they exist.
+  onnx_mlir::accel::initAccelerators(maccel);
+
+  mlir::DialectRegistry registry;
+  registerDialects(registry);
+
+  // Registered passes can be expressed as command line flags, so they must
+  // must be registered before command line options are parsed.
   registerPasses(OptimizationLevel);
 
   // Register any command line options.
@@ -163,6 +172,10 @@ int main(int argc, char **argv) {
     llvm::errs() << "Failed to parse options\n";
     return 1;
   }
+
+  // Passes are configured with command line options so they must be configured
+  // after command line parsing but before any passes are run.
+  configurePasses();
 
   // Set up the input file.
   std::string error_message;

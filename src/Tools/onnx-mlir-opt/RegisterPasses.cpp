@@ -32,8 +32,6 @@ using namespace mlir;
 namespace onnx_mlir {
 
 void registerOMPasses(int optLevel) {
-  configurePasses();
-
   // All passes implemented within onnx-mlir should register within this
   // function to make themselves available as a command-line option.
 
