@@ -60,12 +60,6 @@ namespace {
 // ConstProp.td for example.
 //
 
-struct ConstPropONNXToONNXPassConfiguration {
-  static int expansionBound;
-};
-
-int ConstPropONNXToONNXPassConfiguration::expansionBound = -1;
-
 // Collects stats on the amount of constant propagation.
 // The onnx-mlir binary dumps the stats if run with --onnx-const-prop-report.
 struct ConstPropCounters {
@@ -101,6 +95,37 @@ struct ConstPropCounters {
 };
 
 std::unordered_map<std::string, ConstPropCounters> ConstPropCounters::map;
+
+struct ConstPropONNXToONNXPassConfiguration {
+  static int expansionBound;
+};
+
+int ConstPropONNXToONNXPassConfiguration::expansionBound = -1;
+
+// Precondition: type has static shape.
+int64_t getRankedTensorSizeInBytes(RankedTensorType type) {
+  int64_t elementByteWidth =
+      llvm::divideCeil(type.getElementTypeBitWidth(), CHAR_BIT);
+  return type.getNumElements() * elementByteWidth;
+}
+
+// Precondition: result has ranked tensor type with static shape and int or
+// float element type.
+bool satisfiesExpansionBound(Value result) {
+  // Always true when expansion bound checking is disabled with -1.
+  if (ConstPropONNXToONNXPassConfiguration::expansionBound < 0)
+    return true;
+  auto resultType = cast<RankedTensorType>(result.getType());
+  assert(resultType.hasStaticShape() && "expansion bound needs static shape");
+  int64_t sum = 0;
+  for (auto operand : result.getDefiningOp()->getOperands()) {
+    if (auto type = dyn_cast<RankedTensorType>(operand.getType()))
+      if (type.hasStaticShape())
+        sum += getRankedTensorSizeInBytes(type);
+  }
+  return sum * ConstPropONNXToONNXPassConfiguration::expansionBound >=
+         getRankedTensorSizeInBytes(resultType);
+}
 
 ElementsAttr getConstValueElements(Value constValue) {
   ONNXConstantOp constOp = cast<ONNXConstantOp>(constValue.getDefiningOp());
