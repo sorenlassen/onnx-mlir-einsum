@@ -41,6 +41,10 @@ using namespace mlir;
 
 namespace onnx_mlir {
 
+void configurePasses() {
+  configureConstPropONNXToONNXPass(onnxConstPropExpansionBound);
+}
+
 void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU) {
   // This is a transition from previous static passes to full dynamic passes
   // Static passes are kept and the dynamic pass is added as IF-THEN
@@ -74,8 +78,7 @@ void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU) {
   }
   // There are more opportunities for const propagation once all tensors have
   // inferred shapes.
-  pm.addNestedPass<func::FuncOp>(
-      onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropReport));
+  pm.addNestedPass<func::FuncOp>(onnx_mlir::createConstPropONNXToONNXPass());
 
   if (onnxOpTransformThreshold > 0) {
     // Dynamic iterate in ONNXOpTransformPass
@@ -88,12 +91,12 @@ void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU) {
       pm.addPass(mlir::createCanonicalizerPass());
       pm.addNestedPass<func::FuncOp>(onnx_mlir::createShapeInferencePass());
       pm.addNestedPass<func::FuncOp>(
-          onnx_mlir::createConstPropONNXToONNXPass(onnxConstPropReport));
+          onnx_mlir::createConstPropONNXToONNXPass());
     }
   }
 
   // Simplify shape-related ops.
-  pm.addPass(onnx_mlir::createSimplifyShapeRelatedOpsPass(onnxConstPropReport));
+  pm.addPass(onnx_mlir::createSimplifyShapeRelatedOpsPass());
 
   // Replace ONNXReturnOp with func::ReturnOp.
   pm.addPass(onnx_mlir::createStandardFuncReturnPass());
@@ -229,6 +232,8 @@ InputIRLevelType determineInputIRLevel(mlir::OwningOpRef<ModuleOp> &module) {
 void addPasses(mlir::OwningOpRef<ModuleOp> &module, mlir::PassManager &pm,
     EmissionTargetType emissionTarget, std::string outputNameNoExt) {
   InputIRLevelType inputIRLevel = determineInputIRLevel(module);
+
+  configurePasses();
 
   if (inputIRLevel <= ONNXLevel && emissionTarget >= EmitONNXIR)
     addONNXToMLIRPasses(pm, /*target CPU*/ maccel.empty());

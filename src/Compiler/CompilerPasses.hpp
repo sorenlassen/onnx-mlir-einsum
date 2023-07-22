@@ -16,6 +16,9 @@
 #include "mlir/Pass/PassManager.h"
 
 namespace onnx_mlir {
+// Configures passes up front using CompilerOptions flags values.
+void configurePasses();
+
 void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU);
 void addONNXToKrnlPasses(mlir::PassManager &pm, int optLevel, bool enableCSE,
     bool enableInstrumentONNXSignature, std::string ONNXOpsStatFilename);

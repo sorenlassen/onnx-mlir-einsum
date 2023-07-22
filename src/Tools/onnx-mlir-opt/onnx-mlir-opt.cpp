@@ -32,6 +32,7 @@
 
 #include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
+#include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/CompilerUtils.hpp"
 #include "src/Compiler/DisposableGarbageCollector.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
@@ -155,8 +156,10 @@ int main(int argc, char **argv) {
   registerSCFPasses();
   bufferization::registerBufferizationPasses();
 
-  onnx_mlir::initOMPasses(OptimizationLevel);
   onnx_mlir::initMLIRPasses();
+
+  onnx_mlir::configurePasses();
+  onnx_mlir::initOMPasses(OptimizationLevel);
 
   // Initialize passes for accelerators.
   for (auto *accel : onnx_mlir::accel::Accelerator::getAccelerators())

@@ -233,9 +233,13 @@ llvm::cl::opt<bool> onnxOpTransformReport("onnx-op-transform-report",
     llvm::cl::desc("Report diagnostic info for op transform passes."),
     llvm::cl::init(false), llvm::cl::cat(OnnxMlirOptions));
 
-llvm::cl::opt<bool> onnxConstPropReport("onnx-const-prop-report",
-    llvm::cl::desc("Report diagnostic info for constant propagation passes."),
-    llvm::cl::init(false), llvm::cl::cat(OnnxMlirOptions));
+llvm::cl::opt<int> onnxConstPropExpansionBound(
+    "onnx-const-prop-expansion-bound",
+    llvm::cl::desc("ONNX dialect constant propagation maximum expansion factor."
+                   " Constants are not propagated if their bytes size exceed"
+                   " the aggregate operands' sizes by more than this factor."
+                   " Set to -1 to always propagate, which is the default."),
+    llvm::cl::init(-1), llvm::cl::cat(OnnxMlirCommonOptions));
 
 llvm::cl::opt<bool> enableParallel("parallel",
     llvm::cl::desc("Enable parallelization (default=false)\n"

@@ -20,6 +20,7 @@
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/Support/Debug.h"
 
 #include "src/Dialect/ONNX/DialectBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
@@ -34,6 +35,8 @@
 #include <math.h>
 #include <numeric>
 #include <unordered_map>
+
+#define DEBUG_TYPE "constprop_onnx"
 
 using namespace mlir;
 using namespace onnx_mlir;
@@ -57,6 +60,12 @@ namespace {
 // ConstProp.td for example.
 //
 
+struct ConstPropONNXToONNXPassConfiguration {
+  static int expansionBound;
+};
+
+int ConstPropONNXToONNXPassConfiguration::expansionBound = -1;
+
 // Collects stats on the amount of constant propagation.
 // The onnx-mlir binary dumps the stats if run with --onnx-const-prop-report.
 struct ConstPropCounters {
@@ -72,17 +81,20 @@ struct ConstPropCounters {
             getNumberOfElements(oprnd.getType().cast<ShapedType>());
   }
 
-  static void dump(llvm::raw_ostream &os) {
-    size_t total_invocations = 0, total_input_elms = 0;
-    for (auto &entry : map)
-      total_invocations += entry.second.invocations,
-          total_input_elms += entry.second.input_elms;
-    os << "constprop report (cumulative), entries: " << map.size()
-       << ", total invocations:" << total_invocations
-       << ", total input elements:" << total_input_elms << "\n";
-    for (auto &entry : map)
-      os << "  " << entry.first << " invocations:" << entry.second.invocations
-         << " input elements:" << entry.second.input_elms << "\n";
+  static void dump() {
+    LLVM_DEBUG(({
+      size_t total_invocations = 0, total_input_elms = 0;
+      for (auto &entry : map)
+        total_invocations += entry.second.invocations,
+            total_input_elms += entry.second.input_elms;
+      llvm::dbgs() << "constprop report (cumulative), entries: " << map.size()
+                   << ", total invocations:" << total_invocations
+                   << ", total input elements:" << total_input_elms << "\n";
+      for (auto &entry : map)
+        llvm::dbgs() << "  " << entry.first
+                     << " invocations:" << entry.second.invocations
+                     << " input elements:" << entry.second.input_elms << "\n";
+    }));
   }
 
   static std::unordered_map<std::string, ConstPropCounters> map;
@@ -1058,14 +1070,8 @@ struct ConstPropONNXToONNXPass
            "other ONNX operations.";
   }
 
-  ConstPropONNXToONNXPass(bool report) : report(report) {}
-
   void runOnOperation() final;
-
-private:
-  bool report;
 };
-} // end anonymous namespace.
 
 void ConstPropONNXToONNXPass::runOnOperation() {
   auto function = getOperation();
@@ -1079,14 +1085,18 @@ void ConstPropONNXToONNXPass::runOnOperation() {
   if (failed(applyPatternsAndFoldGreedily(function, std::move(patterns))))
     signalPassFailure();
 
-  if (report)
-    ConstPropCounters::dump(llvm::outs());
+  ConstPropCounters::dump();
+}
+
+} // end anonymous namespace.
+
+void onnx_mlir::configureConstPropONNXToONNXPass(int expansionBound) {
+  ConstPropONNXToONNXPassConfiguration::expansionBound = expansionBound;
 }
 
 /*!
  * Create a ConstPropONNX pass.
  */
-std::unique_ptr<mlir::Pass> onnx_mlir::createConstPropONNXToONNXPass(
-    bool report) {
-  return std::make_unique<ConstPropONNXToONNXPass>(report);
+std::unique_ptr<mlir::Pass> onnx_mlir::createConstPropONNXToONNXPass() {
+  return std::make_unique<ConstPropONNXToONNXPass>();
 }
