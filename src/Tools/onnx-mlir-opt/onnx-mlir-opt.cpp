@@ -17,29 +17,22 @@
 #include <llvm/Support/InitLLVM.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/ToolOutputFile.h>
-#include <mlir/Dialect/Bufferization/Transforms/Passes.h>
-#include <mlir/Dialect/MemRef/Transforms/Passes.h>
 #include <mlir/Dialect/Tosa/IR/TosaOps.h>
-#include <mlir/IR/AsmState.h>
-#include <mlir/IR/Dialect.h>
 #include <mlir/IR/MLIRContext.h>
-#include <mlir/InitAllPasses.h>
-#include <mlir/Interfaces/ViewLikeInterface.h>
 #include <mlir/Pass/Pass.h>
 #include <mlir/Pass/PassManager.h>
 #include <mlir/Support/FileUtilities.h>
 #include <mlir/Tools/mlir-opt/MlirOptMain.h>
 
 #include "RegisterPasses.hpp"
-#include "src/Accelerators/Accelerator.hpp"
 #include "src/Compiler/CompilerDialects.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/DisposableGarbageCollector.hpp"
-#include "src/Dialect/Krnl/KrnlOps.hpp"
-#include "src/Dialect/ONNX/ONNXDialect.hpp"
-#include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Version/Version.hpp"
+
+#include <memory>
+#include <string>
 
 using namespace mlir;
 using namespace onnx_mlir;
