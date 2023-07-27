@@ -41,8 +41,11 @@ using namespace mlir;
 
 namespace onnx_mlir {
 
-void configurePasses() {
+void configurePasses(mlir::PassManager &pm) {
   configureConstPropONNXToONNXPass(onnxConstPropExpansionBound);
+
+  pm.addInstrumentation(
+      std::make_unique<DisposableGarbageCollector>(pm.getContext()));
 }
 
 void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU) {
@@ -56,9 +59,6 @@ void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU) {
   // 2. Easy to compare two approaches.
   // In future, only the dynamic pass, ONNXOpTransformPass, will be used for
   // this function.
-
-  pm.addInstrumentation(
-      std::make_unique<DisposableGarbageCollector>(pm.getContext()));
 
   pm.addNestedPass<func::FuncOp>(onnx_mlir::createDecomposeONNXToONNXPass());
   if (enableONNXHybridPass) {

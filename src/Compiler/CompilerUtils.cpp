@@ -941,10 +941,9 @@ int compileModule(mlir::OwningOpRef<ModuleOp> &module,
   if (rc != CompilerSuccess)
     return rc;
 
-  configurePasses();
-
   mlir::PassManager pm(
       module.get()->getName(), mlir::OpPassManager::Nesting::Implicit);
+  configurePasses(pm);
   // TODO(tung): Revise adding passes. The current mechanism does not work if
   // there are multiple accelerators enabled at the same time. It's because
   // each `accel->addPasses` is independent and controls the whole compilation
@@ -961,7 +960,8 @@ int compileModule(mlir::OwningOpRef<ModuleOp> &module,
     pm.addInstrumentation(std::make_unique<HeapReporter>(
         heapLogFileame, reportHeapBefore, reportHeapAfter));
   }
-  (void)mlir::applyPassManagerCLOptions(pm);
+  if (failed(mlir::applyPassManagerCLOptions(pm)))
+    llvm_unreachable("applyPassManagerCLOptions() failed");
   mlir::applyDefaultTimingPassManagerCLOptions(pm);
 
   if (mlir::failed(pm.run(*module)))

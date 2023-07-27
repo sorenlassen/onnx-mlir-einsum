@@ -28,7 +28,6 @@
 #include "src/Compiler/CompilerDialects.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
-#include "src/Compiler/DisposableGarbageCollector.hpp"
 #include "src/Version/Version.hpp"
 
 #include <memory>
@@ -156,16 +155,16 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  // Passes are configured with command line options so they must be configured
-  // after command line parsing but before any passes are run.
-  configurePasses();
-
   auto passManagerSetupFn = [&](PassManager &pm) {
     MLIRContext *ctx = pm.getContext();
     // MlirOptMain constructed ctx with our registry so we just load all our
     // already registered dialects.
     ctx->loadAllAvailableDialects();
-    pm.addInstrumentation(std::make_unique<DisposableGarbageCollector>(ctx));
+
+    // Passes are configured with command line options so they must be
+    // configured after command line parsing but before any passes are run.
+    configurePasses(pm);
+
     auto errorHandler = [ctx](const Twine &msg) {
       emitError(UnknownLoc::get(ctx)) << msg;
       return failure();

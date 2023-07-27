@@ -17,7 +17,7 @@
 
 namespace onnx_mlir {
 // Configures passes up front based on command line options.
-void configurePasses();
+void configurePasses(mlir::PassManager &pm);
 
 void addONNXToMLIRPasses(mlir::PassManager &pm, bool targetCPU);
 void addONNXToKrnlPasses(mlir::PassManager &pm, int optLevel, bool enableCSE,
