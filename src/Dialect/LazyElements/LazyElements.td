@@ -27,7 +27,7 @@ class LazyElements_Attr<string attrName, string attrMnemonic, list<Trait> traits
 }
 
 def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
-    ElementsAttrInterface, TypedAttrInterface
+    ElementsAttrInterface
   ]> {
   let summary = "Attribute for external data: file with raw bytes.";
   let parameters = (ins
@@ -38,8 +38,8 @@ def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
-def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy_elements", [
-    ElementsAttrInterface, TypedAttrInterface
+def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy", [
+    ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins

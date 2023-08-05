@@ -36,21 +36,28 @@ public:
   }
 
   int test_file_data() {
-    auto m = ModuleOp::create(loc);
+    auto print = [](const std::string &name, ElementsAttr ea) {
+      llvm::outs() << name << "=" << ea << ":" << ea.getShapedType() << "\n";
+    };
 
     auto type = RankedTensorType::get({5}, F32);
     auto path = b.getStringAttr("yo.data");
     auto f0 = FileDataAttr::get(ctx, type, path, 0);
     auto f1 = FileDataAttr::get(ctx, type, path, 1);
-    m->setAttr("f0", f0);
-    m->setAttr("f1", f1);
+    print("f0", f0);
+    print("f1", f1);
 
     auto d = DenseElementsAttr::get<float>(type, 3.14f);
     auto neg = b.getStringAttr("neg");
     auto e0 = LazyElementsAttr::get(ctx, type, neg, {d}, nullptr);
     auto add = b.getStringAttr("add");
     auto e1 = LazyElementsAttr::get(ctx, type, add, {e0, e0}, nullptr);
+    print("e0", e0);
+    print("e1", e1);
 
+    auto m = ModuleOp::create(loc);
+    m->setAttr("f0", f0);
+    m->setAttr("f1", f1);
     m->setAttr("e0", e0);
     m->setAttr("e1", e1);
 
