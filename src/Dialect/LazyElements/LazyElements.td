@@ -38,6 +38,14 @@ def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
     "mlir::StringAttr":$path,
     OptionalParameter<"uint64_t">:$offset
   );
+  let builders = [
+    AttrBuilderWithInferredContext<(ins
+        "mlir::ShapedType":$type,
+        "mlir::StringAttr":$path,
+        "uint64_t":$offset), [{
+      return $_get(type.getContext(), type, path, offset);
+    }]>,
+  ];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
@@ -51,6 +59,15 @@ def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy", [
     ArrayRefParameter<"mlir::ElementsAttr", "">:$operands,
     OptionalParameter<"mlir::DictionaryAttr">:$attributes
   );
+  let builders = [
+    AttrBuilderWithInferredContext<(ins
+        "mlir::ShapedType":$type,
+        "mlir::StringAttr":$operation,
+        "llvm::ArrayRef<mlir::ElementsAttr>":$operands,
+        "mlir::DictionaryAttr":$attributes), [{
+      return $_get(type.getContext(), type, operation, operands, attributes);
+    }]>,
+  ];
   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
   // TODO: add fold / materialization methods
 }
