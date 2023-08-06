@@ -4,21 +4,14 @@
 
 #pragma once
 
-#include "src/Dialect/LazyElements/LazyElements.hpp"
-
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/DialectImplementation.h"
-#include "mlir/IR/OpDefinition.h"
-#include "mlir/IR/OpImplementation.h"
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <atomic>
+#include <memory>
 #include <mutex>
-
-using namespace mlir;
+#include <string>
 
 namespace lazy_elements {
 
@@ -26,8 +19,8 @@ namespace lazy_elements {
 // * configure read base paths
 // * configure write base path, prefix, suffix
 //
-// Outside this class also track which files are read (apart from
-// materialization).
+// Outside this class also track which files are read.
+//
 //
 class FilesManager {
 public:
@@ -82,17 +75,19 @@ private:
     }
 
   private:
-    // TODO: Replace mux and cv with simpler std::latch in C++20,
-    //       and use std::atomic<std::unique_ptr> for buf;
+    // TODO: replace mux and cv with simpler std::latch in C++20
+    // TODO: use atomic<unique_ptr> for buf in C++20
     std::mutex mux;
     std::condition_variable cv;
     std::atomic<llvm::MemoryBuffer *> buf;
   };
 
   std::vector<std::string> readDirectoryPaths;
+
   std::string writePathPrefix;
   std::string writePathSuffix;
   std::atomic<uint64_t> writeCounter = 0;
+
   std::mutex filesMux;
   llvm::StringMap<File> files;
 };
