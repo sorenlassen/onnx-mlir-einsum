@@ -24,18 +24,8 @@
 namespace lazy_elements {
 
 namespace detail {
-// True for the types T in FileDataElementsAttr::ContiguousIterableTypesT
-// and FileDataElementsAttr::NonContiguousIterableTypesT.
-template <typename T>
-constexpr bool isIterableType =
-    llvm::is_one_of<T, mlir::Attribute, mlir::IntegerAttr, mlir::FloatAttr,
-        llvm::APInt, llvm::APFloat, WideNum>::value ||
-    CppTypeTrait<T>::isIntOrFloat;
-
-// Supports all the types T in NonContiguousIterableTypesT.
 template <typename T>
 T getNumber(mlir::Type elementType, BType tag, WideNum n) {
-  static_assert(isIterableType<T>);
   (void)elementType; // Suppresses compiler warning.
   (void)tag;         // Suppresses compiler warning.
   if constexpr (std::is_same_v<T, mlir::Attribute>)
@@ -63,36 +53,34 @@ T getNumber(mlir::Type elementType, BType tag, WideNum n) {
 template <typename X>
 inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
     -> mlir::FailureOr<iterator<X>> {
-  if constexpr (detail::isIterableType<X>) {
-    if constexpr (is_in<X, ContiguousIterableTypesT>) {
-      return reinterpret_cast<const X *>(getRawBytes().data());
-    } else {
-      BType btype = getBType();
-      if constexpr (llvm::is_one_of<X, llvm::APFloat, mlir::FloatAttr>::value) {
-        if (!isFloatBType(btype))
-          return mlir::failure();
-      } else if constexpr (llvm::is_one_of<X, llvm::APInt,
-                               mlir::IntegerAttr>::value) {
-        if (isFloatBType(btype))
-          return mlir::failure();
-      }
-      // Translate "this" to a FileDataElementsAttr to work around that "this"
-      // becomes something strange as we wind our way to try_value_begin_impl()
-      // via interfaces from the original call to this->value_end()/getValues().
-      FileDataElementsAttr attr = *this;
-      auto range = llvm::seq<size_t>(0, getNumElements());
-      return iterator<X>(range.begin(), [btype, attr](size_t flatIndex) -> X {
-        WideNum n = attr.atFlatIndex(flatIndex);
-        return detail::getNumber<X>(attr.getElementType(), btype, n);
-      });
-    }
+  static_assert(isIterableType<X>, "unsupported cpp type");
+  if constexpr (is_in<X, ContiguousIterableTypesT>) {
+    return reinterpret_cast<const X *>(getRawBytes().data());
   } else {
-    return mlir::failure();
+    BType btype = getBType();
+    if constexpr (llvm::is_one_of<X, llvm::APFloat, mlir::FloatAttr>::value) {
+      if (!isFloatBType(btype))
+        return mlir::failure();
+    } else if constexpr (llvm::is_one_of<X, llvm::APInt,
+                             mlir::IntegerAttr>::value) {
+      if (isFloatBType(btype))
+        return mlir::failure();
+    }
+    // Translate "this" to a FileDataElementsAttr to work around that "this"
+    // becomes something strange as we wind our way to try_value_begin_impl()
+    // via interfaces from the original call to this->value_end()/getValues().
+    FileDataElementsAttr attr = *this;
+    auto range = llvm::seq<size_t>(0, getNumElements());
+    return iterator<X>(range.begin(), [btype, attr](size_t flatIndex) -> X {
+      WideNum n = attr.atFlatIndex(flatIndex);
+      return detail::getNumber<X>(attr.getElementType(), btype, n);
+    });
   }
 }
 
 template <typename X>
 inline X FileDataElementsAttr::getSplatValue() const {
+  static_assert(isIterableType<X>, "unsupported cpp type");
   assert(isSplat());
   return detail::getNumber<X>(getElementType(), getBType(), atFlatIndex(0));
 }

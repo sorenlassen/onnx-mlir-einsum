@@ -65,14 +65,19 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
     static constexpr bool is_in_pointed_to(std::tuple<Ts...> *p) {
       return llvm::is_one_of<X, Ts...>::value;
     }
-
     template <typename X, typename TupleType>
     static constexpr bool is_in = is_in_pointed_to<X>((TupleType *)nullptr);
+    template <typename X>
+    static constexpr bool isContiguousType = is_in<X, ContiguousIterableTypesT>;
+    template <typename X>
+    static constexpr bool isNonContiguousType = is_in<X, NonContiguousIterableTypesT>;
+    template <typename X>
+    static constexpr bool isIterableType = isContiguousType<X> || isNonContiguousType<X>;
 
   public:
     template <typename X>
     using iterator = std::conditional_t<
-      is_in<X, ContiguousIterableTypesT>,
+      isContiguousType<X>,
       const X *,
       llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
           std::function<X(size_t)>>
