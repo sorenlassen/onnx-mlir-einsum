@@ -26,6 +26,14 @@ class FilesManager {
 public:
   using FileBuffer = std::unique_ptr<llvm::MemoryBuffer>;
 
+  struct Config {
+    std::vector<std::string> readDirectoryPaths;
+    std::string writePathPrefix;
+    std::string writePathSuffix;
+  };
+
+  void configure(const Config &config) { this->config = config; };
+
   llvm::StringRef readFile(llvm::StringRef filepath) {
     File *file = nullptr;
     {
@@ -43,8 +51,8 @@ public:
   void writeFile(size_t size,
       const std::function<void(llvm::MutableArrayRef<char>)> writer) {
     uint64_t fileNumber = writeCounter++;
-    std::string filePath =
-        writePathPrefix + std::to_string(fileNumber) + writePathSuffix;
+    std::string filePath = config.writePathPrefix + std::to_string(fileNumber) +
+                           config.writePathSuffix;
     // TODO:
     // * construct a file at filePath with length size
     //   (seek to end and write a zero byte)
@@ -82,10 +90,8 @@ private:
     std::atomic<llvm::MemoryBuffer *> buf;
   };
 
-  std::vector<std::string> readDirectoryPaths;
+  Config config;
 
-  std::string writePathPrefix;
-  std::string writePathSuffix;
   std::atomic<uint64_t> writeCounter = 0;
 
   std::mutex filesMux;
