@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "src/Dialect/LazyElements/FilesManager.hpp"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"
 
