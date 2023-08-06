@@ -5,7 +5,9 @@ add_onnx_mlir_dialect_doc(lazyelms LazyElements.td)
 
 add_onnx_mlir_library(OMLazyElements
   LazyElements.cpp
+  BType.cpp
   FileDataManager.cpp
+  WideNum.cpp
 
   DEPENDS
   OMLazyElementsIncGen
