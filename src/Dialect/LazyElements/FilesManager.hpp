@@ -9,6 +9,8 @@
 #include "llvm/Support/MemoryBuffer.h"
 
 #include <atomic>
+#include <filesystem>
+#include <fstream>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -27,8 +29,8 @@ public:
   using FileBuffer = std::unique_ptr<llvm::MemoryBuffer>;
 
   struct Config {
-    std::vector<std::string> readDirectoryPaths;
-    std::string writePathPrefix;
+    std::vector<std::filesystem::path> readDirectoryPaths;
+    std::filesystem::path writePathPrefix;
     std::string writePathSuffix;
   };
 
@@ -50,21 +52,35 @@ public:
 
   void writeFile(size_t size,
       const std::function<void(llvm::MutableArrayRef<char>)> writer) {
-    uint64_t fileNumber = writeCounter++;
-    std::string filePath = config.writePathPrefix + std::to_string(fileNumber) +
-                           config.writePathSuffix;
-    // TODO:
-    // * construct a file at filePath with length size
-    //   (seek to end and write a zero byte)
-    // * make a WriteThroughMemoryBuffer
-    // * call writer to fill it up
-    // * take filesMux and put it in files
+    uint64_t fileNumber = nextFileNumber++;
+    std::filesystem::path filepath = config.writePathPrefix;
+    filepath += std::to_string(fileNumber) + config.writePathSuffix;
+    std::ofstream outFile(filepath, std::ofstream::app);
+    {
+      std::ofstream create(filepath, std::ios::binary | std::ios::trunc);
+      assert(!create.fail() && "failed to create data file");
+    }
+    std::error_code ec;
+    std::filesystem::resize_file(filepath, size, ec);
+    assert(!ec && "failed to write data file");
+    auto errorOrFilebuf =
+        llvm::WriteThroughMemoryBuffer::getFile(filepath.native(), size);
+    assert(errorOrFilebuf && "failed to mmap data file");
+    std::unique_ptr<llvm::WriteThroughMemoryBuffer> filebuf =
+        std::move(errorOrFilebuf.get());
+    writer(filebuf->getBuffer());
+    {
+      std::lock_guard<std::mutex> lock(filesMux);
+      auto [iter, inserted] =
+          files.try_emplace(filepath.native(), std::move(filebuf));
+      assert(inserted && "written data file cannot already exist");
+    }
   }
 
 private:
   class File {
   public:
-    File(llvm::MemoryBuffer *buf) : buf(buf) {}
+    File(FileBuffer fileBuffer) : buf(fileBuffer.release()) {}
     ~File() { delete buf; }
     llvm::StringRef buffer() {
       if (buf == nullptr) {
@@ -92,7 +108,7 @@ private:
 
   Config config;
 
-  std::atomic<uint64_t> writeCounter = 0;
+  std::atomic<uint64_t> nextFileNumber = 0;
 
   std::mutex filesMux;
   llvm::StringMap<File> files;
