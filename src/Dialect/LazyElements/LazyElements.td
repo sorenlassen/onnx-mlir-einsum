@@ -15,6 +15,9 @@ def LazyElements_Dialect : Dialect {
   }];
   let cppNamespace = "::lazy_elements";
   let useDefaultAttributePrinterParser = 1;
+  let extraClassDeclaration = [{
+    FilesManager filesManager;
+  }];
 }
 
 //===----------------------------------------------------------------------===//
@@ -31,8 +34,8 @@ def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
   ]> {
   let summary = "Attribute for external data: file with raw bytes.";
   let parameters = (ins
-    AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
-    "::mlir::StringAttr":$path,
+    AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
+    "mlir::StringAttr":$path,
     OptionalParameter<"uint64_t">:$offset
   );
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
@@ -43,10 +46,10 @@ def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy", [
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
-    AttributeSelfTypeParameter<"", "::mlir::ShapedType">:$type,
-    "::mlir::StringAttr":$operation,
-    ArrayRefParameter<"::mlir::ElementsAttr", "">:$operands,
-    OptionalParameter<"::mlir::DictionaryAttr">:$attributes
+    AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
+    "mlir::StringAttr":$operation,
+    ArrayRefParameter<"mlir::ElementsAttr", "">:$operands,
+    OptionalParameter<"mlir::DictionaryAttr">:$attributes
   );
   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
   // TODO: add fold / materialization methods
