@@ -24,7 +24,7 @@ namespace lazy_elements {
 // Outside this class also track which files are read.
 //
 //
-class FilesManager {
+class FileDataManager {
 public:
   using FileBuffer = std::unique_ptr<llvm::MemoryBuffer>;
 
