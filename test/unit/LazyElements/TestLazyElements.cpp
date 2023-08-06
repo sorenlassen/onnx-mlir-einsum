@@ -42,16 +42,16 @@ public:
 
     auto type = RankedTensorType::get({5}, F32);
     auto path = b.getStringAttr("yo.data");
-    auto f0 = FileDataAttr::get(type, path, 0);
+    auto f0 = FileDataAttr::get(type, path);
     auto f1 = FileDataAttr::get(type, path, 1);
     print("f0", f0);
     print("f1", f1);
 
     auto d = DenseElementsAttr::get<float>(type, 3.14f);
     auto neg = b.getStringAttr("neg");
-    auto e0 = LazyElementsAttr::get(type, neg, {d}, nullptr);
+    auto e0 = LazyElementsAttr::get(type, neg, {d});
     auto add = b.getStringAttr("add");
-    auto e1 = LazyElementsAttr::get(type, add, {e0, e0}, nullptr);
+    auto e1 = LazyElementsAttr::get(type, add, {e0, e0});
     print("e0", e0);
     print("e1", e1);
 

@@ -42,7 +42,7 @@ def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
     AttrBuilderWithInferredContext<(ins
         "mlir::ShapedType":$type,
         "mlir::StringAttr":$path,
-        "uint64_t":$offset), [{
+        CArg<"uint64_t", "0">:$offset), [{
       return $_get(type.getContext(), type, path, offset);
     }]>,
   ];
@@ -64,7 +64,7 @@ def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy", [
         "mlir::ShapedType":$type,
         "mlir::StringAttr":$operation,
         "llvm::ArrayRef<mlir::ElementsAttr>":$operands,
-        "mlir::DictionaryAttr":$attributes), [{
+        CArg<"mlir::DictionaryAttr", "nullptr">:$attributes), [{
       return $_get(type.getContext(), type, operation, operands, attributes);
     }]>,
   ];
