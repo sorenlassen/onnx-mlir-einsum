@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "src/Dialect/LazyElements/FilesManager.hpp"
+#include "src/Dialect/LazyElements/FileDataManager.hpp"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Dialect.h"

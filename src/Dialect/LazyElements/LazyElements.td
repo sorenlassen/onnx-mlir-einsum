@@ -16,7 +16,7 @@ def LazyElements_Dialect : Dialect {
   let cppNamespace = "::lazy_elements";
   let useDefaultAttributePrinterParser = 1;
   let extraClassDeclaration = [{
-    FilesManager filesManager;
+    FileDataManager fileDataManager;
   }];
 }
 
