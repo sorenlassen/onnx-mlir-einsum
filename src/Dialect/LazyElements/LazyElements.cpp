@@ -21,3 +21,15 @@ void lazy_elements::LazyElementsDialect::initialize() {
 
 #define GET_ATTRDEF_CLASSES
 #include "src/Dialect/LazyElements/LazyElementsAttributes.cpp.inc"
+
+namespace lazy_elements {
+
+llvm::ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
+  llvm_unreachable("TODO: implement this");
+}
+
+WideNum FileDataElementsAttr::atFlatIndex(size_t flatIndex) const {
+  llvm_unreachable("TODO: implement this");
+}
+
+} // namespace lazy_elements

@@ -29,7 +29,7 @@ class LazyElements_Attr<string attrName, string attrMnemonic, list<Trait> traits
   let mnemonic = attrMnemonic;
 }
 
-def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
+def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "file_data", [
     ElementsAttrInterface
   ]> {
   let summary = "Attribute for external data: file with raw bytes.";
@@ -46,6 +46,60 @@ def LazyElements_FileDataAttr : LazyElements_Attr<"FileData", "file_data", [
       return $_get(type.getContext(), type, path, offset);
     }]>,
   ];
+  let extraClassDeclaration = [{
+    /// The set of data types that can be iterated by this attribute.
+    using ContiguousIterableTypesT = std::tuple<
+      int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t,
+      bool, WideNum, double, float,
+      onnx_mlir::float_16, onnx_mlir::bfloat_16,
+      onnx_mlir::float_8e4m3fn, onnx_mlir::float_8e4m3fnuz,
+      onnx_mlir::float_8e5m2, onnx_mlir::float_8e5m2fnuz
+    >;
+    using NonContiguousIterableTypesT = std::tuple<
+      mlir::Attribute, mlir::FloatAttr, mlir::IntegerAttr,
+      llvm::APFloat, llvm::APInt
+    >;
+
+  private:
+    template <typename X, typename ...Ts>
+    static constexpr bool is_in_pointed_to(std::tuple<Ts...> *p) {
+      return llvm::is_one_of<X, Ts...>::value;
+    }
+
+    template <typename X, typename TupleType>
+    static constexpr bool is_in = is_in_pointed_to<X>((TupleType *)nullptr);
+
+  public:
+    template <typename X>
+    using iterator = std::conditional_t<
+      is_in<X, ContiguousIterableTypesT>,
+      const X *,
+      llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
+          std::function<X(size_t)>>
+    >;
+
+    template <typename X>
+    using iterator_range = llvm::iterator_range<iterator<X>>;
+
+    // This implementation enables the value_begin() and getValues() methods
+    // from the ElementsAttr interface, for the NonContiguousIterableTypesT types.
+    template <typename X>
+    mlir::FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const;
+
+    template <typename X>
+    iterator<X> value_end() const {
+      return getValues<X>().end();
+    }
+
+    template <typename X>
+    X getSplatValue() const;
+
+    llvm::ArrayRef<char> getRawBytes() const;
+
+    WideNum atFlatIndex(size_t flatIndex) const;
+
+    BType getBType() const { return btypeOfMlirType(getElementType()); }
+  }];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
