@@ -16,6 +16,23 @@
 #include <tuple>
 #include <type_traits>
 
+namespace lazy_elements {
+template <class C>
+struct BufferElementsAttr : public mlir::Attribute {
+  using Attribute::Attribute;
+
+  // mlir::StringAttr getPath() const;
+
+  llvm::ArrayRef<char> getRawBytes() const {
+    return static_cast<const C *>(this)->getRawBytesImpl();
+  }
+
+  llvm::ArrayRef<char> getRawBytesImpl() const {
+    llvm_unreachable("derived class must implement getRawBytesImpl");
+  }
+};
+} // namespace lazy_elements
+
 #include "src/Dialect/LazyElements/LazyElementsDialect.hpp.inc"
 
 #define GET_ATTRDEF_CLASSES
@@ -24,6 +41,7 @@
 namespace lazy_elements {
 
 namespace detail {
+
 template <typename T>
 T getNumber(mlir::Type elementType, BType tag, WideNum n) {
   (void)elementType; // Suppresses compiler warning.

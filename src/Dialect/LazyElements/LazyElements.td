@@ -24,14 +24,15 @@ def LazyElements_Dialect : Dialect {
 // Lazy Elements Attributes.
 //===----------------------------------------------------------------------===//
 
-class LazyElements_Attr<string attrName, string attrMnemonic, list<Trait> traits = []>
-    : AttrDef<LazyElements_Dialect, attrName, traits> {
+class LazyElements_Attr<string attrName, string attrMnemonic, list<Trait> traits = [],
+                        string baseCppClass = "::mlir::Attribute">
+    : AttrDef<LazyElements_Dialect, attrName, traits, baseCppClass> {
   let mnemonic = attrMnemonic;
 }
 
 def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "file_data", [
     ElementsAttrInterface
-  ]> {
+  ], "BufferElementsAttr<FileDataElementsAttr>"> {
   let summary = "Attribute for external data: file with raw bytes.";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
@@ -99,7 +100,7 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
     template <typename X>
     X getSplatValue() const;
 
-    llvm::ArrayRef<char> getRawBytes() const;
+    llvm::ArrayRef<char> getRawBytesImpl() const;
 
     WideNum atFlatIndex(size_t flatIndex) const;
 

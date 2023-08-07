@@ -24,7 +24,13 @@ void lazy_elements::LazyElementsDialect::initialize() {
 
 namespace lazy_elements {
 
-llvm::ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
+// template <class C>
+// mlir::StringAttr BufferElementsAttr<C>::getPath() const {
+//   // using T = typename C::ContiguousIterableTypesT;
+//   return static_cast<typename C::ImplType *>(impl)->path;
+// }
+
+llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   llvm_unreachable("TODO: implement this");
 }
 
