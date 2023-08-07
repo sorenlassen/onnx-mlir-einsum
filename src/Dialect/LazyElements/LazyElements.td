@@ -98,10 +98,6 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
     }
 
     llvm::ArrayRef<char> getRawBytesImpl() const;
-
-    WideNum atFlatIndex(size_t flatIndex) const;
-
-    BType getBType() const { return btypeOfMlirType(getElementType()); }
   }];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }

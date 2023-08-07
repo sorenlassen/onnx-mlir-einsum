@@ -34,8 +34,4 @@ llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   llvm_unreachable("TODO: implement this");
 }
 
-WideNum FileDataElementsAttr::atFlatIndex(size_t flatIndex) const {
-  llvm_unreachable("TODO: implement this");
-}
-
 } // namespace lazy_elements
