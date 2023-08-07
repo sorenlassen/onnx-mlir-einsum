@@ -285,9 +285,8 @@ private:
   // strides with divisions and modulo, unless isContiguous() or isSplat().
   // Second, it widens the buffer data type and computes any transformation for
   // a single element without the fast inner loop of getArray/WideNums() and
-  // readArray/WideNums(),
-  // which read out all elements in bulk with faster amortized speed per
-  // element.
+  // readArray/WideNums(), which read out all elements in bulk with faster
+  // amortized speed per element.
   WideNum atFlatIndex(size_t flatIndex) const;
 
   // Warning: This is inefficient because it calls unflattenIndex on flatIndex.
