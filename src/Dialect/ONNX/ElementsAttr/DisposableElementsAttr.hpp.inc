@@ -43,10 +43,10 @@ inline auto DisposableElementsAttr::try_value_begin_impl(OverloadToken<X>) const
     -> FailureOr<iterator<X>> {
   if constexpr (detail::isIterableType<X>) {
     BType btype = getBType();
-    if constexpr (std::is_same_v<X, llvm::APFloat>) {
+    if constexpr (llvm::is_one_of<X, llvm::APFloat, FloatAttr>::value) {
       if (!isFloatBType(btype))
         return failure();
-    } else if constexpr (std::is_same_v<X, llvm::APInt>) {
+    } else if constexpr (llvm::is_one_of<X, llvm::APInt, IntegerAttr>::value) {
       if (isFloatBType(btype))
         return failure();
     }
