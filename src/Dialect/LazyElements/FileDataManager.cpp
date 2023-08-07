@@ -68,7 +68,7 @@ llvm::StringRef FileDataManager::File::getBuffer() {
 void FileDataManager::File::set(FileBuffer fileBuffer) {
   {
     const std::lock_guard<std::mutex> lock(mux);
-    assert(buf != nullptr && "only set once");
+    assert(buf == nullptr && "only set once");
     buf = fileBuffer.release();
   }
   cv.notify_all();
