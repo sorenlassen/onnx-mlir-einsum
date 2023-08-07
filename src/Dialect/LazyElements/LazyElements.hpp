@@ -75,14 +75,25 @@ inline WideNum lookupWideNum(const CppType *data, size_t idx) {
 
 template <typename CppType>
 inline llvm::APFloat lookupAPFloat(const CppType *data, size_t idx) {
-  constexpr BType TAG = toBType<CppType>;
-  return lookupWideNum(data, idx).toAPFloat(TAG);
+  if constexpr (llvm::is_one_of<CppType, double, float>::value) {
+    return llvm::APFloat(data[idx]);
+  } else if constexpr (onnx_mlir::isSmallFPType<CppType>) {
+    return data[idx].toAPFloat();
+  } else {
+    llvm_unreachable("unexpected type");
+  }
 }
 
 template <typename CppType>
 inline llvm::APInt lookupAPInt(const CppType *data, size_t idx) {
-  constexpr BType TAG = toBType<CppType>;
-  return lookupWideNum(data, idx).toAPInt(TAG);
+  constexpr unsigned bitwidth =
+      std::is_same_v<CppType, bool> ? 1 : (CHAR_BIT * sizeof(CppType));
+  if constexpr (std::is_signed_v<CppType>) {
+    // Actually, isSigned flag is ignored because bitwidth <= 64.
+    return llvm::APInt(bitwidth, data[idx], /*isSigned=*/true);
+  } else {
+    return llvm::APInt(bitwidth, data[idx]);
+  }
 }
 
 template <typename X, typename CppType>
@@ -177,6 +188,7 @@ std::function<X(size_t)> getIntLookupFunction(
 template <typename X>
 inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
     -> mlir::FailureOr<iterator<X>> {
+  static_assert(isIterableType<X>, "unsupported cpp type");
   if constexpr (isContiguousType<X>) {
     return reinterpret_cast<const X *>(getRawBytes().data());
   } else if constexpr (isNonContiguousType<X>) {
