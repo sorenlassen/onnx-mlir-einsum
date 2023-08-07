@@ -64,4 +64,4 @@ WideNum WideNum::fromAPInt(APInt x, bool isSigned) {
     return WideNum(x.getZExtValue()); // .u64
 }
 
-} // namespace onnx_mlir
+} // namespace lazy_elements

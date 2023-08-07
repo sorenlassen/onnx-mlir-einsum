@@ -59,6 +59,18 @@ union WideNum {
   static WideNum fromAPInt(llvm::APInt x, bool isSigned);
 
   template <typename T>
+  constexpr T to() const {
+    if constexpr (std::is_integral_v<T>) {
+      if constexpr (std::is_signed_v<T>)
+        return static_cast<T>(i64);
+      else
+        return static_cast<T>(u64);
+    } else {
+      return static_cast<T>(dbl);
+    }
+  }
+
+  template <typename T>
   constexpr T to(BType tag) const {
     switch (tag) {
     case BType::BOOL:
@@ -83,6 +95,18 @@ union WideNum {
       return static_cast<T>(dbl);
     default:
       llvm_unreachable("to unsupported btype");
+    }
+  }
+
+  template <typename T>
+  static constexpr WideNum from(T x) {
+    if constexpr (std::is_integral_v<T>) {
+      if constexpr (std::is_signed_v<T>)
+        return WideNum(static_cast<int64_t>(x)); // .i64
+      else
+        return WideNum(static_cast<uint64_t>(x)); // .u64
+    } else {
+      return WideNum(static_cast<double>(x)); // .dbl
     }
   }
 
@@ -222,4 +246,4 @@ inline auto wideZeroDispatch(mlir::Type type, Action &&act) {
 // Include template implementations.
 #include "WideNum.hpp.inc"
 
-} // namespace onnx_mlir
+} // namespace lazy_elements
