@@ -101,25 +101,25 @@ void ONNXTensorEncodingAttr::print(AsmPrinter &printer) const {
 }
 
 //===----------------------------------------------------------------------===//
-// ONNX Attribute: DisposablElementsAttr
+// ONNX Attribute: DisposableElementsAttr
 //===----------------------------------------------------------------------===//
 
 namespace {
-constexpr StringLiteral getDisposablElementsAttrMnemonic() {
+constexpr StringLiteral getDisposableElementsAttrMnemonic() {
   return {"dense_disposable"};
 }
 
 #if 1
-Attribute parseDisposablElementsAttr(AsmParser &parser, Type type) {
+Attribute parseDisposableElementsAttr(AsmParser &parser, Type type) {
   llvm_unreachable("TODO: implement");
 }
 
-void printDisposablElementsAttr(
+void printDisposableElementsAttr(
     AsmPrinter &printer, DisposableElementsAttr disposable) {
   llvm_unreachable("TODO: implement");
 }
 #else
-Attribute parseDisposablElementsAttr(AsmParser &parser, Type type) {
+Attribute parseDisposableElementsAttr(AsmParser &parser, Type type) {
   DisposablePool *pool = DisposablePool::get<ONNXDialect>(context);
   // ...
   return DisposableElementsAttr::parse(
@@ -129,7 +129,7 @@ Attribute parseDisposablElementsAttr(AsmParser &parser, Type type) {
       });
 }
 
-void printDisposablElementsAttr(
+void printDisposableElementsAttr(
     AsmPrinter &printer, DisposableElementsAttr disposable) {
   DisposablePool *pool = DisposablePool::get<ONNXDialect>(context);
   // ...
@@ -259,8 +259,8 @@ Attribute ONNXDialect::parseAttribute(
   StringRef attrTag;
   if (generatedAttributeParser(parser, &attrTag, type, attr).has_value())
     return attr;
-  if (attrTag == getDisposablElementsAttrMnemonic()) {
-    return parseDisposablElementsAttr(parser, type);
+  if (attrTag == getDisposableElementsAttrMnemonic()) {
+    return parseDisposableElementsAttr(parser, type);
   }
   parser.emitError(parser.getCurrentLocation())
       << "unknown attribute `" << attrTag << "` in dialect `ONNX`";
@@ -274,5 +274,5 @@ void ONNXDialect::printAttribute(
   if (succeeded(generatedAttributePrinter(attr, printer)))
     return;
   if (auto disposable = attr.dyn_cast<DisposableElementsAttr>())
-    printDisposablElementsAttr(printer, disposable);
+    printDisposableElementsAttr(printer, disposable);
 }
