@@ -46,6 +46,7 @@ public:
     auto f1 = FileDataElementsAttr::get(type, path, 1);
     print("f0", f0);
     print("f1", f1);
+    f0.getRawBytes();
 
     auto d = DenseElementsAttr::get<float>(type, 3.14f);
     auto neg = b.getStringAttr("neg");
