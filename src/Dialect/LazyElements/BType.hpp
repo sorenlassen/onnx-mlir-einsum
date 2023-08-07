@@ -267,4 +267,4 @@ auto dispatchByBType(BType btype, Action &&act) {
 #undef ACT
 }
 
-} // namespace onnx_mlir
+} // namespace lazy_elements

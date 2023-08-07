@@ -6,7 +6,6 @@
 
 #include "src/Dialect/LazyElements/FileDataManager.hpp"
 
-#include "src/Dialect/LazyElements/BType.hpp"
 #include "src/Dialect/LazyElements/WideNum.hpp"
 
 #include "mlir/IR/Attributes.h"
@@ -44,8 +43,7 @@ namespace detail {
 
 template <typename CppType>
 inline WideNum lookupWideNum(const CppType *data, size_t idx) {
-  constexpr BType TAG = toBType<CppType>;
-  return WideNum::widen<TAG>(data[idx]);
+  return WideNum::from<CppType>(data[idx]);
 }
 
 template <typename CppType>

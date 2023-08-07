@@ -104,4 +104,4 @@ BType wideBTypeOfBType(BType d) {
       [](auto btype) { return toBType<typename BTypeTrait<btype>::widetype>; });
 }
 
-} // namespace onnx_mlir
+} // namespace lazy_elements

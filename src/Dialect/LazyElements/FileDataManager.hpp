@@ -40,6 +40,7 @@ private:
     ~File() { delete buf; }
     llvm::StringRef getBuffer();
     void set(FileBuffer fileBuffer);
+
   private:
     // TODO: replace mux and cv with simpler std::latch in C++20
     // TODO: use atomic<unique_ptr> for buf in C++20
