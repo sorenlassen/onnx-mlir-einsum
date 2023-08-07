@@ -10,16 +10,24 @@ namespace lazy_elements {
 
 llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
   File *file = nullptr;
+  bool exists = false;
   {
     std::lock_guard<std::mutex> lock(filesMux);
     auto [iter, inserted] = files.try_emplace(filepath, nullptr);
-    if (inserted) {
-      // TODO: read file and call iter->second.set(..)
-    } else {
-      file = &iter->second;
-    }
+    exists = !inserted;
+    file = &iter->second;
   }
-  return file->getBuffer();
+  if (exists) {
+    return file->getBuffer();
+  } else {
+    auto errorOrFilebuf = llvm::MemoryBuffer::getFile(
+        filepath, /*IsText=*/false, /*RequiresNullTerminator=*/false);
+    assert(errorOrFilebuf && "failed to read data file");
+    FileBuffer filebuf = std::move(errorOrFilebuf.get());
+    llvm::StringRef buffer = filebuf->getBuffer();
+    file->set(std::move(filebuf));
+    return buffer;
+  }
 }
 
 void FileDataManager::writeFile(size_t size,

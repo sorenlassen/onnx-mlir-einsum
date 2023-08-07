@@ -4,6 +4,8 @@
 
 #include "src/Dialect/LazyElements/LazyElements.hpp"
 
+#include "src/Support/Arrays.hpp"
+
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
@@ -31,7 +33,11 @@ namespace lazy_elements {
 // }
 
 llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
-  llvm_unreachable("TODO: implement this");
+  LazyElementsDialect *lazyElementsDialect =
+      getContext()->getLoadedDialect<LazyElementsDialect>();
+  llvm::StringRef buffer =
+      lazyElementsDialect->fileDataManager.readFile(getPath());
+  return onnx_mlir::asArrayRef(buffer);
 }
 
 } // namespace lazy_elements
