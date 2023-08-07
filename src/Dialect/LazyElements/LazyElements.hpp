@@ -130,7 +130,7 @@ std::function<X(size_t)> getFPLookupFunction(
 
 template <typename X, typename CppType>
 std::function<X(size_t)> getIntLookupFnHelper(
-    mlir::Type elementType, llvm::ArrayRef<char> rawBytes) {
+    mlir::IntegerType elementType, llvm::ArrayRef<char> rawBytes) {
   const CppType *data = reinterpret_cast<const CppType *>(rawBytes.data());
   if constexpr (std::is_same_v<X, WideNum>) {
     return [data](size_t flatIndex) { return lookupWideNum(data, flatIndex); };
@@ -147,10 +147,29 @@ std::function<X(size_t)> getIntLookupFnHelper(
 
 template <typename X>
 std::function<X(size_t)> getIntLookupFunction(
-    mlir::Type elementType, llvm::ArrayRef<char> rawBytes) {
-  if (elementType.isInteger(1))
+    mlir::IntegerType elementType, llvm::ArrayRef<char> rawBytes) {
+  switch (elementType.getWidth()) {
+  case 1:
     return getIntLookupFnHelper<X, bool>(elementType, rawBytes);
-  llvm_unreachable("TODO: support more integer types");
+  case 8:
+    return elementType.isUnsigned()
+               ? getIntLookupFnHelper<X, uint8_t>(elementType, rawBytes)
+               : getIntLookupFnHelper<X, int8_t>(elementType, rawBytes);
+  case 16:
+    return elementType.isUnsigned()
+               ? getIntLookupFnHelper<X, uint16_t>(elementType, rawBytes)
+               : getIntLookupFnHelper<X, int16_t>(elementType, rawBytes);
+  case 32:
+    return elementType.isUnsigned()
+               ? getIntLookupFnHelper<X, uint32_t>(elementType, rawBytes)
+               : getIntLookupFnHelper<X, int32_t>(elementType, rawBytes);
+  case 64:
+    return elementType.isUnsigned()
+               ? getIntLookupFnHelper<X, uint64_t>(elementType, rawBytes)
+               : getIntLookupFnHelper<X, int64_t>(elementType, rawBytes);
+  default:
+    llvm_unreachable("unsupported integer type");
+  }
 }
 
 } // namespace detail
