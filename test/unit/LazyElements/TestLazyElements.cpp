@@ -47,7 +47,9 @@ public:
     auto f1 = FileDataElementsAttr::get(type, path1, 1);
     print("f0", f0);
     print("f1", f1);
-    f0.getRawBytes();
+    ArrayRef<char> rawBytes = f0.getRawBytes();
+    std::cout << "f0.getRawBytes() size=" << rawBytes.size() << " [0]='"
+              << rawBytes[0] << "'\n";
 
     auto d = DenseElementsAttr::get<float>(type, 3.14f);
     auto neg = b.getStringAttr("neg");
