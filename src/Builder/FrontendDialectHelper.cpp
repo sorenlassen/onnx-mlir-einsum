@@ -21,6 +21,7 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SwapByteOrder.h"
 
+#include "src/Dialect/LazyElements/ElementsBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/BType.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
@@ -202,7 +203,8 @@ ElementsAttr createElmAttrFromProtoData(RankedTensorType tensorType,
 // Returns ElementsAttr with tp's data.
 template <typename T>
 ElementsAttr createElmAttr(RankedTensorType tensorType,
-    const onnx::TensorProto &tp, const std::string &externalDataDir) {
+    const onnx::TensorProto &tp,
+    lazy_elements::ElementsBuilder &elementsBuilder) {
   if (tp.has_data_location() &&
       tp.data_location() == onnx::TensorProto::EXTERNAL) {
     return createElementsAttrFromMemoryBuffer_LE<T>(
@@ -235,7 +237,8 @@ ElementsAttr createStringElmAttr(
 } // namespace
 
 ElementsAttr onnxTensorProtoToElmAttr(MLIRContext *ctx,
-    const std::string &externalDataDir, const onnx::TensorProto &tp) {
+    lazy_elements::ElementsBuilder &elementsBuilder,
+    const onnx::TensorProto &tp) {
   // Tensor dimensions.
   ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());
   if (tp.data_type() == onnx::TensorProto::STRING) {
@@ -248,7 +251,7 @@ ElementsAttr onnxTensorProtoToElmAttr(MLIRContext *ctx,
   auto tensorType = RankedTensorType::get(tensorDims, elmType);
   return dispatchByBType(btype, [&](auto btype) {
     using cpptype = CppType<btype>;
-    return createElmAttr<cpptype>(tensorType, tp, externalDataDir);
+    return createElmAttr<cpptype>(tensorType, tp, elementsBuilder);
   });
 }
 
