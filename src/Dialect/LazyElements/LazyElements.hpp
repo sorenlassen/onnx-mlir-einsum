@@ -42,31 +42,6 @@ namespace lazy_elements {
 
 namespace detail {
 
-template <typename T>
-T getNumber(mlir::Type elementType, BType tag, WideNum n) {
-  (void)elementType; // Suppresses compiler warning.
-  (void)tag;         // Suppresses compiler warning.
-  if constexpr (std::is_same_v<T, mlir::Attribute>)
-    if (isFloatBType(tag))
-      return mlir::FloatAttr::get(elementType, n.toAPFloat(tag));
-    else
-      return mlir::IntegerAttr::get(elementType, n.toAPInt(tag));
-  else if constexpr (std::is_same_v<T, mlir::IntegerAttr>)
-    return mlir::IntegerAttr::get(
-        elementType, n.toAPInt(tag)); // fails if float
-  else if constexpr (std::is_same_v<T, mlir::FloatAttr>)
-    return mlir::FloatAttr::get(
-        elementType, n.toAPFloat(tag)); // fails if !float
-  else if constexpr (std::is_same_v<T, llvm::APInt>)
-    return n.toAPInt(tag); // fails if isFloatBType(tag)
-  else if constexpr (std::is_same_v<T, llvm::APFloat>)
-    return n.toAPFloat(tag); // fails unless isFloatBType(tag)
-  else if constexpr (std::is_same_v<T, WideNum>)
-    return n;
-  else
-    return n.to<T>(tag);
-}
-
 template <typename CppType>
 inline WideNum lookupWideNum(const CppType *data, size_t idx) {
   constexpr BType TAG = toBType<CppType>;
@@ -183,6 +158,19 @@ std::function<X(size_t)> getIntLookupFunction(
   }
 }
 
+template <typename X>
+std::function<X(size_t)> getLookupFunction(
+    mlir::Type elementType, llvm::ArrayRef<char> rawBytes) {
+  if (auto fpType = llvm::dyn_cast<mlir::FloatType>(elementType)) {
+    if constexpr (!llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value)
+      return getFPLookupFunction<X>(fpType, rawBytes);
+  } else if (auto intType = llvm::dyn_cast<mlir::IntegerType>(elementType)) {
+    if constexpr (!llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value)
+      return getIntLookupFunction<X>(intType, rawBytes);
+  }
+  return nullptr;
+}
+
 } // namespace detail
 
 template <typename X>
@@ -192,33 +180,16 @@ inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
   if constexpr (isContiguousType<X>) {
     return reinterpret_cast<const X *>(getRawBytes().data());
   } else if constexpr (isNonContiguousType<X>) {
-    std::function<X(size_t)> lookupFn;
-    mlir::Type elType = getElementType();
-    if (auto fpType = llvm::dyn_cast<mlir::FloatType>(elType)) {
-      if constexpr (llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value) {
-        return mlir::failure();
-      } else {
-        lookupFn = detail::getFPLookupFunction<X>(fpType, getRawBytes());
-      }
-    } else if (auto intType = llvm::dyn_cast<mlir::IntegerType>(elType)) {
-      if constexpr (llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value) {
-        return mlir::failure();
-      } else {
-        lookupFn = detail::getIntLookupFunction<X>(intType, getRawBytes());
-      }
+    if (auto lookupFn =
+            detail::getLookupFunction<X>(getElementType(), getRawBytes())) {
+      auto range = llvm::seq<size_t>(0, getNumElements());
+      return iterator<X>(range.begin(), lookupFn);
+    } else {
+      return mlir::failure();
     }
-    auto range = llvm::seq<size_t>(0, getNumElements());
-    return iterator<X>(range.begin(), lookupFn);
   } else {
     llvm_unreachable("unsupported cpp type");
   }
-}
-
-template <typename X>
-inline X FileDataElementsAttr::getSplatValue() const {
-  static_assert(isIterableType<X>, "unsupported cpp type");
-  assert(isSplat());
-  return detail::getNumber<X>(getElementType(), getBType(), atFlatIndex(0));
 }
 
 } // namespace lazy_elements
