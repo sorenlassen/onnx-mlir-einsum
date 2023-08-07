@@ -275,7 +275,7 @@ private:
 
   Value ImportTensor(const onnx::TensorProto &tensor) {
     mlir::ElementsAttr mlirAttr =
-        onnxTensorProtoToElmAttr(&context_, options_.externalDataDir, tensor);
+        onnxTensorProtoToElmAttr(&context_, *options_.elementsBuilder, tensor);
     // Use the tensor name as Location.
     auto loc =
         NameLoc::get(builder_.getStringAttr("Initializer_" + tensor.name()));
@@ -396,7 +396,7 @@ private:
       break;
     case onnx::AttributeProto::TENSOR:
       mlirAttr = onnxTensorProtoToElmAttr(
-          &context_, options_.externalDataDir, attr.t());
+          &context_, *options_.elementsBuilder, attr.t());
       break;
     case onnx::AttributeProto::STRINGS: {
       llvm::SmallVector<StringRef, 4> vectorStringRef;
@@ -1369,7 +1369,7 @@ private:
 } // namespace detail
 
 bool ImportFrontendModelInternal(onnx::ModelProto &model, MLIRContext &context,
-    OwningOpRef<ModuleOp> &module, ImportOptions options) {
+    OwningOpRef<ModuleOp> &module, const ImportOptions &options) {
   int originVersion = CURRENT_ONNX_OPSET;
   // Get the version of the model
   // Code copied from onnx/onnx/version_coverter/convert.cc
@@ -1418,7 +1418,7 @@ bool ImportFrontendModelInternal(onnx::ModelProto &model, MLIRContext &context,
 // Return 0 on success, error otherwise.
 int ImportFrontendModelArray(const void *onnxBuffer, int size,
     MLIRContext &context, OwningOpRef<ModuleOp> &module,
-    std::string *errorMessage, ImportOptions options) {
+    std::string *errorMessage, const ImportOptions &options) {
   onnx::ModelProto model;
 
   bool parse_success = model.ParseFromArray(onnxBuffer, size);
@@ -1460,7 +1460,7 @@ int readAndStripComments(
 // Return 0 on success, error otherwise.
 int ImportFrontendModelFile(StringRef model_fname, MLIRContext &context,
     OwningOpRef<ModuleOp> &module, std::string *errorMessage,
-    ImportOptions options) {
+    const ImportOptions &options) {
   onnx::ModelProto model;
   if (model_fname.endswith(".onnxtext")) {
     std::string text;
@@ -1511,7 +1511,7 @@ int ImportFrontendModelFile(StringRef model_fname, MLIRContext &context,
 }
 
 void ImportFrontendModel(const onnx::ModelProto &model, MLIRContext &context,
-    OwningOpRef<ModuleOp> &module, ImportOptions options) {
+    OwningOpRef<ModuleOp> &module, const ImportOptions &options) {
 
   detail::FrontendGenImpl myONNXGen(context);
   module = myONNXGen.ImportONNXModel(model, options);

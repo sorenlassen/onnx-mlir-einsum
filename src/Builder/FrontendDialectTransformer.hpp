@@ -12,7 +12,6 @@
 
 #pragma once
 
-#include <set>
 #include <string>
 
 #include "onnx/onnx_pb.h"
@@ -22,10 +21,12 @@
 
 #include "src/Builder/FrontendDialectHelper.hpp"
 
+namespace lazy_elements {
+class ElementsBuilder;
+}
+
 namespace mlir {
 class MLIRContext;
-template <typename OpTy>
-class OwningOpRef;
 class ModuleOp;
 } // namespace mlir
 
@@ -42,8 +43,11 @@ struct ImportOptions {
   // Use types/shapes in the input-model for translation (for intermediate
   // variables)
   bool useOnnxModelTypes = false;
+
   bool invokeOnnxVersionConverter = false;
+
   bool allowSorting = true;
+
   // Custom shape information for the graph inputs.
   // Its format is 'input_id:dim,dim,dim|input_id:dim,dim,dim'
   // E.g. An ONNX model has two dynamic inputs
@@ -54,11 +58,10 @@ struct ImportOptions {
   //   - (arg0: tensor<3x4x5xf32>, arg1: tensor<10x5xf32>)
   //
   std::string shapeInformation = "";
-  // Directory to look for external data if any tensor has external
-  // data location. If empty then external data is disabled.
-  std::string externalDataDir = "";
 
   std::vector<std::string> functionsToDecompose = {};
+
+  lazy_elements::ElementsBuilder *elementsBuilder = nullptr;
 };
 
 /*!
@@ -70,7 +73,7 @@ struct ImportOptions {
  */
 int ImportFrontendModelArray(const void *onnxBuffer, int bufferSize,
     mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    std::string *errorMessage, ImportOptions options = ImportOptions());
+    std::string *errorMessage, const ImportOptions &options);
 
 /*!
  *  Import an ONNX model file into the ONNX Dialect.
@@ -80,7 +83,7 @@ int ImportFrontendModelArray(const void *onnxBuffer, int bufferSize,
  */
 int ImportFrontendModelFile(llvm::StringRef model_fname,
     mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    std::string *errorMessage, ImportOptions options = ImportOptions());
+    std::string *errorMessage, const ImportOptions &options);
 
 /*!
  *  Import an ONNX model proto into the ONNX Dialect.
@@ -89,7 +92,7 @@ int ImportFrontendModelFile(llvm::StringRef model_fname,
  */
 void ImportFrontendModel(const onnx::ModelProto &model,
     mlir::MLIRContext &context, mlir::OwningOpRef<mlir::ModuleOp> &module,
-    ImportOptions options = ImportOptions());
+    const ImportOptions &options);
 
 /*!
  *  TODO: Import models into other extension dialects that cover the
