@@ -97,9 +97,6 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
       return getValues<X>().end();
     }
 
-    template <typename X>
-    X getSplatValue() const;
-
     llvm::ArrayRef<char> getRawBytesImpl() const;
 
     WideNum atFlatIndex(size_t flatIndex) const;
