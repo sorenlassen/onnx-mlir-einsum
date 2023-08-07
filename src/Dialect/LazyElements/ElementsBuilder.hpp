@@ -26,10 +26,10 @@ class ElementsBuilder {
 public:
   using Writer = std::function<void(llvm::MutableArrayRef<char>)>;
 
-  virtual mlir::ElementsAttr write(
+  virtual mlir::ElementsAttr writeRawBytes(
       mlir::ShapedType type, const Writer &writer) = 0;
 
-  virtual mlir::ElementsAttr fromValues(
+  virtual mlir::ElementsAttr fromRawBytes(
       mlir::ShapedType type, llvm::ArrayRef<char> values) = 0;
 
   virtual mlir::ElementsAttr fromSplatValue(
