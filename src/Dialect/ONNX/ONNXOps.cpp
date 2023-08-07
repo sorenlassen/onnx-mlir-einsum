@@ -94,8 +94,8 @@ void printAsDenseElementsAttr(AsmPrinter &printer, ElementsAttr elements) {
     // Take shortcut by first converting to DenseElementsAttr.
     // NOTE: This creates a copy which is never garbage collected. This is not
     // only slow but also defeats the garbage collection benefits of
-    // DisposableElementsAttr, depending on when the printing
-    // takes place (the print at the end of onnx-mlir-opt in lit tests is ok).
+    // DisposableElementsAttr, depending on when the printing takes place.
+    // (It is ok in onnx-mlir-opt as lit test memory usage is not important.)
     printer.printAttribute(ElementsAttrBuilder::toDenseElementsAttr(elements));
     // TODO: Do the work to print without constructing DenseElementsAttr.
   } else {
