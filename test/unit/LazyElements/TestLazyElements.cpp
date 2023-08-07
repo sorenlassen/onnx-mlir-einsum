@@ -41,9 +41,10 @@ public:
     };
 
     auto type = RankedTensorType::get({5}, F32);
-    auto path = b.getStringAttr("yo.data");
-    auto f0 = FileDataElementsAttr::get(type, path);
-    auto f1 = FileDataElementsAttr::get(type, path, 1);
+    auto path0 = b.getStringAttr("foo.data");
+    auto f0 = FileDataElementsAttr::get(type, path0);
+    auto path1 = b.getStringAttr("bar.data");
+    auto f1 = FileDataElementsAttr::get(type, path1, 1);
     print("f0", f0);
     print("f1", f1);
     f0.getRawBytes();
