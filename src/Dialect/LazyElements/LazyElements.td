@@ -50,14 +50,14 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
     /// The set of data types that can be iterated by this attribute.
     using ContiguousIterableTypesT = std::tuple<
       int8_t, uint8_t, int16_t, uint16_t, int32_t, uint32_t, int64_t, uint64_t,
-      bool, WideNum, double, float,
+      bool, double, float,
       onnx_mlir::float_16, onnx_mlir::bfloat_16,
       onnx_mlir::float_8e4m3fn, onnx_mlir::float_8e4m3fnuz,
       onnx_mlir::float_8e5m2, onnx_mlir::float_8e5m2fnuz
     >;
     using NonContiguousIterableTypesT = std::tuple<
       mlir::Attribute, mlir::FloatAttr, mlir::IntegerAttr,
-      llvm::APFloat, llvm::APInt
+      llvm::APFloat, llvm::APInt, WideNum
     >;
 
   private:
