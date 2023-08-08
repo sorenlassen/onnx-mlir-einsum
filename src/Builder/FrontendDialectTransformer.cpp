@@ -25,6 +25,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 
 #include "include/onnx-mlir/Compiler/OMCompilerTypes.h"
 #include "src/Builder/FrontendDialectTransformer.hpp"
@@ -273,17 +274,6 @@ private:
     return onnxType;
   }
 
-  Value ImportTensor(const onnx::TensorProto &tensor) {
-    mlir::ElementsAttr mlirAttr =
-        onnxTensorProtoToElmAttr(&context_, *options_.elementsBuilder, tensor);
-    // Use the tensor name as Location.
-    auto loc =
-        NameLoc::get(builder_.getStringAttr("Initializer_" + tensor.name()));
-    Value initializer = createConstantValue(mlirAttr, loc);
-    num_of_parameters_ += mlirAttr.getShapedType().getNumElements();
-    return initializer;
-  }
-
   /*!
    * Import an onnx tensor type by determining and returning its type
    * @param type_proto onnx tensor TypeProto.
@@ -384,51 +374,42 @@ private:
     return std::optional<Type>();
   }
 
-  NamedAttribute convertOnnxAttributeProtoToMlirNamedAttribute(
-      onnx::AttributeProto attr) {
-    Attribute mlirAttr;
+  ElementsAttr ImportTensor(const onnx::TensorProto &tensor) {
+    return onnxTensorProtoToElmAttr(
+        &context_, *options_.elementsBuilder, tensor);
+  }
+
+  Attribute ImportAttribute(onnx::AttributeProto attr) {
     switch (attr.type()) {
     case onnx::AttributeProto::FLOAT:
-      mlirAttr = builder_.getF32FloatAttr(attr.f());
-      break;
+      return builder_.getF32FloatAttr(attr.f());
     case onnx::AttributeProto::INT:
-      mlirAttr =
-          IntegerAttr::get(builder_.getIntegerType(64, /*isSigned=*/true),
-              APInt(64, /*value=*/attr.i(), /*isSigned=*/true));
-      break;
+      return builder_.getIntegerAttr(
+          builder_.getIntegerType(64, /*isSigned=*/true), attr.i());
     case onnx::AttributeProto::STRING:
-      mlirAttr = builder_.getStringAttr(attr.s());
-      break;
+      return builder_.getStringAttr(attr.s());
     case onnx::AttributeProto::FLOATS:
-      mlirAttr = builder_.getF32ArrayAttr(
+      return builder_.getF32ArrayAttr(
           llvm::ArrayRef(attr.floats().data(), attr.floats().size()));
-      break;
     case onnx::AttributeProto::INTS:
-      mlirAttr = builder_.getI64ArrayAttr(
+      return builder_.getI64ArrayAttr(
           llvm::ArrayRef(attr.ints().data(), attr.ints().size()));
-      break;
     case onnx::AttributeProto::TENSOR:
-      mlirAttr = onnxTensorProtoToElmAttr(
-          &context_, *options_.elementsBuilder, attr.t());
-      break;
+      return ImportTensor(attr.t());
     case onnx::AttributeProto::STRINGS: {
       llvm::SmallVector<StringRef, 4> vectorStringRef;
       for (const auto &item : attr.strings()) {
         vectorStringRef.push_back(llvm::StringRef(item));
       }
-      mlirAttr = builder_.getStrArrayAttr(llvm::ArrayRef(vectorStringRef));
-    } break;
+      return builder_.getStrArrayAttr(llvm::ArrayRef(vectorStringRef));
+    }
     case onnx::AttributeProto::TYPE_PROTO:
-      mlirAttr = TypeAttr::get(ImportType(attr.tp()));
-      break;
+      return TypeAttr::get(ImportType(attr.tp()));
     case onnx::AttributeProto::GRAPH:
       llvm_unreachable("Subgraph attribute is imported as regions.");
-      break;
     default:
       llvm_unreachable("datatype for attribute is not implemented");
-      break;
     }
-    return builder_.getNamedAttr(attr.name(), mlirAttr);
   }
 
   std::vector<NamedAttribute> ImportNodeAttributes(

@@ -17,8 +17,6 @@
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Endian.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Path.h"
 #include "llvm/Support/SwapByteOrder.h"
 
 #include "src/Dialect/LazyElements/ElementsBuilder.hpp"
@@ -42,37 +40,35 @@ size_t parseOffsetOrLength(const std::string &value) {
   return offsetOrLength;
 }
 
-// Reads external data from file location specified in tensor proto.
-// The data is little endian encoded.
+// Returns ElementsAttr pointing to external data in a file.
 // See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md
-std::unique_ptr<llvm::MemoryBuffer> readExternalData_LE(
-    const std::string &externalDataDir, const onnx::TensorProto &tp) {
+template <typename ExternalData>
+ElementsAttr createElmAttrFromFile(RankedTensorType tensorType,
+    const ExternalData &external_data,
+    lazy_elements::ElementsBuilder &elementsBuilder) {
+  uint64_t typeSizeInBytes = getSizeInBytes(tensorType);
   std::string location;
-  uint64_t offset = 0;
-  uint64_t length = -1; // MemoryBuffer uses -1 to mean infinity
+  std::optional<uint64_t> offset;
+  std::optional<uint64_t> length;
   for (const onnx::StringStringEntryProto &entry : tp.external_data()) {
     assert(entry.has_key() && "external_data entry must have key");
     assert(entry.has_value() && "external_data entry must have value");
     if (entry.key() == "location") {
+      assert(location.empty() && "multiple external_data locations");
+      assert(!entry.value().empty() && "empty location");
       location = entry.value();
     } else if (entry.key() == "offset") {
+      assert(!offset.has_value() && "multiple external_data offsets");
       offset = parseOffsetOrLength(entry.value());
     } else if (entry.key() == "length") {
+      assert(!length.has_value() && "multiple external_data lengths");
       length = parseOffsetOrLength(entry.value());
+      assert(length == typeSizeInBytes &&
+             "external_data length doesn't match tensor type");
     }
   }
-  assert(!location.empty() && "missing external data location");
-  SmallVector<char> path(externalDataDir.begin(), externalDataDir.end());
-  llvm::sys::path::append(path, location);
-  auto bufferOrError = llvm::MemoryBuffer::getFileSlice(
-      path, length, offset, /*IsVolatile=*/false);
-  if (std::error_code ec = bufferOrError.getError()) {
-    std::string pathStr(path.data(), path.size());
-    llvm::errs() << "Error " << ec.message() << " reading from file " << pathStr
-                 << ", offset=" << offset << ", length=" << length << "\n";
-    llvm_unreachable("llvm::MemoryBuffer::getFileSlice failed");
-  }
-  return std::move(bufferOrError.get());
+  return elementsBuilder.fromFile(
+      tensorType, location, offset.value_or(0), typeSizeInBytes);
 }
 
 template <typename T>
@@ -207,8 +203,9 @@ ElementsAttr createElmAttr(RankedTensorType tensorType,
     lazy_elements::ElementsBuilder &elementsBuilder) {
   if (tp.has_data_location() &&
       tp.data_location() == onnx::TensorProto::EXTERNAL) {
-    return createElementsAttrFromMemoryBuffer_LE<T>(
-        tensorType, readExternalData_LE(externalDataDir, tp));
+    return createElmAttrFromFile(
+        tensorType, ) return createElementsAttrFromMemoryBuffer_LE<T>(tensorType,
+        readExternalData_LE(externalDataDir, tp));
   }
   if (tp.has_raw_data()) {
     return createElmAttrFromRawBytes_LE<T>(
