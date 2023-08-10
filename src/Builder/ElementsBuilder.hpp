@@ -28,9 +28,9 @@ public:
 
   template <typename X, typename W = Writer<X>>
   mlir::ElementsAttr writeArray(mlir::ShapedType type, W &&writer) {
-    return writeRawBytes(type, [arrayWriter = std::forward<W>(writer)](
+    return writeRawBytes(type, [writer = std::forward<W>(writer)](
                                    llvm::MutableArrayRef<char> rawBytes) {
-      arrayWriter(castMutableArrayRef<X>(rawBytes));
+      writer(castMutableArrayRef<X>(rawBytes));
     });
   }
 
