@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyElements/LazyElements.hpp"
+#include "src/Dialect/LazyCst/LazyCst.hpp"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
@@ -11,7 +11,7 @@
 #include <iostream>
 
 using namespace mlir;
-using namespace lazy_elements;
+using namespace lazycst;
 
 namespace {
 
@@ -74,7 +74,7 @@ public:
 
 int main(int argc, char *argv[]) {
   MLIRContext context;
-  context.loadDialect<LazyElementsDialect>();
+  context.loadDialect<LazyCstDialect>();
   Test test(&context);
   int failures = 0;
   failures += test.test_file_data();

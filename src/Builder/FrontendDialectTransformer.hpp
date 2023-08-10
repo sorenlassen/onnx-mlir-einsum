@@ -21,7 +21,7 @@
 
 #include "src/Builder/FrontendDialectHelper.hpp"
 
-namespace lazy_elements {
+namespace lazycst {
 class ElementsBuilder;
 }
 
@@ -62,7 +62,7 @@ struct ImportOptions {
 
   std::vector<std::string> functionsToDecompose = {};
 
-  lazy_elements::ElementsBuilder *elementsBuilder = nullptr;
+  lazycst::ElementsBuilder *elementsBuilder = nullptr;
 };
 
 /*!

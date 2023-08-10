@@ -19,7 +19,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/SwapByteOrder.h"
 
-#include "src/Dialect/LazyElements/ElementsBuilder.hpp"
+#include "src/Dialect/LazyCst/ElementsBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/BType.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
@@ -45,7 +45,7 @@ size_t parseOffsetOrLength(const std::string &value) {
 template <typename ExternalData>
 ElementsAttr createElmAttrFromFile(RankedTensorType tensorType,
     const ExternalData &external_data,
-    lazy_elements::ElementsBuilder &elementsBuilder) {
+    lazycst::ElementsBuilder &elementsBuilder) {
   uint64_t typeSizeInBytes = getSizeInBytes(tensorType);
   std::string location;
   std::optional<uint64_t> offset;
@@ -200,7 +200,7 @@ ElementsAttr createElmAttrFromProtoData(RankedTensorType tensorType,
 template <typename T>
 ElementsAttr createElmAttr(RankedTensorType tensorType,
     const onnx::TensorProto &tp,
-    lazy_elements::ElementsBuilder &elementsBuilder) {
+    lazycst::ElementsBuilder &elementsBuilder) {
   if (tp.has_data_location() &&
       tp.data_location() == onnx::TensorProto::EXTERNAL) {
     return createElmAttrFromFile(
@@ -234,7 +234,7 @@ ElementsAttr createStringElmAttr(
 } // namespace
 
 ElementsAttr onnxTensorProtoToElmAttr(MLIRContext *ctx,
-    lazy_elements::ElementsBuilder &elementsBuilder,
+    lazycst::ElementsBuilder &elementsBuilder,
     const onnx::TensorProto &tp) {
   // Tensor dimensions.
   ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());

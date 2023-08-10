@@ -14,7 +14,7 @@
 #include <mutex>
 #include <string>
 
-namespace lazy_elements {
+namespace lazycst {
 
 class FileDataManager {
 public:
@@ -57,4 +57,4 @@ private:
   llvm::StringMap<File> files;
 };
 
-} // namespace lazy_elements
+} // namespace lazycst

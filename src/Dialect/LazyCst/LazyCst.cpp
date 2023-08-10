@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyElements/LazyElements.hpp"
+#include "src/Dialect/LazyCst/LazyCst.hpp"
 
 #include "src/Support/Arrays.hpp"
 
@@ -15,21 +15,21 @@
 
 #include <string.h>
 
-void lazy_elements::LazyElementsDialect::initialize() {
+void lazycst::LazyCstDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
-#include "src/Dialect/LazyElements/LazyElementsAttributes.cpp.inc"
+#include "src/Dialect/LazyCst/LazyCstAttributes.cpp.inc"
       >();
 }
 
-#include "src/Dialect/LazyElements/LazyElementsDialect.cpp.inc"
+#include "src/Dialect/LazyCst/LazyCstDialect.cpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "src/Dialect/LazyElements/LazyElementsAttributes.cpp.inc"
+#include "src/Dialect/LazyCst/LazyCstAttributes.cpp.inc"
 
 using namespace mlir;
 
-namespace lazy_elements {
+namespace lazycst {
 
 namespace {
 #define LETTERS "ABCDEFGHIJKLMNOPQRSTUVWZYZabcdefghijklmnopqrstuvwxyz"
@@ -80,10 +80,10 @@ std::string unescapeIdentifier(StringRef escapedIdentifier) {
 // }
 
 llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
-  LazyElementsDialect *lazyElementsDialect =
-      getContext()->getLoadedDialect<LazyElementsDialect>();
+  LazyCstDialect *lazyElementsDialect =
+      getContext()->getLoadedDialect<LazyCstDialect>();
   StringRef buffer = lazyElementsDialect->fileDataManager.readFile(getPath());
   return onnx_mlir::asArrayRef(buffer);
 }
 
-} // namespace lazy_elements
+} // namespace lazycst

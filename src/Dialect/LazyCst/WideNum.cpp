@@ -8,7 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/LazyElements/WideNum.hpp"
+#include "src/Dialect/LazyCst/WideNum.hpp"
 
 #include "llvm/ADT/APFloat.h"
 #include "llvm/ADT/APInt.h"
@@ -16,7 +16,7 @@
 using llvm::APFloat;
 using llvm::APInt;
 
-namespace lazy_elements {
+namespace lazycst {
 
 APFloat WideNum::toAPFloat(BType tag) const {
   switch (tag) {
@@ -64,4 +64,4 @@ WideNum WideNum::fromAPInt(APInt x, bool isSigned) {
     return WideNum(x.getZExtValue()); // .u64
 }
 
-} // namespace lazy_elements
+} // namespace lazycst
