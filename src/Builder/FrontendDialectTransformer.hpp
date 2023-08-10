@@ -13,17 +13,12 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "onnx/onnx_pb.h"
 
 #include "mlir/IR/OwningOpRef.h"
 #include "llvm/ADT/StringRef.h"
-
-#include "src/Builder/FrontendDialectHelper.hpp"
-
-namespace lazycst {
-class ElementsBuilder;
-}
 
 namespace mlir {
 class MLIRContext;
@@ -35,6 +30,8 @@ class ModuleOp;
 //===----------------------------------------------------------------------===//
 
 namespace onnx_mlir {
+
+class ElementsBuilder;
 
 /*!
  * Options to control the translation of an ONNX model to ONNX-MLIR.
@@ -62,7 +59,7 @@ struct ImportOptions {
 
   std::vector<std::string> functionsToDecompose = {};
 
-  lazycst::ElementsBuilder *elementsBuilder = nullptr;
+  ElementsBuilder *elementsBuilder = nullptr;
 };
 
 /*!

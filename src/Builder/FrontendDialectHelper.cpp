@@ -19,7 +19,7 @@
 #include "llvm/Support/Endian.h"
 #include "llvm/Support/SwapByteOrder.h"
 
-#include "src/Dialect/LazyCst/ElementsBuilder.hpp"
+#include "src/Builder/ElementsBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/BType.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
@@ -44,13 +44,12 @@ size_t parseOffsetOrLength(const std::string &value) {
 // See https://github.com/onnx/onnx/blob/main/docs/ExternalData.md
 template <typename ExternalData>
 ElementsAttr createElmAttrFromFile(RankedTensorType tensorType,
-    const ExternalData &external_data,
-    lazycst::ElementsBuilder &elementsBuilder) {
+    const ExternalData &externalData, ElementsBuilder &elementsBuilder) {
   uint64_t typeSizeInBytes = getSizeInBytes(tensorType);
   std::string location;
   std::optional<uint64_t> offset;
   std::optional<uint64_t> length;
-  for (const onnx::StringStringEntryProto &entry : tp.external_data()) {
+  for (const onnx::StringStringEntryProto &entry : externalData) {
     assert(entry.has_key() && "external_data entry must have key");
     assert(entry.has_value() && "external_data entry must have value");
     if (entry.key() == "location") {
@@ -199,21 +198,19 @@ ElementsAttr createElmAttrFromProtoData(RankedTensorType tensorType,
 // Returns ElementsAttr with tp's data.
 template <typename T>
 ElementsAttr createElmAttr(RankedTensorType tensorType,
-    const onnx::TensorProto &tp,
-    lazycst::ElementsBuilder &elementsBuilder) {
+    const onnx::TensorProto &tp, ElementsBuilder &elementsBuilder) {
   if (tp.has_data_location() &&
       tp.data_location() == onnx::TensorProto::EXTERNAL) {
     return createElmAttrFromFile(
-        tensorType, ) return createElementsAttrFromMemoryBuffer_LE<T>(tensorType,
-        readExternalData_LE(externalDataDir, tp));
-  }
-  if (tp.has_raw_data()) {
+        tensorType, tp.external_data(), elementsBuilder);
+  } else if (tp.has_raw_data()) {
     return createElmAttrFromRawBytes_LE<T>(
         tensorType, asArrayRef(tp.raw_data()));
+  } else {
+    // Not raw, no need to take care of endianness.
+    const auto &data = TransformValueToONNXData<T>::data(tp);
+    return createElmAttrFromProtoData<T>(tensorType, data);
   }
-  // Not raw, no need to take care of endianness.
-  const auto &data = TransformValueToONNXData<T>::data(tp);
-  return createElmAttrFromProtoData<T>(tensorType, data);
 }
 
 ElementsAttr createStringElmAttr(
@@ -234,8 +231,7 @@ ElementsAttr createStringElmAttr(
 } // namespace
 
 ElementsAttr onnxTensorProtoToElmAttr(MLIRContext *ctx,
-    lazycst::ElementsBuilder &elementsBuilder,
-    const onnx::TensorProto &tp) {
+    ElementsBuilder &elementsBuilder, const onnx::TensorProto &tp) {
   // Tensor dimensions.
   ArrayRef<int64_t> tensorDims(tp.dims().data(), tp.dims().size());
   if (tp.data_type() == onnx::TensorProto::STRING) {

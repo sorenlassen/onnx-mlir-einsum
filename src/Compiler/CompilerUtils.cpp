@@ -625,7 +625,8 @@ int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
     options.invokeOnnxVersionConverter = invokeOnnxVersionConverter;
     options.shapeInformation = shapeInformation;
     options.allowSorting = allowSorting;
-    options.externalDataDir = dirName(inputFilename);
+    // TODO: construct ElementsBuilder
+    options.elementsBuilder = nullptr;
     options.functionsToDecompose.insert(options.functionsToDecompose.end(),
         functionsToDecompose.begin(), functionsToDecompose.end());
     return ImportFrontendModelFile(
