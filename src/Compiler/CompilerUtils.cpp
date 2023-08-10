@@ -39,6 +39,7 @@
 #include "src/Compiler/CompilerDialects.hpp"
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Compiler/CompilerPasses.hpp"
+#include "src/Compiler/DisposableElementsBuilder.hpp"
 #include "src/Compiler/HeapReporter.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Version/Version.hpp"
@@ -642,14 +643,6 @@ void loadDialects(mlir::MLIRContext &context) {
   context.loadAllAvailableDialects();
 }
 
-namespace {
-std::string dirName(StringRef inputFilename) {
-  llvm::SmallVector<char> path(inputFilename.begin(), inputFilename.end());
-  llvm::sys::path::remove_filename(path);
-  return std::string(path.data(), path.size());
-}
-} // namespace
-
 // Return 0 on success, error number on failure.
 int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
     mlir::OwningOpRef<ModuleOp> &module, std::string *errorMessage) {
@@ -669,13 +662,13 @@ int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
   }
 
   if (inputIsONNX || inputIsONNXText || inputIsJSON) {
+    DisposableElementsBuilder elementsBuilder(&context);
     ImportOptions options;
     options.useOnnxModelTypes = useOnnxModelTypes;
     options.invokeOnnxVersionConverter = invokeOnnxVersionConverter;
     options.shapeInformation = shapeInformation;
     options.allowSorting = allowSorting;
-    // TODO: construct ElementsBuilder
-    options.elementsBuilder = nullptr;
+    options.elementsBuilder = &elementsBuilder;
     options.functionsToDecompose.insert(options.functionsToDecompose.end(),
         functionsToDecompose.begin(), functionsToDecompose.end());
     return ImportFrontendModelFile(
