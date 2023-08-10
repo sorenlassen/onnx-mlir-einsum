@@ -4,8 +4,6 @@
 
 #pragma once
 
-#include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
-
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
@@ -30,8 +28,8 @@ public:
   virtual mlir::ElementsAttr fromRawBytes(
       mlir::ShapedType type, llvm::ArrayRef<char> values) = 0;
 
-  virtual mlir::ElementsAttr fromSplatValue(
-      mlir::ShapedType type, WideNum splatValue) = 0;
+  //   virtual mlir::ElementsAttr fromSplatValue(
+  //       mlir::ShapedType type, APFloat/APInt/WideNum splatValue) = 0;
 
   virtual mlir::ElementsAttr fromFile(mlir::ShapedType type,
       mlir::StringAttr path, uint64_t offset, uint64_t length) = 0;
