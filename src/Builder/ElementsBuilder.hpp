@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "src/Dialect/LazyCst/WideNum.hpp"
+#include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -17,15 +17,13 @@ namespace mlir {
 class MLIRContext;
 }
 
-namespace lazycst {
+namespace onnx_mlir {
 
-// TODO: resolve name clash with ONNX/ElementsAttr/ElementsAttrBuilder and maybe
-//       rename this class to ElementsAttrBuilder or
-//       ElementsAttrBuilderInterface
 class ElementsBuilder {
 public:
-  using Writer = std::function<void(llvm::MutableArrayRef<char>)>;
+  virtual ~ElementsBuilder() = 0;
 
+  using Writer = std::function<void(llvm::MutableArrayRef<char>)>;
   virtual mlir::ElementsAttr writeRawBytes(
       mlir::ShapedType type, const Writer &writer) = 0;
 
@@ -45,4 +43,4 @@ public:
   }
 };
 
-} // namespace lazycst
+} // namespace onnx_mlir

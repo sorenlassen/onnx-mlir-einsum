@@ -20,14 +20,11 @@
 
 #include <string>
 
-namespace lazycst {
-class ElementsBuilder;
-}
-
 namespace onnx_mlir {
 
+class ElementsBuilder;
+
 mlir::ElementsAttr onnxTensorProtoToElmAttr(mlir::MLIRContext *ctx,
-    lazycst::ElementsBuilder &elementsBuilder,
-    const onnx::TensorProto &initializer);
+    ElementsBuilder &elementsBuilder, const onnx::TensorProto &initializer);
 
 } // namespace onnx_mlir

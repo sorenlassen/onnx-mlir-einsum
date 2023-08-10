@@ -28,6 +28,7 @@
 #include "llvm/Support/Path.h"
 
 #include "include/onnx-mlir/Compiler/OMCompilerTypes.h"
+#include "src/Builder/FrontendDialectHelper.hpp"
 #include "src/Builder/FrontendDialectTransformer.hpp"
 #include "src/Builder/ImportONNXUtils.hpp"
 #include "src/Builder/ModelInputShaper.hpp"
@@ -274,6 +275,16 @@ private:
     return onnxType;
   }
 
+  Value ImportTensor(const onnx::TensorProto &tensor) {
+    mlir::ElementsAttr mlirAttr = ImportTensorAttribute(tensor);
+    // Use the tensor name as Location.
+    auto loc =
+        NameLoc::get(builder_.getStringAttr("Initializer_" + tensor.name()));
+    Value initializer = createConstantValue(mlirAttr, loc);
+    num_of_parameters_ += mlirAttr.getShapedType().getNumElements();
+    return initializer;
+  }
+
   /*!
    * Import an onnx tensor type by determining and returning its type
    * @param type_proto onnx tensor TypeProto.
@@ -361,7 +372,7 @@ private:
     return std::optional<Type>();
   }
 
-  ElementsAttr ImportTensor(const onnx::TensorProto &tensor) {
+  ElementsAttr ImportTensorAttribute(const onnx::TensorProto &tensor) {
     return onnxTensorProtoToElmAttr(
         &context_, *options_.elementsBuilder, tensor);
   }
@@ -382,7 +393,7 @@ private:
       return builder_.getI64ArrayAttr(
           llvm::ArrayRef(attr.ints().data(), attr.ints().size()));
     case onnx::AttributeProto::TENSOR:
-      return ImportTensor(attr.t());
+      return ImportTensorAttribute(attr.t());
     case onnx::AttributeProto::STRINGS: {
       llvm::SmallVector<StringRef, 4> vectorStringRef;
       for (const auto &item : attr.strings()) {
@@ -407,7 +418,8 @@ private:
       // Ignore subgraph attributes, as they will be imported as regions.
       if (attr.type() == onnx::AttributeProto_AttributeType_GRAPH)
         continue;
-      attributes.push_back(convertOnnxAttributeProtoToMlirNamedAttribute(attr));
+      attributes.push_back(
+          builder_.getNamedAttr(attr.name(), ImportAttribute(attr)));
     }
 
     // If the node has a name, then import it.
