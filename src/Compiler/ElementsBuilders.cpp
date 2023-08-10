@@ -24,41 +24,27 @@ namespace {
 
 class DisposableElementsBuilder : public ElementsBuilder {
 public:
-  DisposableElementsBuilder(mlir::MLIRContext *context);
-  virtual ~DisposableElementsBuilder();
+  DisposableElementsBuilder(mlir::MLIRContext *context)
+      : attrBuilder(context) {}
 
   mlir::ElementsAttr writeRawBytes(
-      mlir::ShapedType type, const Writer<char> &writer) override;
+      mlir::ShapedType type, const Writer<char> &writer) override {
+    llvm_unreachable("TODO: implement this");
+  }
 
   virtual mlir::ElementsAttr fromRawBytes(
-      mlir::ShapedType type, llvm::ArrayRef<char> values) override;
+      mlir::ShapedType type, llvm::ArrayRef<char> values) override {
+    llvm_unreachable("TODO: implement this");
+  }
 
   virtual mlir::ElementsAttr fromFile(mlir::ShapedType type,
-      mlir::StringAttr path, uint64_t offset, uint64_t length) override;
+      mlir::StringAttr path, uint64_t offset, uint64_t length) override {
+    llvm_unreachable("TODO: implement this");
+  }
 
 private:
   OnnxElementsAttrBuilder attrBuilder;
 };
-
-DisposableElementsBuilder::DisposableElementsBuilder(MLIRContext *context)
-    : attrBuilder(context) {}
-
-DisposableElementsBuilder::~DisposableElementsBuilder() = default;
-
-ElementsAttr DisposableElementsBuilder::writeRawBytes(
-    ShapedType type, const Writer<char> &writer) {
-  llvm_unreachable("TODO: implement this");
-}
-
-ElementsAttr DisposableElementsBuilder::fromRawBytes(
-    ShapedType type, llvm::ArrayRef<char> values) {
-  llvm_unreachable("TODO: implement this");
-}
-
-ElementsAttr DisposableElementsBuilder::fromFile(
-    ShapedType type, StringAttr path, uint64_t offset, uint64_t length) {
-  llvm_unreachable("TODO: implement this");
-}
 
 } // namespace
 
