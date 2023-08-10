@@ -272,6 +272,11 @@ llvm::cl::opt<bool> allowSorting("allowSorting",
     llvm::cl::desc("Perform topological sort on onnx graph"),
     llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptions));
 
+llvm::cl::opt<bool> onnxImportLazyCstFileData("onnx-import-lazycst-filedata",
+    llvm::cl::desc("Import onnx external data as lazycst::FileDataElementsAttr "
+                   "(default=true)."),
+    llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptions));
+
 llvm::cl::opt<std::string> reportHeapBefore("report-heap-before",
     llvm::cl::desc("Comma separated list of names of passes.\n"
                    "Before each heap statistics are dumped to "
