@@ -30,6 +30,11 @@ struct BufferElementsAttr : public mlir::Attribute {
     llvm_unreachable("derived class must implement getRawBytesImpl");
   }
 };
+
+std::string escapeIdentifier(llvm::StringRef unescapedIdentifier);
+
+std::string unescapeIdentifier(llvm::StringRef escapedIdentifier);
+
 } // namespace lazy_elements
 
 #include "src/Dialect/LazyElements/LazyElementsDialect.hpp.inc"

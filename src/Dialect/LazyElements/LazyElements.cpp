@@ -10,7 +10,10 @@
 #include "mlir/IR/DialectImplementation.h"
 #include "mlir/IR/OpDefinition.h"
 #include "mlir/IR/OpImplementation.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/TypeSwitch.h"
+
+#include <string.h>
 
 void lazy_elements::LazyElementsDialect::initialize() {
   addAttributes<
@@ -24,10 +27,54 @@ void lazy_elements::LazyElementsDialect::initialize() {
 #define GET_ATTRDEF_CLASSES
 #include "src/Dialect/LazyElements/LazyElementsAttributes.cpp.inc"
 
+using namespace mlir;
+
 namespace lazy_elements {
 
+namespace {
+#define LETTERS "ABCDEFGHIJKLMNOPQRSTUVWZYZabcdefghijklmnopqrstuvwxyz"
+#define DIGITS "0123456789"
+// constexpr char validLeadingIdentifierChars[] = "_" LETTERS;
+constexpr char validIdentifierChars[] = "_$." DIGITS LETTERS;
+} // namespace
+
+std::string escapeIdentifier(StringRef unescapedIdentifier) {
+  SmallString<64> escaped;
+  escaped.reserve(unescapedIdentifier.size());
+  for (unsigned char c : unescapedIdentifier) {
+    if (c == '_' || strchr(validIdentifierChars, c) == nullptr) {
+      escaped.push_back('_');
+      escaped.push_back(llvm::hexdigit(c / 16));
+      escaped.push_back(llvm::hexdigit(c & 0xf));
+    } else {
+      escaped.push_back(c);
+    }
+  }
+  return std::string(escaped);
+}
+
+std::string unescapeIdentifier(StringRef escapedIdentifier) {
+  SmallString<64> unescaped;
+  unescaped.reserve(escapedIdentifier.size());
+  for (size_t i = 0; i < escapedIdentifier.size();) {
+    char c = escapedIdentifier[i];
+    ++i;
+    if (c == '_') {
+      assert(i + 2 <= escapedIdentifier.size());
+      unsigned high = llvm::hexDigitValue(escapedIdentifier[i]);
+      assert(high < 16);
+      unsigned low = llvm::hexDigitValue(escapedIdentifier[i + 1]);
+      assert(low < 16);
+      i += 2;
+      c = high * 16 + low;
+    }
+    unescaped.push_back(c);
+  }
+  return std::string(unescaped);
+}
+
 // template <class C>
-// mlir::StringAttr BufferElementsAttr<C>::getPath() const {
+// StringAttr BufferElementsAttr<C>::getPath() const {
 //   // using T = typename C::ContiguousIterableTypesT;
 //   return static_cast<typename C::ImplType *>(impl)->path;
 // }
@@ -35,8 +82,7 @@ namespace lazy_elements {
 llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   LazyElementsDialect *lazyElementsDialect =
       getContext()->getLoadedDialect<LazyElementsDialect>();
-  llvm::StringRef buffer =
-      lazyElementsDialect->fileDataManager.readFile(getPath());
+  StringRef buffer = lazyElementsDialect->fileDataManager.readFile(getPath());
   return onnx_mlir::asArrayRef(buffer);
 }
 
