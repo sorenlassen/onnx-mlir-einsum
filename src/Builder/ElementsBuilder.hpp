@@ -8,18 +8,15 @@
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 
 #include <functional>
-
-namespace mlir {
-class MLIRContext;
-}
 
 namespace onnx_mlir {
 
 class ElementsBuilder {
 public:
-  virtual ~ElementsBuilder() = 0;
+  virtual ~ElementsBuilder() = default;
 
   using Writer = std::function<void(llvm::MutableArrayRef<char>)>;
   virtual mlir::ElementsAttr writeRawBytes(
