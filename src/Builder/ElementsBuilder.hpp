@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "src/Support/Arrays.hpp"
+
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
@@ -18,9 +20,19 @@ class ElementsBuilder {
 public:
   virtual ~ElementsBuilder() = default;
 
-  using Writer = std::function<void(llvm::MutableArrayRef<char>)>;
+  template <typename X>
+  using Writer = std::function<void(llvm::MutableArrayRef<X>)>;
+
   virtual mlir::ElementsAttr writeRawBytes(
-      mlir::ShapedType type, const Writer &writer) = 0;
+      mlir::ShapedType type, const Writer<char> &writer) = 0;
+
+  template <typename X, typename W = Writer<X>>
+  mlir::ElementsAttr writeArray(mlir::ShapedType type, W &&writer) {
+    return writeRawBytes(type, [arrayWriter = std::forward<W>(writer)](
+                                   llvm::MutableArrayRef<char> rawBytes) {
+      arrayWriter(castMutableArrayRef<X>(rawBytes));
+    });
+  }
 
   virtual mlir::ElementsAttr fromRawBytes(
       mlir::ShapedType type, llvm::ArrayRef<char> values) = 0;

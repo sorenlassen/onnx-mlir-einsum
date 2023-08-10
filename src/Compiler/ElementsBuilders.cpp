@@ -28,7 +28,7 @@ public:
   virtual ~DisposableElementsBuilder();
 
   mlir::ElementsAttr writeRawBytes(
-      mlir::ShapedType type, const Writer &writer) override;
+      mlir::ShapedType type, const Writer<char> &writer) override;
 
   virtual mlir::ElementsAttr fromRawBytes(
       mlir::ShapedType type, llvm::ArrayRef<char> values) override;
@@ -46,7 +46,7 @@ DisposableElementsBuilder::DisposableElementsBuilder(MLIRContext *context)
 DisposableElementsBuilder::~DisposableElementsBuilder() = default;
 
 ElementsAttr DisposableElementsBuilder::writeRawBytes(
-    ShapedType type, const Writer &writer) {
+    ShapedType type, const Writer<char> &writer) {
   llvm_unreachable("TODO: implement this");
 }
 
@@ -62,11 +62,13 @@ ElementsAttr DisposableElementsBuilder::fromFile(
 
 } // namespace
 
-std::unique_ptr<ElementsBuilder> getDisposableElementsBuilder(mlir::MLIRContext *context) {
+std::unique_ptr<ElementsBuilder> getDisposableElementsBuilder(
+    mlir::MLIRContext *context) {
   return std::make_unique<DisposableElementsBuilder>(context);
 }
 
-std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(mlir::MLIRContext *context) {
+std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(
+    mlir::MLIRContext *context) {
   llvm_unreachable("TODO: implement this");
 }
 

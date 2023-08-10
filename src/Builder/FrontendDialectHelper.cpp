@@ -123,7 +123,8 @@ struct TransformValueToONNXData<uint64_t> {
 
 template <typename T, typename Range, typename Transformation>
 ElementsAttr createElmAttrFromArray(RankedTensorType tensorType,
-    const Range &array, const Transformation &transformation) {
+    const Range &array, const Transformation &transformation,
+    ElementsBuilder &elementsBuilder) {
   MLIRContext *ctx = tensorType.getContext();
   assert(tensorType.getElementType() == toMlirType<T>(ctx));
   return OnnxElementsAttrBuilder(ctx).fromArray<T>(
@@ -150,15 +151,18 @@ T swappedBytes(T x) {
 }
 
 template <typename T>
-ElementsAttr createElmAttrFromRawBytes_LE(
-    RankedTensorType tensorType, ArrayRef<char> bytes) {
+ElementsAttr createElmAttrFromRawBytes_LE(RankedTensorType tensorType,
+    ArrayRef<char> bytes, ElementsBuilder &elementsBuilder) {
   ArrayRef<T> array = castArrayRef<T>(bytes);
-  return createElmAttrFromArray<T>(tensorType, array, [](T x) {
-    if constexpr (shouldSwapLEBytes<T>)
-      return swappedBytes<T>(x);
-    else
-      return x;
-  });
+  return createElmAttrFromArray<T>(
+      tensorType, array,
+      [](T x) {
+        if constexpr (shouldSwapLEBytes<T>)
+          return swappedBytes<T>(x);
+        else
+          return x;
+      },
+      elementsBuilder);
 }
 
 // Converts to the cpp type 'To' that correspond's to the tensor element type
@@ -176,9 +180,11 @@ To deserializeDatum(const From &from) {
 
 template <typename T, typename U>
 ElementsAttr createElmAttrFromProtoData(RankedTensorType tensorType,
-    const google::protobuf::RepeatedField<U> &data) {
+    const google::protobuf::RepeatedField<U> &data,
+    ElementsBuilder &elementsBuilder) {
   // "Deserialize" the data to the correct bitwidth.
-  return createElmAttrFromArray<T>(tensorType, data, deserializeDatum<T, U>);
+  return createElmAttrFromArray<T>(
+      tensorType, data, deserializeDatum<T, U>, elementsBuilder);
 }
 
 // Returns ElementsAttr with tp's data.
@@ -191,11 +197,11 @@ ElementsAttr createElmAttr(RankedTensorType tensorType,
         tensorType, tp.external_data(), elementsBuilder);
   } else if (tp.has_raw_data()) {
     return createElmAttrFromRawBytes_LE<T>(
-        tensorType, asArrayRef(tp.raw_data()));
+        tensorType, asArrayRef(tp.raw_data()), elementsBuilder);
   } else {
     // Not raw, no need to take care of endianness.
     const auto &data = TransformValueToONNXData<T>::data(tp);
-    return createElmAttrFromProtoData<T>(tensorType, data);
+    return createElmAttrFromProtoData<T>(tensorType, data, elementsBuilder);
   }
 }
 
