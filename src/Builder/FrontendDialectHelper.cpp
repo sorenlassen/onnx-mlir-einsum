@@ -22,7 +22,9 @@
 #include "src/Builder/ElementsBuilder.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/BType.hpp"
 #include "src/Dialect/ONNX/ONNXOps/OpHelper.hpp"
+#if 0
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
+#endif
 #include "src/Support/Arrays.hpp"
 #include "src/Support/SmallFP.hpp"
 
@@ -127,10 +129,17 @@ ElementsAttr createElmAttrFromArray(RankedTensorType tensorType,
     ElementsBuilder &elementsBuilder) {
   MLIRContext *ctx = tensorType.getContext();
   assert(tensorType.getElementType() == toMlirType<T>(ctx));
+#if 0
   return OnnxElementsAttrBuilder(ctx).fromArray<T>(
       tensorType, [array, &transformation](MutableArrayRef<T> copy) {
         std::transform(array.begin(), array.end(), copy.data(), transformation);
       });
+#else
+  return elementsBuilder.writeArray<T>(
+      tensorType, [&array, &transformation](MutableArrayRef<T> copy) {
+        std::transform(array.begin(), array.end(), copy.data(), transformation);
+      });
+#endif
 }
 
 // Perform byte swap if system endianness is BE.
