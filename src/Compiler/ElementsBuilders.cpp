@@ -4,7 +4,10 @@
 
 #include "src/Compiler/ElementsBuilders.hpp"
 
+#include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
+#include "src/Support/Arrays.hpp"
+#include "src/Support/TypeUtilities.hpp"
 
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Path.h"
@@ -17,28 +20,27 @@ namespace onnx_mlir {
 
 namespace {
 [[maybe_unused]] std::string dirName(StringRef inputFilename) {
-  llvm::SmallVector<char> path(inputFilename.begin(), inputFilename.end());
+  SmallVector<char> path(inputFilename.begin(), inputFilename.end());
   llvm::sys::path::remove_filename(path);
   return std::string(path.data(), path.size());
 }
 
 class DisposableElementsBuilder : public ElementsBuilder {
 public:
-  DisposableElementsBuilder(mlir::MLIRContext *context)
-      : attrBuilder(context) {}
+  DisposableElementsBuilder(MLIRContext *context) : attrBuilder(context) {}
 
-  mlir::ElementsAttr writeRawBytes(
-      mlir::ShapedType type, const Writer<char> &writer) override {
+  ElementsAttr writeRawBytes(
+      ShapedType type, const Writer<char> &writer) override {
     llvm_unreachable("TODO: implement this");
   }
 
-  virtual mlir::ElementsAttr fromRawBytes(
-      mlir::ShapedType type, llvm::ArrayRef<char> values) override {
+  virtual ElementsAttr fromRawBytes(
+      ShapedType type, ArrayRef<char> values) override {
     llvm_unreachable("TODO: implement this");
   }
 
-  virtual mlir::ElementsAttr fromFile(mlir::ShapedType type,
-      mlir::StringAttr path, uint64_t offset, uint64_t length) override {
+  virtual ElementsAttr fromFile(ShapedType type, StringAttr path,
+      uint64_t offset, uint64_t length) override {
     llvm_unreachable("TODO: implement this");
   }
 
@@ -46,16 +48,42 @@ private:
   OnnxElementsAttrBuilder attrBuilder;
 };
 
+class LazyElementsBuilder : public ElementsBuilder {
+public:
+  LazyElementsBuilder(MLIRContext *context) {}
+
+  ElementsAttr writeRawBytes(
+      ShapedType type, const Writer<char> &writer) override {
+    // TODO: replace with a zero-copy alternative
+    SmallVector<char> values;
+    values.resize_for_overwrite(getSizeInBytes(type));
+    writer(values);
+    return fromRawBytes(type, values);
+  }
+
+  ElementsAttr fromRawBytes(ShapedType type, ArrayRef<char> values) override {
+    // TODO: use something like DenseResourceElementsAttr that supports GC
+    if (type.getElementType().isInteger(1))
+      return DenseElementsAttr::get<bool>(type, castArrayRef<bool>(values));
+    else
+      return DenseElementsAttr::getFromRawBuffer(type, values);
+  }
+
+  ElementsAttr fromFile(ShapedType type, StringAttr path, uint64_t offset,
+      uint64_t length) override {
+    return lazycst::FileDataElementsAttr::get(type, path);
+  }
+};
+
 } // namespace
 
 std::unique_ptr<ElementsBuilder> getDisposableElementsBuilder(
-    mlir::MLIRContext *context) {
+    MLIRContext *context) {
   return std::make_unique<DisposableElementsBuilder>(context);
 }
 
-std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(
-    mlir::MLIRContext *context) {
-  llvm_unreachable("TODO: implement this");
+std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(MLIRContext *context) {
+  return std::make_unique<LazyElementsBuilder>(context);
 }
 
 } // namespace onnx_mlir
