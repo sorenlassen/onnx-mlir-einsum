@@ -65,6 +65,7 @@ extern llvm::cl::OptionCategory OnnxMlirOptions;
 // Options for onnx-mlir-opt only.
 extern llvm::cl::OptionCategory OnnxMlirOptOptions;
 
+<<<<<<< HEAD
 // Options known to onnx-mlir and/or onnx-mlir-opt
 extern std::string inputFilename;                             // common for both
 extern std::string outputBaseName;                            // common for both
@@ -126,6 +127,56 @@ extern bool verify_passes;             // onnx-mlir-opt only
 extern bool allowUnregisteredDialects; // onnx-mlir-opt only
 
 extern std::string customEnvFlags;
+=======
+extern llvm::cl::opt<bool> invokeOnnxVersionConverter;
+extern llvm::cl::opt<bool> preserveLocations;
+extern llvm::cl::opt<bool> printIR;
+extern llvm::cl::opt<bool> preserveBitcode;
+extern llvm::cl::opt<bool> preserveLLVMIR;
+extern llvm::cl::opt<bool> preserveMLIR;
+extern llvm::cl::opt<bool> useOnnxModelTypes;
+extern llvm::cl::opt<int> repeatOnnxTransform;
+extern llvm::cl::opt<std::string> shapeInformation;
+extern llvm::cl::opt<onnx_mlir::OptLevel> OptimizationLevel;
+extern llvm::cl::opt<std::string> customEnvFlags;
+extern llvm::cl::opt<std::string> mtriple;
+extern llvm::cl::opt<std::string> mcpu;
+extern llvm::cl::opt<std::string> march;
+extern llvm::cl::opt<ModelSize> modelSize;
+extern llvm::cl::opt<bool> storeConstantsToFile;
+extern llvm::cl::opt<float> constantsToFileSingleThreshold;
+extern llvm::cl::opt<float> constantsToFileTotalThreshold;
+extern llvm::cl::list<onnx_mlir::accel::Accelerator::Kind> maccel;
+extern llvm::cl::opt<bool> VerboseOutput;
+extern llvm::cl::list<std::string> Xopt;
+extern llvm::cl::list<std::string> Xllc;
+extern llvm::cl::opt<std::string> mllvm;
+extern llvm::cl::opt<bool> verifyInputTensors;
+extern llvm::cl::opt<bool> allowSorting;
+extern llvm::cl::opt<bool> onnxImportLazyCstFileData;
+extern llvm::cl::opt<std::string> reportHeapBefore;
+extern llvm::cl::opt<std::string> reportHeapAfter;
+extern llvm::cl::opt<InstrumentStages> instrumentStage;
+extern llvm::cl::opt<std::string> instrumentOps;
+extern llvm::cl::bits<InstrumentActions> instrumentControlBits;
+extern llvm::cl::opt<bool> instrumentONNXSignature;
+extern llvm::cl::opt<std::string> ONNXOpStats;
+extern llvm::cl::opt<bool> enableMemoryBundling;
+extern llvm::cl::opt<int> onnxOpTransformThreshold;
+extern llvm::cl::opt<bool> onnxOpTransformReport;
+extern llvm::cl::opt<int> onnxConstPropExpansionBound;
+extern llvm::cl::opt<bool> enableParallel;
+extern llvm::cl::opt<bool> disableSimdOption;
+extern llvm::cl::opt<bool> enableSimdDataLayout;
+extern llvm::cl::opt<bool> enableONNXHybridPass;
+extern llvm::cl::list<std::string> functionsToDecompose;
+extern llvm::cl::opt<std::string> modelTag;
+extern llvm::cl::opt<bool> enableConvOptPass;
+extern llvm::cl::list<std::string> extraLibPaths;
+extern llvm::cl::list<std::string> extraLibs;
+extern llvm::cl::opt<ProfileIRs> profileIR;
+extern llvm::cl::opt<OnnxOpReport> onnxOpReport;
+>>>>>>> aea3f3dc (ElementsBuilders)
 
 // The customEnvFlags must be scanned before the normal options.
 bool parseCustomEnvFlagsCommandLineOption(int argc, const char *const *argv,

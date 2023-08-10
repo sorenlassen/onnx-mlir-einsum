@@ -449,8 +449,17 @@ static llvm::cl::opt<bool, true> allowSortingOpt("allowSorting",
     llvm::cl::location(allowSorting), llvm::cl::init(true),
     llvm::cl::cat(OnnxMlirOptions));
 
+<<<<<<< HEAD
 static llvm::cl::opt<std::string, true> reportHeapBeforeOpt(
     "report-heap-before",
+=======
+llvm::cl::opt<bool> onnxImportLazyCstFileData("onnx-import-lazycst-filedata",
+    llvm::cl::desc("Import onnx external data as lazycst::FileDataElementsAttr "
+                   "(default=true)."),
+    llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptions));
+
+llvm::cl::opt<std::string> reportHeapBefore("report-heap-before",
+>>>>>>> aea3f3dc (ElementsBuilders)
     llvm::cl::desc("Comma separated list of names of passes.\n"
                    "Before each heap statistics are dumped to "
                    "<output-files-base-path>.heap.log"),
