@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "src/Dialect/LazyElements/WideNum.hpp"
+#include "src/Dialect/LazyCst/WideNum.hpp"
 
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -17,7 +17,7 @@ namespace mlir {
 class MLIRContext;
 }
 
-namespace lazy_elements {
+namespace lazycst {
 
 // TODO: resolve name clash with ONNX/ElementsAttr/ElementsAttrBuilder and maybe
 //       rename this class to ElementsAttrBuilder or
@@ -45,4 +45,4 @@ public:
   }
 };
 
-} // namespace lazy_elements
+} // namespace lazycst

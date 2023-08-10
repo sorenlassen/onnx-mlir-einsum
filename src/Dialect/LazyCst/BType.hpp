@@ -18,7 +18,7 @@
 
 #include <type_traits>
 
-namespace lazy_elements {
+namespace lazycst {
 
 // Numerical representation of basic data types.
 //
@@ -267,4 +267,4 @@ auto dispatchByBType(BType btype, Action &&act) {
 #undef ACT
 }
 
-} // namespace lazy_elements
+} // namespace lazycst

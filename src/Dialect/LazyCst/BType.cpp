@@ -8,13 +8,13 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "src/Dialect/LazyElements/BType.hpp"
+#include "src/Dialect/LazyCst/BType.hpp"
 
 #include "mlir/IR/Builders.h"
 
 using namespace mlir;
 
-namespace lazy_elements {
+namespace lazycst {
 
 BType btypeOfMlirType(Type type) {
   // clang-format off
@@ -104,4 +104,4 @@ BType wideBTypeOfBType(BType d) {
       [](auto btype) { return toBType<typename BTypeTrait<btype>::widetype>; });
 }
 
-} // namespace lazy_elements
+} // namespace lazycst

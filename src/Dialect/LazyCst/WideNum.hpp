@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "src/Dialect/LazyElements/BType.hpp"
+#include "src/Dialect/LazyCst/BType.hpp"
 
 #include "mlir/IR/Types.h"
 #include "llvm/ADT/APFloat.h"
@@ -18,7 +18,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/ErrorHandling.h"
 
-namespace lazy_elements {
+namespace lazycst {
 
 // Union of 64-bit integers and double precision floating point numbers.
 //
@@ -246,4 +246,4 @@ inline auto wideZeroDispatch(mlir::Type type, Action &&act) {
 // Include template implementations.
 #include "WideNum.hpp.inc"
 
-} // namespace lazy_elements
+} // namespace lazycst

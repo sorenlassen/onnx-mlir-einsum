@@ -2,11 +2,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyElements/FileDataManager.hpp"
+#include "src/Dialect/LazyCst/FileDataManager.hpp"
 
 #include <fstream>
 
-namespace lazy_elements {
+namespace lazycst {
 
 llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
   File *file = nullptr;
@@ -74,4 +74,4 @@ void FileDataManager::File::set(FileBuffer fileBuffer) {
   cv.notify_all();
 }
 
-} // namespace lazy_elements
+} // namespace lazycst

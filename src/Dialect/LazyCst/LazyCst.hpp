@@ -4,9 +4,9 @@
 
 #pragma once
 
-#include "src/Dialect/LazyElements/FileDataManager.hpp"
+#include "src/Dialect/LazyCst/FileDataManager.hpp"
 
-#include "src/Dialect/LazyElements/WideNum.hpp"
+#include "src/Dialect/LazyCst/WideNum.hpp"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -15,7 +15,7 @@
 #include <tuple>
 #include <type_traits>
 
-namespace lazy_elements {
+namespace lazycst {
 template <class C>
 struct BufferElementsAttr : public mlir::Attribute {
   using Attribute::Attribute;
@@ -35,14 +35,14 @@ std::string escapeIdentifier(llvm::StringRef unescapedIdentifier);
 
 std::string unescapeIdentifier(llvm::StringRef escapedIdentifier);
 
-} // namespace lazy_elements
+} // namespace lazycst
 
-#include "src/Dialect/LazyElements/LazyElementsDialect.hpp.inc"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"
 
 #define GET_ATTRDEF_CLASSES
-#include "src/Dialect/LazyElements/LazyElementsAttributes.hpp.inc"
+#include "src/Dialect/LazyCst/LazyCstAttributes.hpp.inc"
 
-namespace lazy_elements {
+namespace lazycst {
 
 namespace detail {
 
@@ -195,4 +195,4 @@ inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
   }
 }
 
-} // namespace lazy_elements
+} // namespace lazycst

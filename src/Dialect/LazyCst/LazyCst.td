@@ -5,16 +5,15 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpBase.td"
 
 //===----------------------------------------------------------------------===//
-// The Lazy Elements Dialect.
+// The Lazy Constants Dialect.
 //===----------------------------------------------------------------------===//
 
-// TODO: Rename to LazyConstants_Dialect with name = "lazycst"
-def LazyElements_Dialect : Dialect {
-  let name = "lazyelms";
+def LazyCst_Dialect : Dialect {
+  let name = "lazycst";
   let description = [{
     The Lazy Elements dialect.
   }];
-  let cppNamespace = "::lazy_elements";
+  let cppNamespace = "::lazycst";
   let useDefaultAttributePrinterParser = 1;
   let extraClassDeclaration = [{
     FileDataManager fileDataManager;
@@ -25,13 +24,13 @@ def LazyElements_Dialect : Dialect {
 // Lazy Elements Attributes.
 //===----------------------------------------------------------------------===//
 
-class LazyElements_Attr<string attrName, string attrMnemonic, list<Trait> traits = [],
+class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = [],
                         string baseCppClass = "::mlir::Attribute">
-    : AttrDef<LazyElements_Dialect, attrName, traits, baseCppClass> {
+    : AttrDef<LazyCst_Dialect, attrName, traits, baseCppClass> {
   let mnemonic = attrMnemonic;
 }
 
-def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "file_data", [
+def LazyCst_FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     ElementsAttrInterface
   ], "BufferElementsAttr<FileDataElementsAttr>"> {
   let summary = "Attribute for external data: file with raw bytes.";
@@ -103,7 +102,7 @@ def LazyElements_FileDataElementsAttr : LazyElements_Attr<"FileDataElements", "f
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
-def LazyElements_LazyElementsAttr : LazyElements_Attr<"LazyElements", "lazy", [
+def LazyCst_LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
     ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
