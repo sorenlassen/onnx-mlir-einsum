@@ -8,6 +8,7 @@ include "mlir/IR/OpBase.td"
 // The Lazy Elements Dialect.
 //===----------------------------------------------------------------------===//
 
+// TODO: Rename to LazyConstants_Dialect with name = "lazycst"
 def LazyElements_Dialect : Dialect {
   let name = "lazyelms";
   let description = [{
