@@ -150,20 +150,6 @@ T swappedBytes(T x) {
 }
 
 template <typename T>
-ElementsAttr createElementsAttrFromMemoryBuffer_LE(
-    RankedTensorType tensorType, std::unique_ptr<llvm::MemoryBuffer> membuf) {
-  MLIRContext *ctx = tensorType.getContext();
-  assert(tensorType.getElementType() == toMlirType<T>(ctx));
-  if constexpr (shouldSwapLEBytes<T>) {
-    ArrayRef<T> array = asArrayRef<T>(membuf->getBuffer());
-    return createElmAttrFromArray<T>(tensorType, array, swappedBytes<T>);
-  } else {
-    return OnnxElementsAttrBuilder(ctx).fromMemoryBuffer(
-        tensorType, std::move(membuf));
-  }
-}
-
-template <typename T>
 ElementsAttr createElmAttrFromRawBytes_LE(
     RankedTensorType tensorType, ArrayRef<char> bytes) {
   ArrayRef<T> array = castArrayRef<T>(bytes);
