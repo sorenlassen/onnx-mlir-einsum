@@ -59,7 +59,7 @@ public:
   ElementsAttr fromRawBytes(ShapedType type, ArrayRef<char> values) override {
     // TODO: use something like DenseResourceElementsAttr that supports GC
     if (type.getElementType().isInteger(1))
-      return DenseElementsAttr::get<bool>(type, castArrayRef<bool>(values));
+      return DenseElementsAttr::get(type, castArrayRef<bool>(values));
     else
       return DenseElementsAttr::getFromRawBuffer(type, values);
   }
