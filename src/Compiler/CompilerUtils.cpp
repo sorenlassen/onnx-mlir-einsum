@@ -42,6 +42,7 @@
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/ElementsBuilders.hpp"
 #include "src/Compiler/HeapReporter.hpp"
+#include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Version/Version.hpp"
 
 #include <fstream>
@@ -588,7 +589,7 @@ static int compileModuleToJniJar(
 
 void loadDialects(mlir::MLIRContext &context) {
   context.appendDialectRegistry(registerDialects(maccel));
-  context.loadAllAvailableDialects();
+  loadAndConfigureRegisteredDialects(&context);
 }
 
 static std::unique_ptr<ElementsBuilder> getElementsBuilder(
@@ -598,6 +599,14 @@ static std::unique_ptr<ElementsBuilder> getElementsBuilder(
   else
     return getDisposableElementsBuilder(&context);
 }
+
+namespace {
+std::string dirName(StringRef inputFilename) {
+  llvm::SmallVector<char> path(inputFilename.begin(), inputFilename.end());
+  llvm::sys::path::remove_filename(path);
+  return std::string(path.data(), path.size());
+}
+} // namespace
 
 // Return 0 on success, error number on failure.
 int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
@@ -617,6 +626,10 @@ int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
                     "\": Either an ONNX model (.onnx or .onnxtext or .json), "
                     "or an MLIR file (.mlir) needs to be provided.";
     return InvalidInputFile;
+  }
+
+  if (externalDataDir.empty()) {
+    externalDataDir.push_back(dirName(inputFilename));
   }
 
   if (inputIsSTDIN || inputIsONNX || inputIsONNXText || inputIsJSON) {

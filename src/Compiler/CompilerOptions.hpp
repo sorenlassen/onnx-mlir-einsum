@@ -154,6 +154,7 @@ extern llvm::cl::opt<std::string> mllvm;
 extern llvm::cl::opt<bool> verifyInputTensors;
 extern llvm::cl::opt<bool> allowSorting;
 extern llvm::cl::opt<bool> onnxImportLazyCstFileData;
+extern llvm::cl::list<std::string> externalDataDir;
 extern llvm::cl::opt<std::string> reportHeapBefore;
 extern llvm::cl::opt<std::string> reportHeapAfter;
 extern llvm::cl::opt<InstrumentStages> instrumentStage;

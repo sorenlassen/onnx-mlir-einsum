@@ -8,6 +8,7 @@
 
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
+#include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 
 #include "mlir/InitAllDialects.h"
@@ -32,6 +33,7 @@ DialectRegistry registerDialects(ArrayRef<accel::Accelerator::Kind> accels) {
   registry.insert<shape::ShapeDialect>();
   registry.insert<math::MathDialect>();
   registry.insert<memref::MemRefDialect>();
+  registry.insert<lazycst::LazyCstDialect>();
   registry.insert<ONNXDialect>();
   registry.insert<KrnlDialect>();
   registry.insert<cf::ControlFlowDialect>();
@@ -48,6 +50,17 @@ DialectRegistry registerDialects(ArrayRef<accel::Accelerator::Kind> accels) {
     memref::registerAllocationOpInterfaceExternalModels(registry);
 
   return registry;
+}
+
+void loadAndConfigureRegisteredDialects(mlir::MLIRContext *context) {
+  context->loadAllAvailableDialects();
+
+  auto &lazyDialect = *context->getLoadedDialect<lazycst::LazyCstDialect>();
+  lazycst::FileDataManager::Config config;
+  config.readDirectoryPaths.assign(
+      externalDataDir.begin(), externalDataDir.end());
+  // TODO: configure writePathPrefix/Suffix
+  lazyDialect.fileDataManager.configure(config);
 }
 
 } // namespace onnx_mlir

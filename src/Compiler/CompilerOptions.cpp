@@ -458,6 +458,10 @@ llvm::cl::opt<bool> onnxImportLazyCstFileData("onnx-import-lazycst-filedata",
                    "(default=true)."),
     llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptions));
 
+llvm::cl::list<std::string> externalDataDir("external-data-dir",
+    llvm::cl::desc("Specify directory paths to look for external data files."),
+    llvm::cl::cat(OnnxMlirCommonOptions));
+
 llvm::cl::opt<std::string> reportHeapBefore("report-heap-before",
 >>>>>>> aea3f3dc (ElementsBuilders)
     llvm::cl::desc("Comma separated list of names of passes.\n"

@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
     MLIRContext *ctx = pm.getContext();
     // MlirOptMain constructed ctx with our registry so we just load all our
     // already registered dialects.
-    ctx->loadAllAvailableDialects();
+    loadAndConfigureRegisteredDialects(ctx);
     pm.addInstrumentation(std::make_unique<DisposableGarbageCollector>(ctx));
     auto errorHandler = [ctx](const Twine &msg) {
       emitError(UnknownLoc::get(ctx)) << msg;

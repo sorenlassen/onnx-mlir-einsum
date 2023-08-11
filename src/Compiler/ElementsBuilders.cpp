@@ -19,11 +19,6 @@ using namespace mlir;
 namespace onnx_mlir {
 
 namespace {
-[[maybe_unused]] std::string dirName(StringRef inputFilename) {
-  SmallVector<char> path(inputFilename.begin(), inputFilename.end());
-  llvm::sys::path::remove_filename(path);
-  return std::string(path.data(), path.size());
-}
 
 class DisposableElementsBuilder : public ElementsBuilder {
 public:
