@@ -12,6 +12,7 @@
 
 #include "src/Dialect/ONNX/ElementsAttr/BType.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/WideNum.hpp"
+#include "src/Interface/DensifiableElementsAttrInterface.hpp"
 #include "src/Support/Arrays.hpp"
 
 #include "mlir/IR/AttributeSupport.h"
@@ -83,7 +84,7 @@ struct DisposableElementsAttributeStorage;
 class DisposableElementsAttr
     : public Attribute::AttrBase<DisposableElementsAttr, Attribute,
           DisposableElementsAttributeStorage, TypedAttr::Trait,
-          ElementsAttr::Trait> {
+          ElementsAttr::Trait, DensifiableElementsAttrInterface::Trait> {
   using Base::Base;
 
   // BType and WideNum are ubiquitous in the class definition and these using

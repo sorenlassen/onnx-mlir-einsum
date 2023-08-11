@@ -65,6 +65,8 @@ int main(int argc, char *argv[]) {
             : inputFilename.substr(0, inputFilename.find_last_of("."));
   }
 
+  setExternalDirFromInputFilename(inputFilename);
+
   // Create context after MLIRContextCLOptions are registered and parsed.
   mlir::MLIRContext context;
   mlir::registerOpenMPDialectTranslation(context);

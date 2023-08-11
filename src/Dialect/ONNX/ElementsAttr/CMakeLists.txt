@@ -14,6 +14,7 @@ add_onnx_mlir_library(OMONNXElementsAttr
 
   LINK_LIBS PUBLIC
   OMMlirUtilities
+  OMDensifiableElementsAttrInterface
   MLIRIR
   MLIRDialect # Dialect/Traits
   )

@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#ifndef LAZYCST_TD
+#define LAZYCST_TD
+
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpBase.td"
+include "src/Interface/DensifiableElementsAttrInterface.td"
 
 //===----------------------------------------------------------------------===//
 // The Lazy Constants Dialect.
@@ -31,7 +35,7 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
 }
 
 def LazyCst_FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
-    ElementsAttrInterface
+    DensifiableElementsAttrInterface
   ], "BufferElementsAttr<FileDataElementsAttr>"> {
   let summary = "Attribute for external data: file with raw bytes.";
   let parameters = (ins
@@ -98,6 +102,9 @@ def LazyCst_FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data",
     }
 
     llvm::ArrayRef<char> getRawBytesImpl() const;
+
+    // Makes deep copy.
+    mlir::DenseElementsAttr toDenseElementsAttr() const;
   }];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
@@ -124,3 +131,5 @@ def LazyCst_LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
   // TODO: add fold / materialization methods
 }
+
+#endif // LAZYCST_TD

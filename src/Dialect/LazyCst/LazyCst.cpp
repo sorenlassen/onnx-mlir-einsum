@@ -5,6 +5,7 @@
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 
 #include "src/Support/Arrays.hpp"
+#include "src/Support/TypeUtilities.hpp"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/DialectImplementation.h"
@@ -79,11 +80,23 @@ std::string unescapeIdentifier(StringRef escapedIdentifier) {
 //   return static_cast<typename C::ImplType *>(impl)->path;
 // }
 
-llvm::ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
+ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   LazyCstDialect *lazyElementsDialect =
       getContext()->getLoadedDialect<LazyCstDialect>();
   StringRef buffer = lazyElementsDialect->fileDataManager.readFile(getPath());
-  return onnx_mlir::asArrayRef(buffer);
+  uint64_t offset = getOffset();
+  uint64_t size = onnx_mlir::getSizeInBytes(getType());
+  assert(offset + size <= buffer.size());
+  return onnx_mlir::asArrayRef(buffer.substr(offset, size));
+}
+
+DenseElementsAttr FileDataElementsAttr::toDenseElementsAttr() const {
+  ArrayRef<char> bytes = getRawBytes();
+  if (getElementType().isInteger(1))
+    // don't use getFromRawBuffer which requires bit packing
+    return DenseElementsAttr::get(
+        getType(), onnx_mlir::castArrayRef<bool>(bytes));
+  return DenseElementsAttr::getFromRawBuffer(getType(), bytes);
 }
 
 } // namespace lazycst

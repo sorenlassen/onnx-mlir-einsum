@@ -18,6 +18,8 @@
 #include "onnx-mlir/Compiler/OMCompilerRuntimeTypes.h"
 #include "onnx-mlir/Compiler/OMCompilerTypes.h"
 #include "src/Compiler/CompilerOptions.hpp"
+#include "llvm/ADT/SmallString.h"
+#include "llvm/Support/Path.h"
 
 #define DEBUG_TYPE "compiler_options"
 
@@ -636,6 +638,14 @@ void clearCustomEnvVar() { customEnvFlags.clear(); }
 
 std::string getCustomEnvVarOption() {
   return (customEnvFlags != "") ? "--customEnvFlags=" + customEnvFlags : "";
+}
+
+void setExternalDirFromInputFilename(llvm::StringRef inputFilename) {
+  if (externalDataDir.empty()) {
+    llvm::SmallString<64> path(inputFilename);
+    llvm::sys::path::remove_filename(path);
+    externalDataDir.push_back(std::string(path));
+  }
 }
 
 // Support for Triple.

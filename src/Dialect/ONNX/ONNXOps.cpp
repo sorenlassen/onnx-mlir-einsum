@@ -15,7 +15,7 @@
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/DialectBuilder.hpp"
 
-#include "src/Dialect/ONNX/ElementsAttr/DisposableElementsAttr.hpp"
+#include "src/Interface/DensifiableElementsAttrInterface.hpp"
 
 #include "mlir/Dialect/Traits.h"
 #include "llvm/ADT/STLExtras.h"
@@ -82,12 +82,34 @@ namespace {
 // Helpers adapted from corresponding methods in mlir/lib/AsmParser/Parser.cpp
 //===----------------------------------------------------------------------===//
 
-// Print DisposableElementsAttr as a DenseElementsAttr, because
-// DisposableElementsAttr is an internal representation, so we hide it
+void printAsDenseElementsAttr(
+    AsmPrinter &printer, DensifiableElementsAttrInterface elements) {
+  // It would be ideal if we could read the printer flags from printer instead
+  // of constructing them here, because printer may have been constructed with
+  // an override of elideLargeElementsAttrs which we cannot see here.
+  // Oh well, at least OpPrintingFlags().shouldElideElementsAttr(ElementsAttr)
+  // lets us respect the --mlir-elide-elementsattrs-if-larger command line flag.
+  static OpPrintingFlags printerFlags{};
+  if (elements.isSplat() || !printerFlags.shouldElideElementsAttr(elements)) {
+    // Take shortcut by first converting to DenseElementsAttr.
+    // NOTE: This creates a copy which is never garbage collected. This is not
+    // only slow but also defeats the garbage collection benefits of
+    // DisposableElementsAttr at al, depending on when the printing
+    // takes place (the print at the end of onnx-mlir-opt in lit tests is ok).
+    printer.printAttribute(elements.toDenseElementsAttr());
+    // TODO: Do the work to print without constructing DenseElementsAttr.
+  } else {
+    // In this special case it's easy to avoid conversion to DenseElementsAttr.
+    printer << "dense<__elided__> : " << elements.getType();
+  }
+}
+
+// Print DensifiableElementsAttr as a DenseElementsAttr, because
+// the DensifiableElementsAttrs are internal representations, so we hide them
 // in this way.
 void printAttribute(OpAsmPrinter &printer, Attribute attr) {
-  if (auto disposable = attr.dyn_cast<DisposableElementsAttr>())
-    disposable.printAsDenseElementsAttr(printer);
+  if (auto densifiable = attr.dyn_cast<DensifiableElementsAttrInterface>())
+    printAsDenseElementsAttr(printer, densifiable);
   else
     printer.printAttribute(attr);
 }
@@ -206,8 +228,8 @@ ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
 
 //===----------------------------------------------------------------------===//
 // ONNXConstantOfShapeOp custom assembly format print and parse.
-// Same as the generic format except that any DisposableElementsAttr is
-// printed with disposable.printAsDenseElementsAttr().
+// Same as the generic format except that any DensifiableElementsAttr is
+// printed with printAsDenseElementsAttr().
 //===----------------------------------------------------------------------===//
 
 void ONNXConstantOfShapeOp::print(OpAsmPrinter &printer) {

@@ -7,6 +7,7 @@
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
 
 #include "src/Dialect/LazyCst/WideNum.hpp"
+#include "src/Interface/DensifiableElementsAttrInterface.hpp"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -16,6 +17,9 @@
 #include <type_traits>
 
 namespace lazycst {
+
+using DensifiableElementsAttrInterface = mlir::DensifiableElementsAttrInterface;
+
 template <class C>
 struct BufferElementsAttr : public mlir::Attribute {
   using Attribute::Attribute;

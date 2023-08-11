@@ -22,6 +22,7 @@
 #include "mlir/Target/LLVMIR/Dialect/Builtin/BuiltinToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Dialect/LLVMIR/LLVMToLLVMIRTranslation.h"
 #include "mlir/Target/LLVMIR/Export.h"
+#include "llvm/ADT/SmallString.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/GlobalValue.h"
@@ -600,14 +601,6 @@ static std::unique_ptr<ElementsBuilder> getElementsBuilder(
     return getDisposableElementsBuilder(&context);
 }
 
-namespace {
-std::string dirName(StringRef inputFilename) {
-  llvm::SmallVector<char> path(inputFilename.begin(), inputFilename.end());
-  llvm::sys::path::remove_filename(path);
-  return std::string(path.data(), path.size());
-}
-} // namespace
-
 // Return 0 on success, error number on failure.
 int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
     mlir::OwningOpRef<ModuleOp> &module, std::string *errorMessage) {
@@ -626,10 +619,6 @@ int processInputFile(StringRef inputFilename, mlir::MLIRContext &context,
                     "\": Either an ONNX model (.onnx or .onnxtext or .json), "
                     "or an MLIR file (.mlir) needs to be provided.";
     return InvalidInputFile;
-  }
-
-  if (externalDataDir.empty()) {
-    externalDataDir.push_back(dirName(inputFilename));
   }
 
   if (inputIsSTDIN || inputIsONNX || inputIsONNXText || inputIsJSON) {

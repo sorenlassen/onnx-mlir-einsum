@@ -66,7 +66,7 @@ public:
 
   ElementsAttr fromFile(ShapedType type, StringAttr path, uint64_t offset,
       uint64_t length) override {
-    return lazycst::FileDataElementsAttr::get(type, path);
+    return lazycst::FileDataElementsAttr::get(type, path, offset);
   }
 };
 

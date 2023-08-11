@@ -141,7 +141,11 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+<<<<<<< HEAD
   initCompilerConfig();
+=======
+  setExternalDirFromInputFilename(input_filename);
+>>>>>>> fb18baf5 (DensifiableElementsAttrInterface)
 
   // Set up the input file.
   std::string error_message;

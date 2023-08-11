@@ -15,6 +15,7 @@
 #pragma once
 #include "onnx-mlir/Compiler/OMCompilerTypes.h"
 #include "src/Accelerators/Accelerator.hpp"
+#include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Path.h"
@@ -186,6 +187,8 @@ bool parseCustomEnvFlagsCommandLineOption(int argc, const char *const *argv,
 void setCustomEnvVar(const std::string &envVarName);
 void clearCustomEnvVar();
 std::string getCustomEnvVarOption();
+
+void setExternalDirFromInputFilename(llvm::StringRef inputFilename);
 
 void setTargetTriple(const std::string &triple);
 void clearTargetTriple();

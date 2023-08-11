@@ -20,8 +20,20 @@ llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
   if (exists) {
     return file->getBuffer();
   } else {
+    std::filesystem::path fullpath;
+    for (const std::filesystem::path &dir : config.readDirectoryPaths) {
+      fullpath = dir / std::filesystem::path(filepath.begin(), filepath.end());
+      std::error_code ec;
+      bool exists = std::filesystem::exists(fullpath, ec);
+      assert(!ec && "failed to test read file status");
+      if (exists)
+        break;
+      fullpath.clear();
+    }
+    assert(!fullpath.empty() && "failed to find file to read");
+
     auto errorOrFilebuf = llvm::MemoryBuffer::getFile(
-        filepath, /*IsText=*/false, /*RequiresNullTerminator=*/false);
+        fullpath.string(), /*IsText=*/false, /*RequiresNullTerminator=*/false);
     assert(errorOrFilebuf && "failed to read data file");
     FileBuffer filebuf = std::move(errorOrFilebuf.get());
     llvm::StringRef buffer = filebuf->getBuffer();
