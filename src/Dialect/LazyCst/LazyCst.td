@@ -3,9 +3,12 @@
 #ifndef LAZYCST_TD
 #define LAZYCST_TD
 
+include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/SymbolInterfaces.td"
 include "src/Interface/DensifiableElementsAttrInterface.td"
 
 //===----------------------------------------------------------------------===//
@@ -34,7 +37,7 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
   let mnemonic = attrMnemonic;
 }
 
-def LazyCst_FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
+def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DensifiableElementsAttrInterface
   ], "BufferElementsAttr<FileDataElementsAttr>"> {
   let summary = "Attribute for external data: file with raw bytes.";
@@ -109,7 +112,7 @@ def LazyCst_FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data",
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
-def LazyCst_LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
+def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
     ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
@@ -130,6 +133,42 @@ def LazyCst_LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
   ];
   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
   // TODO: add fold / materialization methods
+}
+
+//===----------------------------------------------------------------------===//
+// Lazy Constant Ops.
+//===----------------------------------------------------------------------===//
+
+class LazyCst_Op<string mnemonic, list<Trait> traits = []>
+    : Op<LazyCst_Dialect, mnemonic, traits> {}
+
+def LazyReturnOp : LazyCst_Op<"lazy_return",
+    [Pure, HasParent<"LazyConstantOp">, ReturnLike, Terminator]> {
+  let summary = "Lazy constant return operation";
+  let description = [{
+    The `lazycst.lazy_return` operation represents the results of a lazy constant.
+  }];
+
+  let arguments = (ins Variadic<AnyType>:$operands);
+
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+  let hasVerifier = 1;
+}
+
+def LazyConstantOp : LazyCst_Op<"lazy_constant", [
+    SingleBlockImplicitTerminator<"LazyReturnOp">,
+    IsolatedFromAbove,
+    NoRegionArguments,
+    // SingleBlock,
+    Symbol
+  ]> {
+  let arguments = (ins
+    SymbolNameAttr:$sym_name,
+    TypeArrayAttr:$res_types,
+    DefaultValuedAttr<
+      TypedArrayAttrBase<LazyElementsAttr, "array of lazy elements attributes">,
+      "{}">:$lazy_args);
+  let regions = (region SizedRegion<1>:$body);
 }
 
 #endif // LAZYCST_TD

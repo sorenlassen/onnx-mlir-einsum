@@ -3,6 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 #include "src/Support/Arrays.hpp"
 #include "src/Support/TypeUtilities.hpp"
@@ -20,6 +21,11 @@ void lazycst::LazyCstDialect::initialize() {
   addAttributes<
 #define GET_ATTRDEF_LIST
 #include "src/Dialect/LazyCst/LazyCstAttributes.cpp.inc"
+      >();
+
+  addOperations<
+#define GET_OP_LIST
+#include "src/Dialect/LazyCst/LazyCstOps.cpp.inc"
       >();
 }
 
