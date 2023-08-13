@@ -3,10 +3,12 @@
 #ifndef LAZYCST_TD
 #define LAZYCST_TD
 
+include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/AttrTypeBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
+include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
 include "src/Interface/DensifiableElementsAttrInterface.td"
@@ -36,6 +38,14 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
     : AttrDef<LazyCst_Dialect, attrName, traits, baseCppClass> {
   let mnemonic = attrMnemonic;
 }
+
+def OperationNameAttr : LazyCst_Attr<"OperationName", "operation_name"> {
+  let parameters = (ins "mlir::OperationName":$name);
+  let assemblyFormat = "`<` custom<OperationName>($name) `>`";
+}
+
+def OperationNameArrayAttr :
+  TypedArrayAttrBase<OperationNameAttr, "operation name array attribute">;
 
 def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DensifiableElementsAttrInterface
@@ -142,33 +152,79 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
 class LazyCst_Op<string mnemonic, list<Trait> traits = []>
     : Op<LazyCst_Dialect, mnemonic, traits> {}
 
-def LazyReturnOp : LazyCst_Op<"lazy_return",
-    [Pure, HasParent<"LazyConstantOp">, ReturnLike, Terminator]> {
-  let summary = "Lazy constant return operation";
-  let description = [{
-    The `lazycst.lazy_return` operation represents the results of a lazy constant.
-  }];
-
+def LazyReturnOp : LazyCst_Op<"return",
+    [Pure, ReturnLike, Terminator, HasParent<"LazyFuncOp">]> {
+  let summary = "Lazy constant expression return operation";
   let arguments = (ins Variadic<AnyType>:$operands);
-
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
   let hasVerifier = 1;
 }
 
-def LazyConstantOp : LazyCst_Op<"lazy_constant", [
-    SingleBlockImplicitTerminator<"LazyReturnOp">,
-    IsolatedFromAbove,
-    NoRegionArguments,
-    // SingleBlock,
-    Symbol
-  ]> {
-  let arguments = (ins
-    SymbolNameAttr:$sym_name,
-    TypeArrayAttr:$res_types,
-    DefaultValuedAttr<
-      TypedArrayAttrBase<LazyElementsAttr, "array of lazy elements attributes">,
-      "{}">:$lazy_args);
+// TODO: Represent op names with an OperationNameAttr attribute.
+def LazyFuncOp : LazyCst_Op<"func", [
+  CallableOpInterface, FunctionOpInterface, IsolatedFromAbove,
+  SingleBlockImplicitTerminator<"LazyReturnOp">
+]> {
+  let summary = "Lazy constant expression";
+  let arguments = (ins SymbolNameAttr:$sym_name,
+                       TypeAttrOf<FunctionType>:$function_type,
+                       OperationNameArrayAttr:$arg_op_names,
+                       OperationNameArrayAttr:$res_op_names,
+                       OptionalAttr<DictArrayAttr>:$arg_attrs,
+                       OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region SizedRegion<1>:$body);
+  let extraClassDeclaration = [{
+    //===------------------------------------------------------------------===//
+    // CallableOpInterface
+    //===------------------------------------------------------------------===//
+
+    /// Returns the region on the current operation that is callable. This may
+    /// return null in the case of an external callable object, e.g. an external
+    /// function.
+    mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
+
+    /// Returns the results types that the callable region produces when
+    /// executed.
+    llvm::ArrayRef<mlir::Type> getCallableResults() { return getFunctionType().getResults(); }
+
+    /// Returns the argument attributes for all callable region arguments or
+    /// null if there are none.
+    mlir::ArrayAttr getCallableArgAttrs() {
+      return getArgAttrs().value_or(nullptr);
+    }
+
+    /// Returns the result attributes for all callable region results or
+    /// null if there are none.
+    mlir::ArrayAttr getCallableResAttrs() {
+      return getResAttrs().value_or(nullptr);
+    }
+
+    //===------------------------------------------------------------------===//
+    // FunctionOpInterface Methods
+    //===------------------------------------------------------------------===//
+
+    /// Returns the argument types of this function.
+    llvm::ArrayRef<mlir::Type> getArgumentTypes() { return getFunctionType().getInputs(); }
+
+    /// Returns the result types of this function.
+    llvm::ArrayRef<mlir::Type> getResultTypes() { return getFunctionType().getResults(); }
+  }];
 }
+
+// def LazyThunkOp : LazyCst_Op<"thunk", [
+//     SingleBlockImplicitTerminator<"LazyReturnOp">,
+//     IsolatedFromAbove,
+//     NoRegionArguments,
+//     // SingleBlock,
+//     Symbol
+//   ]> {
+//   let arguments = (ins
+//     SymbolNameAttr:$sym_name,
+//     TypeArrayAttr:$res_types,
+//     DefaultValuedAttr<
+//       TypedArrayAttrBase<LazyElementsAttr, "array of lazy elements attributes">,
+//       "{}">:$lazy_args);
+//   let regions = (region SizedRegion<1>:$body);
+// }
 
 #endif // LAZYCST_TD
