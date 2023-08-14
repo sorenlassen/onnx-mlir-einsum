@@ -136,6 +136,20 @@ public:
     auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, f2cstOp.getResult());
 
+    auto uses = SymbolTable::getSymbolUses(f2cstOp);
+    assert(uses.has_value());
+    assert(std::distance(uses->begin(), uses->end()) == 1);
+    auto sym = uses->begin()->getSymbolRef();
+    assert(isa<FlatSymbolRefAttr>(sym));
+    assert(cast<FlatSymbolRefAttr>(sym).getValue() == sym_name);
+
+    uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
+    assert(uses.has_value());
+    assert(std::distance(uses->begin(), uses->end()) == 2);
+    std::vector<Operation *> expected{cstexpr0, f2cstOp};
+    for (const auto &use : *uses)
+      assert(llvm::find(expected, use.getUser()) != expected.end());
+
     b.setInsertionPointToEnd(m.getBody());
     func::FuncOp f3 = func::FuncOp::create(loc, "f3", ftype, {});
     symbolTable.insert(f3);
