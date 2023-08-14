@@ -70,22 +70,21 @@ public:
   }
 
   int test_lazy_elements() {
-#if 0
+    constexpr char sym_name[] = "cstexpr0";
     auto type = RankedTensorType::get({5}, F32);
-    auto d = DenseElementsAttr::get<float>(type, 3.14f);
-    auto neg = b.getStringAttr("neg");
-    auto e0 = LazyElementsAttr::get(type, neg, {d});
-    auto add = b.getStringAttr("add");
-    auto e1 = LazyElementsAttr::get(type, add, {e0, e0});
-    print_ea("e0", e0) << "n";
-    print_ea("e1", e1) << "n";
+    auto lazyElms =
+        LazyElementsAttr::get(type, FlatSymbolRefAttr::get(ctx, sym_name));
+    auto cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
 
-    auto m = ModuleOp::create(loc);
-    m->setAttr("e0", e0);
-    m->setAttr("e1", e1);
+    auto uses = SymbolTable::getSymbolUses(cstOp);
+    assert(uses.has_value());
+    assert(std::distance(uses->begin(), uses->end()) == 1);
+    auto sym = uses->begin()->getSymbolRef();
+    assert(isa<FlatSymbolRefAttr>(sym));
+    assert(cast<FlatSymbolRefAttr>(sym).getValue() == sym_name);
 
-    llvm::outs() << m << "\n";
-#endif
+    llvm::outs() << lazyElms << "\n";
+    llvm::outs() << cstOp << "\n";
     return 0;
   }
 
@@ -136,14 +135,7 @@ public:
     auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, f2cstOp.getResult());
 
-    auto uses = SymbolTable::getSymbolUses(f2cstOp);
-    assert(uses.has_value());
-    assert(std::distance(uses->begin(), uses->end()) == 1);
-    auto sym = uses->begin()->getSymbolRef();
-    assert(isa<FlatSymbolRefAttr>(sym));
-    assert(cast<FlatSymbolRefAttr>(sym).getValue() == sym_name);
-
-    uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
+    auto uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
     assert(uses.has_value());
     assert(std::distance(uses->begin(), uses->end()) == 2);
     std::vector<Operation *> expected{cstexpr0, f2cstOp};
