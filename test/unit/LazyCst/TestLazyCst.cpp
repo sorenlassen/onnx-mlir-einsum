@@ -10,6 +10,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Verifier.h"
 
 #include <iostream>
 
@@ -116,14 +117,14 @@ public:
         i32tensortype, FlatSymbolRefAttr::get(ctx, sym_name));
     FunctionType function_type =
         b.getFunctionType({f32tensortype}, {i32tensortype});
-    auto arg_op_names =
-        b.getArrayAttr({OperationNameAttr::get(fcstOp->getName())});
-    auto res_op_names =
-        b.getArrayAttr({OperationNameAttr::get(*RegisteredOperationName::lookup(
-            arith::FPToUIOp::getOperationName(), ctx))});
-    auto arg_attrs = b.getArrayAttr({fcstOp->getAttrDictionary()});
-    auto res_attrs = b.getArrayAttr(
-        {b.getDictionaryAttr({b.getNamedAttr("value", lazyElms)})});
+    auto arg_op_names = b.getArrayAttr(
+        {OperationAttr::get(fcstOp->getName(), fcstOp->getAttrDictionary())});
+    auto res_op_names = b.getArrayAttr(
+        {OperationAttr::get(*RegisteredOperationName::lookup(
+                                arith::ConstantOp::getOperationName(), ctx),
+            b.getDictionaryAttr({b.getNamedAttr("value", lazyElms)}))});
+    auto arg_attrs = nullptr;
+    auto res_attrs = nullptr;
     auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
         arg_op_names, res_op_names, arg_attrs, res_attrs);
     SymbolTable(m).insert(cstexpr0);
@@ -132,12 +133,8 @@ public:
     auto castOp =
         b.create<arith::FPToUIOp>(loc, i32tensortype, cstexpr0.getArgument(0));
     auto returnOp = b.create<LazyReturnOp>(loc, ValueRange{castOp});
-    assert(succeeded(returnOp.verifyInvariants()));
-    assert(succeeded(cstexpr0.verifyInvariants()));
-    // llvm::outs() << "cstexpr0=";
-    // // Figure out why assumeVerified is needed to avoid generic prinout.
-    // cstexpr0.print(llvm::outs(), OpPrintingFlags().assumeVerified());
-    // llvm::outs() << "\n";
+    assert(succeeded(verify(returnOp)));
+    assert(succeeded(verify(cstexpr0)));
 
     b.setInsertionPointToEnd(m.getBody());
     func::FuncOp f2 = func::FuncOp::create(loc, "f2", ftype, {});
@@ -153,9 +150,7 @@ public:
     for (const auto &use : *uses)
       assert(llvm::find(expected, use.getUser()) != expected.end());
 
-    // Figure out why assumeVerified is needed to avoid generic prinout.
-    m.print(llvm::outs(), OpPrintingFlags().assumeVerified());
-    llvm::outs() << "\n";
+    llvm::outs() << m << "\n\n";
 
     return 0;
   }
