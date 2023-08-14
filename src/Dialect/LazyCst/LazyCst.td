@@ -146,29 +146,6 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
   let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
 }
 
-// def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
-//     ElementsAttrInterface
-//   ]> {
-//   let summary = "Lazily evaluated elements attribute.";
-//   let parameters = (ins
-//     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
-//     "mlir::StringAttr":$operation,
-//     ArrayRefParameter<"mlir::ElementsAttr", "">:$operands,
-//     OptionalParameter<"mlir::DictionaryAttr">:$attributes
-//   );
-//   let builders = [
-//     AttrBuilderWithInferredContext<(ins
-//         "mlir::ShapedType":$type,
-//         "mlir::StringAttr":$operation,
-//         "llvm::ArrayRef<mlir::ElementsAttr>":$operands,
-//         CArg<"mlir::DictionaryAttr", "nullptr">:$attributes), [{
-//       return $_get(type.getContext(), type, operation, operands, attributes);
-//     }]>,
-//   ];
-//   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
-//   // TODO: add fold / materialization methods
-// }
-
 //===----------------------------------------------------------------------===//
 // Lazy Constant Ops.
 //===----------------------------------------------------------------------===//
@@ -234,21 +211,5 @@ def LazyFuncOp : LazyCst_Op<"func", [
     llvm::ArrayRef<mlir::Type> getResultTypes() { return getFunctionType().getResults(); }
   }];
 }
-
-// def LazyThunkOp : LazyCst_Op<"thunk", [
-//     SingleBlockImplicitTerminator<"LazyReturnOp">,
-//     IsolatedFromAbove,
-//     NoRegionArguments,
-//     // SingleBlock,
-//     Symbol
-//   ]> {
-//   let arguments = (ins
-//     SymbolNameAttr:$sym_name,
-//     TypeArrayAttr:$res_types,
-//     DefaultValuedAttr<
-//       TypedArrayAttrBase<LazyElementsAttr, "array of lazy elements attributes">,
-//       "{}">:$lazy_args);
-//   let regions = (region SizedRegion<1>:$body);
-// }
 
 #endif // LAZYCST_TD
