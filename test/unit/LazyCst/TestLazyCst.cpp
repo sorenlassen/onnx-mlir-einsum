@@ -100,8 +100,7 @@ public:
     FunctionType ftype = b.getFunctionType({}, {ui32type});
     func::FuncOp f = func::FuncOp::create(loc, "f", ftype, {});
     symbolTable.insert(f);
-    auto fblock = f.addEntryBlock();
-    b.setInsertionPointToStart(fblock);
+    b.setInsertionPointToStart(f.addEntryBlock());
     auto d = DenseElementsAttr::get<float>(f32type, 3.14f);
     auto fcstOp = b.create<arith::ConstantOp>(loc, d);
     auto fcastOp = b.create<arith::FPToUIOp>(loc, ui32type, fcstOp);
@@ -120,13 +119,13 @@ public:
     auto arg_attrs = b.getArrayAttr({fcstOp->getAttrDictionary()});
     auto res_attrs = b.getArrayAttr(
         {b.getDictionaryAttr({b.getNamedAttr("value", lazyElms)})});
-    auto cexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
+    auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
         arg_op_names, res_op_names, arg_attrs, res_attrs);
-    SymbolTable(m).insert(cexpr0);
-    auto block = cexpr0.addEntryBlock();
+    SymbolTable(m).insert(cstexpr0);
+    auto block = cstexpr0.addEntryBlock();
     b.setInsertionPointToStart(block);
     auto castOp =
-        b.create<arith::FPToUIOp>(loc, ui32type, block->getArgument(0));
+        b.create<arith::FPToUIOp>(loc, ui32type, cstexpr0.getArgument(0));
     b.create<LazyReturnOp>(loc, ValueRange{castOp});
 
     b.setInsertionPointToEnd(m.getBody());
@@ -137,7 +136,25 @@ public:
     auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, f2cstOp.getResult());
 
+    b.setInsertionPointToEnd(m.getBody());
+    func::FuncOp f3 = func::FuncOp::create(loc, "f3", ftype, {});
+    symbolTable.insert(f3);
+    b.setInsertionPointToStart(f3.addEntryBlock());
+    auto f3callOp = b.create<func::CallOp>(loc, "f2", TypeRange{ui32type});
+    b.create<func::ReturnOp>(loc, f3callOp.getResult(0));
+
     llvm::outs() << m << "\n";
+
+    if (auto uses = SymbolTable::getSymbolUses(&m.getBodyRegion())) {
+      llvm::outs() << std::distance(uses->begin(), uses->end()) << " uses\n";
+      for (const auto &use : *uses) {
+        llvm::outs() << "symbol=" << use.getSymbolRef()
+                     << ", user=" << *use.getUser() << "\n";
+      }
+    } else {
+      llvm::outs() << "no uses\n";
+    }
+
     return 0;
   }
 };
