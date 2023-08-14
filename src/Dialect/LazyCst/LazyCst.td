@@ -39,20 +39,7 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
   let mnemonic = attrMnemonic;
 }
 
-// def OperationNameAttr : LazyCst_Attr<"OperationName", "operation_name"> {
-//   let parameters = (ins "mlir::OperationName":$name);
-//   let builders = [
-//     AttrBuilderWithInferredContext<(ins"mlir::OperationName":$name), [{
-//       return $_get(name.getContext(), name);
-//     }]>,
-//   ];
-//   let assemblyFormat = "`<` custom<OperationName>($name) `>`";
-// }
-
-// def OperationNameArrayAttr :
-//   TypedArrayAttrBase<OperationNameAttr, "operation name array attribute">;
-
-def OperationAttr : LazyCst_Attr<"Operation", "operation"> {
+def ConstantOpAttr : LazyCst_Attr<"ConstantOp", "cst_op"> {
   let parameters = (ins "mlir::OperationName":$name, "mlir::DictionaryAttr":$attrs);
   let builders = [
     AttrBuilderWithInferredContext<(ins"mlir::OperationName":$name, "mlir::DictionaryAttr":$attrs), [{
@@ -62,8 +49,8 @@ def OperationAttr : LazyCst_Attr<"Operation", "operation"> {
   let assemblyFormat = "`<` custom<OperationName>($name) $attrs `>`";
 }
 
-def OperationArrayAttr :
-  TypedArrayAttrBase<OperationAttr, "operation array attribute">;
+def ConstantOpArrayAttr :
+  TypedArrayAttrBase<ConstantOpAttr, "constant op array attribute">;
 
 def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DensifiableElementsAttrInterface
@@ -140,7 +127,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
-def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elements", [
+def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
@@ -174,8 +161,8 @@ def LazyFuncOp : LazyCst_Op<"func", [
   let summary = "Lazy constant expression";
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       OperationArrayAttr:$arg_ops,
-                       OperationArrayAttr:$res_ops,
+                       ConstantOpArrayAttr:$arg_ops,
+                       ConstantOpArrayAttr:$res_ops,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region SizedRegion<1>:$body);

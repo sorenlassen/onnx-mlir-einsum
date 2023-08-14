@@ -71,8 +71,8 @@ public:
     return 0;
   }
 
-  int test_lazy_elements() {
-    llvm::outs() << "test_lazy_elements()\n";
+  int test_lazy_elms() {
+    llvm::outs() << "test_lazy_elms()\n";
 
     constexpr char sym_name[] = "cstexpr0";
     auto type = RankedTensorType::get({5}, F32);
@@ -118,10 +118,10 @@ public:
     FunctionType function_type =
         b.getFunctionType({f32tensortype}, {i32tensortype});
     auto arg_op_names = b.getArrayAttr(
-        {OperationAttr::get(fcstOp->getName(), fcstOp->getAttrDictionary())});
+        {ConstantOpAttr::get(fcstOp->getName(), fcstOp->getAttrDictionary())});
     auto res_op_names = b.getArrayAttr(
-        {OperationAttr::get(*RegisteredOperationName::lookup(
-                                arith::ConstantOp::getOperationName(), ctx),
+        {ConstantOpAttr::get(*RegisteredOperationName::lookup(
+                                 arith::ConstantOp::getOperationName(), ctx),
             b.getDictionaryAttr({b.getNamedAttr("value", lazyElms)}))});
     auto arg_attrs = nullptr;
     auto res_attrs = nullptr;
@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
   Test test(&context);
   int failures = 0;
   failures += test.test_file_data();
-  failures += test.test_lazy_elements();
+  failures += test.test_lazy_elms();
   failures += test.test_lazy_func();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
