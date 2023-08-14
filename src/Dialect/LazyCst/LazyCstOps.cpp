@@ -5,6 +5,7 @@
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/FunctionImplementation.h"
 
 #define GET_OP_CLASSES
 #include "src/Dialect/LazyCst/LazyCstOps.cpp.inc"
@@ -13,9 +14,27 @@ using namespace mlir;
 
 namespace lazycst {
 
-LogicalResult LazyReturnOp::verify() {
-  // Implementation is copied from func::ReturnOp.
+// Implementation is copied from func::FuncOp.
+ParseResult LazyFuncOp::parse(OpAsmParser &parser, OperationState &result) {
+  auto buildFuncType =
+      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
+          function_interface_impl::VariadicFlag,
+          std::string &) { return builder.getFunctionType(argTypes, results); };
 
+  return function_interface_impl::parseFunctionOp(parser, result,
+      /*allowVariadic=*/false, getFunctionTypeAttrName(result.name),
+      buildFuncType, getArgAttrsAttrName(result.name),
+      getResAttrsAttrName(result.name));
+}
+
+// Implementation is copied from func::FuncOp.
+void LazyFuncOp::print(OpAsmPrinter &p) {
+  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false,
+      getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName());
+}
+
+// Implementation is copied from func::ReturnOp.
+LogicalResult LazyReturnOp::verify() {
   auto function = cast<LazyFuncOp>((*this)->getParentOp());
 
   // The operand number and types must match the function signature.

@@ -109,7 +109,6 @@ public:
     auto fcstOp = b.create<arith::ConstantOp>(loc, d);
     auto fcastOp = b.create<arith::FPToUIOp>(loc, i32tensortype, fcstOp);
     b.create<func::ReturnOp>(loc, fcastOp.getResult());
-    llvm::outs() << "f=" << f << "\n";
 
     b.setInsertionPointToStart(m.getBody());
     constexpr char sym_name[] = "cstexpr0";
@@ -135,7 +134,10 @@ public:
     auto returnOp = b.create<LazyReturnOp>(loc, ValueRange{castOp});
     assert(succeeded(returnOp.verifyInvariants()));
     assert(succeeded(cstexpr0.verifyInvariants()));
-    llvm::outs() << "cstexpr0=" << cstexpr0 << "\n";
+    // llvm::outs() << "cstexpr0=";
+    // // Figure out why assumeVerified is needed to avoid generic prinout.
+    // cstexpr0.print(llvm::outs(), OpPrintingFlags().assumeVerified());
+    // llvm::outs() << "\n";
 
     b.setInsertionPointToEnd(m.getBody());
     func::FuncOp f2 = func::FuncOp::create(loc, "f2", ftype, {});
@@ -143,7 +145,6 @@ public:
     b.setInsertionPointToStart(f2.addEntryBlock());
     auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, f2cstOp.getResult());
-    llvm::outs() << "f2=" << f2 << "\n";
 
     auto uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
     assert(uses.has_value());

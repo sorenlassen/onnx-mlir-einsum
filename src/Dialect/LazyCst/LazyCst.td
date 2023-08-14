@@ -153,14 +153,6 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elements", [
 class LazyCst_Op<string mnemonic, list<Trait> traits = []>
     : Op<LazyCst_Dialect, mnemonic, traits> {}
 
-def LazyReturnOp : LazyCst_Op<"return",
-    [Pure, ReturnLike, Terminator, HasParent<"LazyFuncOp">]> {
-  let summary = "Lazy constant expression return operation";
-  let arguments = (ins Variadic<AnyType>:$operands);
-  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
-  let hasVerifier = 1;
-}
-
 // TODO: Represent op names with an OperationNameAttr attribute.
 def LazyFuncOp : LazyCst_Op<"func", [
   CallableOpInterface, FunctionOpInterface, IsolatedFromAbove,
@@ -210,6 +202,15 @@ def LazyFuncOp : LazyCst_Op<"func", [
     /// Returns the result types of this function.
     llvm::ArrayRef<mlir::Type> getResultTypes() { return getFunctionType().getResults(); }
   }];
+  let hasCustomAssemblyFormat = 1;
+}
+
+def LazyReturnOp : LazyCst_Op<"return",
+    [Pure, ReturnLike, Terminator, HasParent<"LazyFuncOp">]> {
+  let summary = "Lazy constant expression return operation";
+  let arguments = (ins Variadic<AnyType>:$operands);
+  let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
+  let hasVerifier = 1;
 }
 
 #endif // LAZYCST_TD
