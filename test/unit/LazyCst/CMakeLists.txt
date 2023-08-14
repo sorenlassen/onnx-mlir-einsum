@@ -5,4 +5,6 @@ add_unittest(TestLazyCst
 
   LINK_LIBS PRIVATE
   OMLazyCst
+  MLIRArithDialect
+  MLIRFuncDialect
   )

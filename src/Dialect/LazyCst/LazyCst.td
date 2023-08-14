@@ -41,6 +41,11 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
 
 def OperationNameAttr : LazyCst_Attr<"OperationName", "operation_name"> {
   let parameters = (ins "mlir::OperationName":$name);
+  let builders = [
+    AttrBuilderWithInferredContext<(ins"mlir::OperationName":$name), [{
+      return $_get(name.getContext(), name);
+    }]>,
+  ];
   let assemblyFormat = "`<` custom<OperationName>($name) `>`";
 }
 
@@ -128,22 +133,41 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
-    "mlir::StringAttr":$operation,
-    ArrayRefParameter<"mlir::ElementsAttr", "">:$operands,
-    OptionalParameter<"mlir::DictionaryAttr">:$attributes
+    "mlir::FlatSymbolRefAttr":$callee, OptionalParameter<"unsigned">:$index
   );
   let builders = [
     AttrBuilderWithInferredContext<(ins
         "mlir::ShapedType":$type,
-        "mlir::StringAttr":$operation,
-        "llvm::ArrayRef<mlir::ElementsAttr>":$operands,
-        CArg<"mlir::DictionaryAttr", "nullptr">:$attributes), [{
-      return $_get(type.getContext(), type, operation, operands, attributes);
+        "mlir::FlatSymbolRefAttr":$callee,
+        CArg<"unsigned", "0">:$index), [{
+      return $_get(type.getContext(), type, callee, index);
     }]>,
   ];
-  let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
-  // TODO: add fold / materialization methods
+  let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
 }
+
+// def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
+//     ElementsAttrInterface
+//   ]> {
+//   let summary = "Lazily evaluated elements attribute.";
+//   let parameters = (ins
+//     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
+//     "mlir::StringAttr":$operation,
+//     ArrayRefParameter<"mlir::ElementsAttr", "">:$operands,
+//     OptionalParameter<"mlir::DictionaryAttr">:$attributes
+//   );
+//   let builders = [
+//     AttrBuilderWithInferredContext<(ins
+//         "mlir::ShapedType":$type,
+//         "mlir::StringAttr":$operation,
+//         "llvm::ArrayRef<mlir::ElementsAttr>":$operands,
+//         CArg<"mlir::DictionaryAttr", "nullptr">:$attributes), [{
+//       return $_get(type.getContext(), type, operation, operands, attributes);
+//     }]>,
+//   ];
+//   let assemblyFormat = "`<` $operation `(` $operands `)` ($attributes^)? `>`";
+//   // TODO: add fold / materialization methods
+// }
 
 //===----------------------------------------------------------------------===//
 // Lazy Constant Ops.
