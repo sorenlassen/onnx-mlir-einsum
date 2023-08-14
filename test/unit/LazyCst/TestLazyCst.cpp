@@ -96,12 +96,11 @@ public:
     auto m = ModuleOp::create(loc);
     SymbolTable symbolTable(m);
 
-    b.setInsertionPointToStart(m.getBody());
+    b.setInsertionPointToEnd(m.getBody());
     FunctionType ftype = b.getFunctionType({}, {ui32type});
     func::FuncOp f = func::FuncOp::create(loc, "f", ftype, {});
     symbolTable.insert(f);
     auto fblock = f.addEntryBlock();
-
     b.setInsertionPointToStart(fblock);
     auto d = DenseElementsAttr::get<float>(f32type, 3.14f);
     auto fcstOp = b.create<arith::ConstantOp>(loc, d);
@@ -125,11 +124,18 @@ public:
         arg_op_names, res_op_names, arg_attrs, res_attrs);
     SymbolTable(m).insert(cexpr0);
     auto block = cexpr0.addEntryBlock();
-
     b.setInsertionPointToStart(block);
     auto castOp =
         b.create<arith::FPToUIOp>(loc, ui32type, block->getArgument(0));
     b.create<LazyReturnOp>(loc, ValueRange{castOp});
+
+    b.setInsertionPointToEnd(m.getBody());
+    func::FuncOp f2 = func::FuncOp::create(loc, "f2", ftype, {});
+    symbolTable.insert(f2);
+    auto f2block = f2.addEntryBlock();
+    b.setInsertionPointToStart(f2block);
+    auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
+    b.create<func::ReturnOp>(loc, f2cstOp.getResult());
 
     llvm::outs() << m << "\n";
     return 0;

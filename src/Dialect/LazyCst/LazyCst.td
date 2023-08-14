@@ -127,7 +127,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
 
-def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy", [
+def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elements", [
     ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
