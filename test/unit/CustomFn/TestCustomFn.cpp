@@ -14,6 +14,7 @@
 #include "mlir/Transforms/Passes.h"
 
 #include "src/Builder/FrontendDialectTransformer.hpp"
+#include "src/Compiler/ElementsBuilders.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Interface/ShapeInferenceOpInterface.hpp"
 #include "src/Pass/Passes.hpp"
@@ -83,9 +84,13 @@ int check(ModelProto &model) {
   loadDialects(context);
   mlir::OwningOpRef<mlir::ModuleOp> module;
 
-  onnx_mlir::ImportOptions options;
-  options.useOnnxModelTypes = true;
-  onnx_mlir::ImportFrontendModel(model, context, module, options);
+  {
+    auto elementsBuilder = onnx_mlir::getLazyElementsBuilder(&context);
+    onnx_mlir::ImportOptions options;
+    options.useOnnxModelTypes = true;
+    options.elementsBuilder = elementsBuilder.get();
+    onnx_mlir::ImportFrontendModel(model, context, module, options);
+  }
 
   mlir::PassManager pm(
       module.get()->getName(), mlir::OpPassManager::Nesting::Implicit);

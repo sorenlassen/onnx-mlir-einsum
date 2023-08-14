@@ -6,5 +6,6 @@ add_unittest(TestCustomFn
   LINK_LIBS PRIVATE
   OMBuilder
   OMCompilerPasses
+  OMCompilerUtils
   OMONNXOps
   )
