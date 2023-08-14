@@ -48,6 +48,7 @@ public:
   }
 
   int test_file_data() {
+    llvm::outs() << "test_file_data():\n";
     auto type = RankedTensorType::get({5}, F32);
     // TODO: pre-populate foo.data
     auto path0 = b.getStringAttr("foo.data");
@@ -65,11 +66,13 @@ public:
     m->setAttr("f0", f0);
     m->setAttr("f1", f1);
 
-    llvm::outs() << m << "\n";
+    llvm::outs() << m << "\n\n";
     return 0;
   }
 
   int test_lazy_elements() {
+    llvm::outs() << "test_lazy_elements()\n";
+
     constexpr char sym_name[] = "cstexpr0";
     auto type = RankedTensorType::get({5}, F32);
     auto lazyElms =
@@ -84,32 +87,36 @@ public:
     assert(cast<FlatSymbolRefAttr>(sym).getValue() == sym_name);
 
     llvm::outs() << lazyElms << "\n";
-    llvm::outs() << cstOp << "\n";
+    llvm::outs() << cstOp << "\n\n";
     return 0;
   }
 
   int test_lazy_func() {
-    auto f32type = RankedTensorType::get({5}, F32);
-    auto ui32type = RankedTensorType::get({5}, UI32);
+    llvm::outs() << "test_lazy_func()\n";
+
+    auto f32tensortype = RankedTensorType::get({5}, F32);
+    auto i32tensortype = RankedTensorType::get({5}, I32);
 
     auto m = ModuleOp::create(loc);
     SymbolTable symbolTable(m);
 
     b.setInsertionPointToEnd(m.getBody());
-    FunctionType ftype = b.getFunctionType({}, {ui32type});
+    FunctionType ftype = b.getFunctionType({}, {i32tensortype});
     func::FuncOp f = func::FuncOp::create(loc, "f", ftype, {});
     symbolTable.insert(f);
     b.setInsertionPointToStart(f.addEntryBlock());
-    auto d = DenseElementsAttr::get<float>(f32type, 3.14f);
+    auto d = DenseElementsAttr::get<float>(f32tensortype, 3.14f);
     auto fcstOp = b.create<arith::ConstantOp>(loc, d);
-    auto fcastOp = b.create<arith::FPToUIOp>(loc, ui32type, fcstOp);
+    auto fcastOp = b.create<arith::FPToUIOp>(loc, i32tensortype, fcstOp);
     b.create<func::ReturnOp>(loc, fcastOp.getResult());
+    llvm::outs() << "f=" << f << "\n";
 
     b.setInsertionPointToStart(m.getBody());
     constexpr char sym_name[] = "cstexpr0";
-    auto lazyElms =
-        LazyElementsAttr::get(ui32type, FlatSymbolRefAttr::get(ctx, sym_name));
-    FunctionType function_type = b.getFunctionType({f32type}, {ui32type});
+    auto lazyElms = LazyElementsAttr::get(
+        i32tensortype, FlatSymbolRefAttr::get(ctx, sym_name));
+    FunctionType function_type =
+        b.getFunctionType({f32tensortype}, {i32tensortype});
     auto arg_op_names =
         b.getArrayAttr({OperationNameAttr::get(fcstOp->getName())});
     auto res_op_names =
@@ -124,16 +131,19 @@ public:
     auto block = cstexpr0.addEntryBlock();
     b.setInsertionPointToStart(block);
     auto castOp =
-        b.create<arith::FPToUIOp>(loc, ui32type, cstexpr0.getArgument(0));
-    b.create<LazyReturnOp>(loc, ValueRange{castOp});
+        b.create<arith::FPToUIOp>(loc, i32tensortype, cstexpr0.getArgument(0));
+    auto returnOp = b.create<LazyReturnOp>(loc, ValueRange{castOp});
+    assert(succeeded(returnOp.verifyInvariants()));
+    assert(succeeded(cstexpr0.verifyInvariants()));
+    llvm::outs() << "cstexpr0=" << cstexpr0 << "\n";
 
     b.setInsertionPointToEnd(m.getBody());
     func::FuncOp f2 = func::FuncOp::create(loc, "f2", ftype, {});
     symbolTable.insert(f2);
-    auto f2block = f2.addEntryBlock();
-    b.setInsertionPointToStart(f2block);
+    b.setInsertionPointToStart(f2.addEntryBlock());
     auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, f2cstOp.getResult());
+    llvm::outs() << "f2=" << f2 << "\n";
 
     auto uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
     assert(uses.has_value());
@@ -141,6 +151,10 @@ public:
     std::vector<Operation *> expected{cstexpr0, f2cstOp};
     for (const auto &use : *uses)
       assert(llvm::find(expected, use.getUser()) != expected.end());
+
+    // Figure out why assumeVerified is needed to avoid generic prinout.
+    m.print(llvm::outs(), OpPrintingFlags().assumeVerified());
+    llvm::outs() << "\n";
 
     return 0;
   }
