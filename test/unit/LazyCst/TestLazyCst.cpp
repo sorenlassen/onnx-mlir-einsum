@@ -142,25 +142,6 @@ public:
     for (const auto &use : *uses)
       assert(llvm::find(expected, use.getUser()) != expected.end());
 
-    b.setInsertionPointToEnd(m.getBody());
-    func::FuncOp f3 = func::FuncOp::create(loc, "f3", ftype, {});
-    symbolTable.insert(f3);
-    b.setInsertionPointToStart(f3.addEntryBlock());
-    auto f3callOp = b.create<func::CallOp>(loc, "f2", TypeRange{ui32type});
-    b.create<func::ReturnOp>(loc, f3callOp.getResult(0));
-
-    llvm::outs() << m << "\n";
-
-    if (auto uses = SymbolTable::getSymbolUses(&m.getBodyRegion())) {
-      llvm::outs() << std::distance(uses->begin(), uses->end()) << " uses\n";
-      for (const auto &use : *uses) {
-        llvm::outs() << "symbol=" << use.getSymbolRef()
-                     << ", user=" << *use.getUser() << "\n";
-      }
-    } else {
-      llvm::outs() << "no uses\n";
-    }
-
     return 0;
   }
 };
