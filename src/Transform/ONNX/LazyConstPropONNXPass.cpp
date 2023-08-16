@@ -17,6 +17,32 @@ struct LazyConstPropONNXPassConfiguration {
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
 
+// Non-attribute variant of ConstantOpAttr.
+struct ConstantOp {
+  OperationName opName;
+  DictionaryAttr attrs;
+};
+
+// Similar to OpConversionPattern or Operation::fold().
+class LazyOpFolder {
+public:
+  LazyOpFolder(OperationName operationName) : operationName(operationName) {}
+  virtual ~LazyOpFolder() = default;
+  virtual LogicalResult match(Operation *op) const = 0;
+  virtual void fold(Operation *op, ArrayRef<ConstantOp> operands,
+      SmallVectorImpl<ConstantOp> &results) const = 0;
+
+protected:
+  OperationName operationName;
+};
+
+DenseMap<OperationName, std::unique_ptr<LazyOpFolder>> lazyOpFolders;
+
+bool isLazyFoldable(Operation *op) {
+  auto it = lazyOpFolders.find(op->getName());
+  return it != lazyOpFolders.end() && succeeded(it->second->match(op));
+}
+
 struct LazyConstPropONNXPass
     : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstPropONNXPass);
@@ -44,15 +70,10 @@ bool isaConstantOp(Operation *op) {
   return op && op->hasTrait<OpTrait::ConstantLike>();
 }
 
-bool isaConstantValue(Value v) {
-  return isaConstantOp(v.getDefiningOp());
-}
+bool isaConstantValue(Value v) { return isaConstantOp(v.getDefiningOp()); }
 
-bool isLazyFoldable(Operation *op) {
-  llvm_unreachable("TODO: implement this");
-}
-
-void LazyConstPropONNXPass::runOnRegion(Region *region, SmallVectorImpl<Region *> &regionQueue) {
+void LazyConstPropONNXPass::runOnRegion(
+    Region *region, SmallVectorImpl<Region *> &regionQueue) {
   SmallVector<Operation *> opQueue;
   DenseMap<Operation *, size_t> opMap;
   using Span = std::pair<size_t, size_t>;
@@ -116,7 +137,7 @@ void LazyConstPropONNXPass::runOnRegion(Region *region, SmallVectorImpl<Region *
   }
 }
 
-}
+} // namespace
 
 void onnx_mlir::configureLazyConstPropONNXPass(int expansionBound) {
   LazyConstPropONNXPassConfiguration::expansionBound = expansionBound;
