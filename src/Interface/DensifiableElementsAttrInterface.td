@@ -7,6 +7,7 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
+// TODO: rename to DenseLikeElementsAttrInterface
 def DensifiableElementsAttrInterface : AttrInterface<"DensifiableElementsAttrInterface", [ElementsAttrInterface]> {
   let description = [{
     Interface for elements attributes with a toDenseElementsAttr() method.
