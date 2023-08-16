@@ -6,6 +6,7 @@ add_onnx_mlir_rewriter(ConvOpt)
 
 add_onnx_mlir_library(OMONNXRewrite
   ConstProp.cpp
+  LazyConstProp.cpp
   ConvOpt.cpp
   Decompose.cpp
   DecomposeEinsum.cpp

@@ -52,6 +52,11 @@ void configureConstPropONNXToONNXPass(bool roundFPToInt, int expansionBound,
 
 std::unique_ptr<mlir::Pass> createConstPropONNXToONNXPass();
 
+// To configure LazyConstPropONNXPass at program start.
+void configureLazyConstPropONNXPass(int expansionBound);
+
+std::unique_ptr<mlir::Pass> createLazyConstPropONNXPass();
+
 /// Pass for instrument the ops in specific stage.
 std::unique_ptr<mlir::Pass> createInstrumentPass();
 std::unique_ptr<mlir::Pass> createInstrumentPass(
