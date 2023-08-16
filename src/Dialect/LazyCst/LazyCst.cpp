@@ -102,6 +102,15 @@ std::string unescapeIdentifier(StringRef escapedIdentifier) {
   return std::string(unescaped);
 }
 
+mlir::StringAttr LazyFunctionManager::nextName(mlir::ModuleOp module) {
+  unsigned subscript = counter++;
+  auto name = mlir::StringAttr::get(
+      module.getContext(), "lazycst." + llvm::Twine(subscript));
+  assert(!SymbolTable::lookupSymbolIn(module, name) &&
+         "next LazyFuncOp name was already taken");
+  return name;
+}
+
 // template <class C>
 // StringAttr BufferElementsAttr<C>::getPath() const {
 //   // using T = typename C::ContiguousIterableTypesT;

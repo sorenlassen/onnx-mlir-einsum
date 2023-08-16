@@ -26,6 +26,7 @@ def LazyCst_Dialect : Dialect {
   let useDefaultAttributePrinterParser = 1;
   let extraClassDeclaration = [{
     FileDataManager fileDataManager;
+    LazyFunctionManager lazyFunctionManager;
   }];
 }
 

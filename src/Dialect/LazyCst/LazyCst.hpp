@@ -11,6 +11,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 
 #include <tuple>
@@ -19,6 +20,15 @@
 namespace lazycst {
 
 using DensifiableElementsAttrInterface = mlir::DensifiableElementsAttrInterface;
+
+class LazyFunctionManager {
+public:
+  LazyFunctionManager() : counter(0) {}
+  mlir::StringAttr nextName(mlir::ModuleOp module);
+
+private:
+  std::atomic<unsigned> counter;
+};
 
 template <class C>
 struct BufferElementsAttr : public mlir::Attribute {
