@@ -247,8 +247,9 @@ void LazyConstPropONNXPass::runOnRegion(
     };
     assert(llvm::all_of(v.getUsers(), outsideOp));
 
+    // TODO: consider making it a vector set to ensure determinism
+    SmallPtrSet<Operation *, 4> unreachableConstants;
     llvm::SmallDenseMap<Attribute, Value> cloneConstants;
-    SmallVector<Operation *> unreachableConstants;
     SmallVector<Attribute> lazyArguments;
     SmallVector<Attribute> lazyResults;
     IRMapping mapping;
@@ -271,12 +272,13 @@ void LazyConstPropONNXPass::runOnRegion(
               lazyArguments.push_back(attr);
             } else {
               cst = b.clone(*operandOp)->getResult(0);
-              unreachableConstants.push_back(operandOp);
             }
             auto [_, inserted] = cloneConstants.try_emplace(attr, cst);
             assert(inserted);
           }
           cstOperands[i] = cst;
+          if (!llvm::any_of(operandOp->getUsers(), outsideOp))
+            unreachableConstants.insert(operandOp);
         }
       }
 
