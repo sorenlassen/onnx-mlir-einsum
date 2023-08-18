@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include "src/Dialect/ONNX/ONNXOps.hpp"
+#include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -24,19 +26,81 @@ struct ConstantOp {
 };
 
 // Similar to OpConversionPattern or Operation::fold().
-class LazyOpFolder {
+class LazyFolder {
 public:
-  LazyOpFolder(OperationName operationName) : operationName(operationName) {}
-  virtual ~LazyOpFolder() = default;
+  virtual ~LazyFolder() = default;
+
   virtual LogicalResult match(Operation *op) const = 0;
   virtual void fold(Operation *op, ArrayRef<ConstantOp> operands,
       SmallVectorImpl<ConstantOp> &results) const = 0;
-
-protected:
-  OperationName operationName;
 };
 
-DenseMap<OperationName, std::unique_ptr<LazyOpFolder>> lazyOpFolders;
+template <typename OP>
+class OpLazyFolder : public LazyFolder {
+public:
+  virtual ~OpLazyFolder() = default;
+
+  virtual LogicalResult match(OP op) const { return success(); }
+  virtual ConstantOp fold(OP op, ArrayRef<ConstantOp> operands) const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual void fold(OP op, ArrayRef<ConstantOp> operands,
+      SmallVectorImpl<ConstantOp> &results) const {
+    results.emplace_back(fold(op), operands);
+  }
+
+  LogicalResult match(Operation *op) const override {
+    return match(cast<OP>(op));
+  }
+  virtual void fold(Operation *op, ArrayRef<ConstantOp> operands,
+      SmallVectorImpl<ConstantOp> &results) const override {
+    return fold(cast<OP>(op), operands, results);
+  }
+};
+
+#if 0
+// Extracts number from a scalar elements attribute.
+WideNum getScalarNum(ElementsAttr elements) {
+  Type elementType = elements.getElementType();
+  if (isa<FloatType>(elementType)) {
+    APFloat f = *elements.value_begin<APFloat>();
+    return WideNum::fromAPFloat(f);
+  } else if (auto itype = dyn_cast<IntegerType>(elementType)) {
+    APInt i = *elements.value_begin<APInt>();
+    return WideNum::fromAPInt(i, !itype.isUnsigned());
+  } else {
+    llvm_unreachable("Only integer and float types are supported");
+  }
+}
+
+class ONNXRangeOpLazyFolder : public OpLazyFolder<ONNXRangeOp> {
+public:
+  virtual ConstantOp fold(ONNXRangeOp op, ArrayRef<ConstantOp> operands) const {
+    MLIRContext *ctx = op.getContext();
+    ShapedType replacingType = op.getType().cast<ShapedType>();
+    OnnxElementsAttrBuilder elementsBuilder(ctx);
+  NamedAttribute value("value", elementsBuilder.range(
+      replacingType, getScalarNum(start), getScalarNum(delta)));
+      auto dict = DictionaryAttr::get(ctx, value);
+      OperationName name(ONNXConstantOp::getOperationName(), ctx);
+      return {name,
+  return createReplacingConstantOp(rewriter, replacingValue, rangeElements);
+
+  }
+};
+
+Value ConstPropRange(PatternRewriter &rewriter, Value replacingValue,
+    Value start, Value limit, Value delta) {
+  ShapedType replacingType = replacingValue.getType().cast<ShapedType>();
+
+  OnnxElementsAttrBuilder elementsBuilder(rewriter.getContext());
+  ElementsAttr rangeElements = elementsBuilder.range(
+      replacingType, getScalarNum(start), getScalarNum(delta));
+  return createReplacingConstantOp(rewriter, replacingValue, rangeElements);
+}
+#endif
+
+DenseMap<OperationName, std::unique_ptr<LazyFolder>> lazyOpFolders;
 
 bool isLazyFoldable(Operation *op) {
   auto it = lazyOpFolders.find(op->getName());
