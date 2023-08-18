@@ -117,16 +117,12 @@ public:
         i32tensortype, FlatSymbolRefAttr::get(ctx, sym_name));
     FunctionType function_type =
         b.getFunctionType({f32tensortype}, {i32tensortype});
-    auto arg_op_names = b.getArrayAttr(
-        {ConstantOpAttr::get(fcstOp->getName(), fcstOp->getAttrDictionary())});
-    auto res_op_names = b.getArrayAttr(
-        {ConstantOpAttr::get(*RegisteredOperationName::lookup(
-                                 arith::ConstantOp::getOperationName(), ctx),
-            b.getDictionaryAttr({b.getNamedAttr("value", lazyElms)}))});
+    auto arg_constants = b.getArrayAttr({fcstOp.getValue()});
+    auto res_constants = b.getArrayAttr({lazyElms});
     auto arg_attrs = nullptr;
     auto res_attrs = nullptr;
     auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
-        arg_op_names, res_op_names, arg_attrs, res_attrs);
+        arg_constants, res_constants, arg_attrs, res_attrs);
     SymbolTable(m).insert(cstexpr0);
     auto block = cstexpr0.addEntryBlock();
     b.setInsertionPointToStart(block);

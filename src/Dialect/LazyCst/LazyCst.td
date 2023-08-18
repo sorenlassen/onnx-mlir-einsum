@@ -40,19 +40,6 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
   let mnemonic = attrMnemonic;
 }
 
-def ConstantOpAttr : LazyCst_Attr<"ConstantOp", "cst_op"> {
-  let parameters = (ins "mlir::OperationName":$name, "mlir::DictionaryAttr":$attrs);
-  let builders = [
-    AttrBuilderWithInferredContext<(ins"mlir::OperationName":$name, "mlir::DictionaryAttr":$attrs), [{
-      return $_get(name.getContext(), name, attrs);
-    }]>,
-  ];
-  let assemblyFormat = "`<` custom<OperationName>($name) $attrs `>`";
-}
-
-def ConstantOpArrayAttr :
-  TypedArrayAttrBase<ConstantOpAttr, "constant op array attribute">;
-
 def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DensifiableElementsAttrInterface
   ], "BufferElementsAttr<FileDataElementsAttr>"> {
@@ -162,8 +149,8 @@ def LazyFuncOp : LazyCst_Op<"func", [
   let summary = "Lazy constant expression";
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       ConstantOpArrayAttr:$arg_ops,
-                       ConstantOpArrayAttr:$res_ops,
+                       ArrayAttr:$arg_constants,
+                       ArrayAttr:$res_constants,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region SizedRegion<1>:$body);

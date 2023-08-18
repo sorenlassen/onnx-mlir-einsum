@@ -31,28 +31,6 @@ void lazycst::LazyCstDialect::initialize() {
 
 #include "src/Dialect/LazyCst/LazyCstDialect.cpp.inc"
 
-namespace {
-mlir::ParseResult parseOperationName(
-    mlir::AsmParser &parser, mlir::FailureOr<mlir::OperationName> &name) {
-  auto loc = parser.getCurrentLocation();
-  std::string nameAsString;
-  if (mlir::failed(parser.parseKeywordOrString(&nameAsString)))
-    return parser.emitError(loc, "expected operation name");
-  if (auto registeredName = mlir::RegisteredOperationName::lookup(
-          nameAsString, parser.getContext())) {
-    name = *registeredName;
-    return mlir::success();
-  } else {
-    return parser.emitError(loc, "unregistered operation name ")
-           << nameAsString;
-  }
-}
-
-void printOperationName(mlir::AsmPrinter &printer, mlir::OperationName name) {
-  printer.printKeywordOrString(name.getIdentifier());
-}
-} // namespace
-
 #define GET_ATTRDEF_CLASSES
 #include "src/Dialect/LazyCst/LazyCstAttributes.cpp.inc"
 
