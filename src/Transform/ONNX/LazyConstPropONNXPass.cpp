@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
+#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/Pass/Pass.h"
+
+#include "llvm/ADT/DenseMap.h"
 
 #define USE_FOLD_ADAPTOR 1
 
@@ -139,11 +144,23 @@ void LazyConstPropONNXPass::runOnOperation() {
     runOnRegion(regionQueue.pop_back_val(), regionQueue);
 }
 
-bool isaConstantOp(Operation *op) {
+bool isConstant(Operation *op) {
   return op && op->hasTrait<OpTrait::ConstantLike>();
 }
 
-bool isaConstantValue(Value v) { return isaConstantOp(v.getDefiningOp()); }
+bool isConstantResult(Value v) { return isConstant(v.getDefiningOp()); }
+
+// Returns nullptr if v is not a constant result.
+Attribute getConstantAttribute(Operation *op) {
+  if (!isConstant(op))
+    return nullptr;
+  SmallVector<OpFoldResult, 1> folded;
+  auto ok = op->fold(folded);
+  assert(succeeded(ok));
+  assert(folded.size() == 1);
+  assert(folded.front().is<Attribute>());
+  return folded.front().get<Attribute>();
+}
 
 void LazyConstPropONNXPass::runOnRegion(
     Region *region, SmallVectorImpl<Region *> &regionQueue) {
@@ -152,17 +169,121 @@ void LazyConstPropONNXPass::runOnRegion(
   using Span = std::pair<size_t, size_t>;
 
   auto constantify = [&](Value v, const Span &span) {
-    assert(span.first <= span.second);
+    assert(!v.use_empty());
+
     if (span.first == span.second) {
-      assert(isaConstantValue(v));
+      assert(isConstantResult(v));
       return;
     }
-    assert(v.getDefiningOp() == opQueue[span.second - 1]);
-    // TODO: put opQueue[span.first:span.second] into a lazy func
-    //       and make all the results with users outside the
-    //       span into lazy func results,
-    //       while checking that no users are before the span
-    llvm_unreachable("TODO: implement this");
+
+    // Put opQueue[span.first:span.second] into a lazy func and make all the
+    // results with users outside the span into lazy func results,
+    // while checking that no users are before the span.
+    assert(span.first < span.second);
+    Operation *defop = v.getDefiningOp();
+    assert(defop == opQueue[span.second - 1]);
+    ModuleOp module = defop->getParentOfType<ModuleOp>();
+    OpBuilder b(module.getBodyRegion());
+    MLIRContext *ctx = b.getContext();
+    auto *lazyCstDialect = ctx->getLoadedDialect<lazycst::LazyCstDialect>();
+    StringAttr lazyFuncName =
+        lazyCstDialect->lazyFunctionManager.nextName(module);
+    auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
+
+    Location loc = defop->getLoc();
+    TypeAttr noFuncType;
+    auto cstexpr = b.create<lazycst::LazyFuncOp>(
+        loc, lazyFuncName, noFuncType, nullptr, nullptr, nullptr, nullptr);
+    SymbolTable(module).insert(cstexpr);
+    b.setInsertionPointToStart(cstexpr.addEntryBlock());
+
+    const auto outsideOp = [&](Operation *op) {
+      auto it = opMap.find(op);
+      if (it != opMap.end()) {
+        auto pos = it->second;
+        assert(opQueue[pos] == op && "opMap/opQueue invariant");
+        assert(span.first <= pos);
+        if (pos < span.second)
+          return false;
+      }
+      return true;
+    };
+    const auto outsideOperand = [&outsideOp](OpOperand &operand) {
+      return outsideOp(operand.getOwner());
+    };
+    assert(llvm::all_of(v.getUsers(), outsideOp));
+
+    llvm::SmallDenseMap<Attribute, Value> cloneConstants;
+    SmallVector<Attribute> lazyArguments;
+    SmallVector<Attribute> lazyResults;
+    IRMapping mapping;
+    for (auto [pos, end] = span; pos < end; ++pos) {
+      Operation *op = opQueue[pos];
+
+      unsigned numOperands = op->getNumOperands();
+      SmallVector<Value> cstOperands(numOperands, nullptr);
+      for (unsigned i = 0; i < numOperands; ++i) {
+        Value operand = op->getOperand(i);
+        Operation *operandOp = operand.getDefiningOp();
+        if (Attribute attr = getConstantAttribute(operandOp)) {
+          Value cst = cloneConstants.lookup(attr);
+          if (!cst) {
+            if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
+                    attr)) {
+              Region &body = cstexpr.getBody();
+              assert(body.getNumArguments() == lazyArguments.size());
+              cst = body.addArgument(operand.getType(), operand.getLoc());
+              lazyArguments.push_back(attr);
+            } else {
+              cst = b.clone(*operandOp)->getResult(0);
+              auto [_, inserted] = cloneConstants.try_emplace(attr, cst);
+              assert(inserted);
+            }
+            auto [_, inserted] = cloneConstants.try_emplace(attr, cst);
+            assert(inserted);
+          }
+          cstOperands[i] = cst;
+        }
+      }
+
+      Operation *clone = b.clone(*op, mapping);
+      for (unsigned i = 0; i < numOperands; ++i) {
+        if (Value cst = cstOperands[i])
+          clone->setOperand(i, cst);
+      }
+
+      for (Value res : op->getResults()) {
+        if (llvm::any_of(res.getUsers(), outsideOp)) {
+          auto type = cast<ShapedType>(res.getType());
+          unsigned index = lazyResults.size();
+          auto lazyElms = lazycst::LazyElementsAttr::get(type, lazyFunc, index);
+          lazyResults.push_back(lazyElms);
+          Value cst = op->getName()
+                          .getDialect()
+                          ->materializeConstant(b, lazyElms, type, res.getLoc())
+                          ->getResult(0);
+          res.replaceUsesWithIf(cst, outsideOperand);
+        }
+      }
+    }
+    assert(!lazyResults.empty());
+
+    const auto getAttrType = [](Attribute ta) {
+      return cast<TypedAttr>(ta).getType();
+    };
+    SmallVector<Type> argTypes(llvm::map_range(lazyArguments, getAttrType));
+    SmallVector<Type> resTypes(llvm::map_range(lazyResults, getAttrType));
+    cstexpr.setFunctionType(b.getFunctionType(argTypes, resTypes));
+    cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(lazyArguments)));
+    cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(lazyResults)));
+
+    for (auto [begin, pos] = span; pos > begin; --pos) {
+      Operation *op = opQueue[pos - 1];
+      assert(op->use_empty());
+      // TODO: determine if operands are removed from use/def lists, or if we
+      //       should walk from front and dropAllUses() before erase()
+      op->erase();
+    }
   };
 
   // Returns a span if the value can be constantified, otherwise nulltopt
@@ -170,7 +291,7 @@ void LazyConstPropONNXPass::runOnRegion(
     Operation *defop = v.getDefiningOp();
 
     auto begin = opQueue.size();
-    if (isaConstantOp(defop) || opMap.contains(defop))
+    if (isConstant(defop) || opMap.contains(defop))
       return Span(begin, begin);
 
     for (auto &subregion : defop->getRegions())

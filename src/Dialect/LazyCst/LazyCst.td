@@ -141,7 +141,8 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
 class LazyCst_Op<string mnemonic, list<Trait> traits = []>
     : Op<LazyCst_Dialect, mnemonic, traits> {}
 
-// TODO: Represent op names with an OperationNameAttr attribute.
+def ElementsArrayAttr : TypedArrayAttrBase<ElementsAttr, "elements array attribute">;
+
 def LazyFuncOp : LazyCst_Op<"func", [
   CallableOpInterface, FunctionOpInterface, IsolatedFromAbove,
   SingleBlockImplicitTerminator<"LazyReturnOp">
@@ -149,8 +150,8 @@ def LazyFuncOp : LazyCst_Op<"func", [
   let summary = "Lazy constant expression";
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
-                       ArrayAttr:$arg_constants,
-                       ArrayAttr:$res_constants,
+                       ElementsArrayAttr:$arg_constants,
+                       ElementsArrayAttr:$res_constants,
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region SizedRegion<1>:$body);
