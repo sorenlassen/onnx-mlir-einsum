@@ -7,6 +7,8 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
+#define USE_FOLD_ADAPTOR 1
+
 namespace {
 
 using namespace mlir;
@@ -19,20 +21,14 @@ struct LazyConstPropONNXPassConfiguration {
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
 
-// Non-attribute variant of ConstantOpAttr.
-struct ConstantOp {
-  OperationName opName;
-  DictionaryAttr attrs;
-};
-
 // Similar to OpConversionPattern or Operation::fold().
 class LazyFolder {
 public:
   virtual ~LazyFolder() = default;
 
   virtual LogicalResult match(Operation *op) const = 0;
-  virtual void fold(Operation *op, ArrayRef<ConstantOp> operands,
-      SmallVectorImpl<ConstantOp> &results) const = 0;
+  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
+      SmallVectorImpl<Attribute> &results) const = 0;
 };
 
 template <typename OP>
@@ -41,24 +37,41 @@ public:
   virtual ~OpLazyFolder() = default;
 
   virtual LogicalResult match(OP op) const { return success(); }
-  virtual ConstantOp fold(OP op, ArrayRef<ConstantOp> operands) const {
-    llvm_unreachable("unimplemented");
-  }
-  virtual void fold(OP op, ArrayRef<ConstantOp> operands,
-      SmallVectorImpl<ConstantOp> &results) const {
-    results.emplace_back(fold(op), operands);
-  }
-
   LogicalResult match(Operation *op) const override {
     return match(cast<OP>(op));
   }
-  virtual void fold(Operation *op, ArrayRef<ConstantOp> operands,
-      SmallVectorImpl<ConstantOp> &results) const override {
+
+#if USE_FOLD_ADAPTOR
+  using FoldAdaptor = typename OP::FoldAdaptor;
+  virtual Attribute fold(OP op, FoldAdaptor adaptor) const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual void fold(
+      OP op, FoldAdaptor adaptor, SmallVectorImpl<Attribute> &results) const {
+    results.emplace_back(fold(op), adaptor);
+  }
+  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
+      SmallVectorImpl<Attribute> &results) const override {
+    return fold(cast<OP>(op),
+        FoldAdaptor(operands, op->getAttrDictionary(),
+            op->getPropertiesStorage(), op->getRegions()),
+        results);
+  }
+#else
+  virtual Attribute fold(OP op, ArrayRef<Attribute> operands) const {
+    llvm_unreachable("unimplemented");
+  }
+  virtual void fold(OP op, ArrayRef<Attribute> operands,
+      SmallVectorImpl<Attribute> &results) const {
+    results.emplace_back(fold(op), operands);
+  }
+  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
+      SmallVectorImpl<Attribute> &results) const override {
     return fold(cast<OP>(op), operands, results);
   }
+#endif
 };
 
-#if 0
 // Extracts number from a scalar elements attribute.
 WideNum getScalarNum(ElementsAttr elements) {
   Type elementType = elements.getElementType();
@@ -75,30 +88,26 @@ WideNum getScalarNum(ElementsAttr elements) {
 
 class ONNXRangeOpLazyFolder : public OpLazyFolder<ONNXRangeOp> {
 public:
-  virtual ConstantOp fold(ONNXRangeOp op, ArrayRef<ConstantOp> operands) const {
-    MLIRContext *ctx = op.getContext();
-    ShapedType replacingType = op.getType().cast<ShapedType>();
-    OnnxElementsAttrBuilder elementsBuilder(ctx);
-  NamedAttribute value("value", elementsBuilder.range(
-      replacingType, getScalarNum(start), getScalarNum(delta)));
-      auto dict = DictionaryAttr::get(ctx, value);
-      OperationName name(ONNXConstantOp::getOperationName(), ctx);
-      return {name,
-  return createReplacingConstantOp(rewriter, replacingValue, rangeElements);
-
+#if USE_FOLD_ADAPTOR
+  virtual Attribute fold(ONNXRangeOp op, FoldAdaptor adaptor) const override {
+    ElementsAttr start = cast<ElementsAttr>(adaptor.getStart());
+    ElementsAttr delta = cast<ElementsAttr>(adaptor.getDelta());
+    ShapedType type = cast<ShapedType>(op.getType());
+    OnnxElementsAttrBuilder eb(op.getContext());
+    return eb.range(type, getScalarNum(start), getScalarNum(delta));
   }
-};
-
-Value ConstPropRange(PatternRewriter &rewriter, Value replacingValue,
-    Value start, Value limit, Value delta) {
-  ShapedType replacingType = replacingValue.getType().cast<ShapedType>();
-
-  OnnxElementsAttrBuilder elementsBuilder(rewriter.getContext());
-  ElementsAttr rangeElements = elementsBuilder.range(
-      replacingType, getScalarNum(start), getScalarNum(delta));
-  return createReplacingConstantOp(rewriter, replacingValue, rangeElements);
-}
+#else
+  virtual Attribute fold(
+      ONNXRangeOp op, ArrayRef<Attribute> operands) const override {
+    assert(operands.size() == 3);
+    ElementsAttr start = cast<ElementsAttr>(operands[0]);
+    ElementsAttr delta = cast<ElementsAttr>(operands[2]);
+    ShapedType type = cast<ShapedType>(op.getType());
+    OnnxElementsAttrBuilder eb(op.getContext());
+    return eb.range(type, getScalarNum(start), getScalarNum(delta));
+  }
 #endif
+};
 
 DenseMap<OperationName, std::unique_ptr<LazyFolder>> lazyOpFolders;
 
