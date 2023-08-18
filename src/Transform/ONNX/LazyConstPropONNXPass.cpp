@@ -8,9 +8,14 @@
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/Support/Debug.h"
+
+#define DEBUG_TYPE "lazy-constprop-onnx"
 
 #define USE_FOLD_ADAPTOR 1
 
@@ -36,9 +41,15 @@ public:
       SmallVectorImpl<Attribute> &results) const = 0;
 };
 
+class AlwaysMatchLazyFolder : public LazyFolder {
+public:
+  LogicalResult match(Operation *op) const override { return success(); }
+};
+
 template <typename OP>
 class OpLazyFolder : public LazyFolder {
 public:
+  using Op = OP;
   virtual ~OpLazyFolder() = default;
 
   virtual LogicalResult match(OP op) const { return success(); }
@@ -53,7 +64,7 @@ public:
   }
   virtual void fold(
       OP op, FoldAdaptor adaptor, SmallVectorImpl<Attribute> &results) const {
-    results.emplace_back(fold(op), adaptor);
+    results.emplace_back(fold(op, adaptor));
   }
   virtual void fold(Operation *op, ArrayRef<Attribute> operands,
       SmallVectorImpl<Attribute> &results) const override {
@@ -114,11 +125,26 @@ public:
 #endif
 };
 
-DenseMap<OperationName, std::unique_ptr<LazyFolder>> lazyOpFolders;
+struct LazyOpFolders {
+  template <class T>
+  void insert() {
+    auto [_, inserted] =
+        map.try_emplace(T::Op::getOperationName(), std::make_unique<T>());
+    assert(inserted);
+  }
+  LazyOpFolders() {
+    // TODO: move map initialization elsewhere
+    insert<OpLazyFolder<ONNXAddOp>>();
+    insert<ONNXRangeOpLazyFolder>();
+  }
+  llvm::StringMap<std::unique_ptr<LazyFolder>> map;
+};
+
+LazyOpFolders lazyOpFolders;
 
 bool isLazyFoldable(Operation *op) {
-  auto it = lazyOpFolders.find(op->getName());
-  return it != lazyOpFolders.end() && succeeded(it->second->match(op));
+  auto it = lazyOpFolders.map.find(op->getName().getIdentifier());
+  return it != lazyOpFolders.map.end() && succeeded(it->second->match(op));
 }
 
 struct LazyConstPropONNXPass
@@ -139,6 +165,8 @@ private:
 
 void LazyConstPropONNXPass::runOnOperation() {
   func::FuncOp function = getOperation();
+  // LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " runOnOperation: " << function <<
+  // "\n");
   SmallVector<Region *> regionQueue({&function.getFunctionBody()});
   while (!regionQueue.empty())
     runOnRegion(regionQueue.pop_back_val(), regionQueue);
@@ -164,6 +192,9 @@ Attribute getConstantAttribute(Operation *op) {
 
 void LazyConstPropONNXPass::runOnRegion(
     Region *region, SmallVectorImpl<Region *> &regionQueue) {
+  // LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " runOnRegion: " <<
+  // *region->getParentOp() << "\n");
+
   SmallVector<Operation *> opQueue;
   DenseMap<Operation *, size_t> opMap;
   using Span = std::pair<size_t, size_t>;
@@ -191,11 +222,14 @@ void LazyConstPropONNXPass::runOnRegion(
     auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
 
     Location loc = defop->getLoc();
-    TypeAttr noFuncType;
+    auto noFuncType = b.getFunctionType({}, {});
+    auto noArray = b.getArrayAttr({});
     auto cstexpr = b.create<lazycst::LazyFuncOp>(
-        loc, lazyFuncName, noFuncType, nullptr, nullptr, nullptr, nullptr);
+        loc, lazyFuncName, noFuncType, noArray, noArray, nullptr, nullptr);
     SymbolTable(module).insert(cstexpr);
     b.setInsertionPointToStart(cstexpr.addEntryBlock());
+    auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
+    b.setInsertionPoint(lazyReturn);
 
     const auto outsideOp = [&](Operation *op) {
       auto it = opMap.find(op);
@@ -214,6 +248,7 @@ void LazyConstPropONNXPass::runOnRegion(
     assert(llvm::all_of(v.getUsers(), outsideOp));
 
     llvm::SmallDenseMap<Attribute, Value> cloneConstants;
+    SmallVector<Operation *> unreachableConstants;
     SmallVector<Attribute> lazyArguments;
     SmallVector<Attribute> lazyResults;
     IRMapping mapping;
@@ -236,8 +271,7 @@ void LazyConstPropONNXPass::runOnRegion(
               lazyArguments.push_back(attr);
             } else {
               cst = b.clone(*operandOp)->getResult(0);
-              auto [_, inserted] = cloneConstants.try_emplace(attr, cst);
-              assert(inserted);
+              unreachableConstants.push_back(operandOp);
             }
             auto [_, inserted] = cloneConstants.try_emplace(attr, cst);
             assert(inserted);
@@ -252,17 +286,26 @@ void LazyConstPropONNXPass::runOnRegion(
           clone->setOperand(i, cst);
       }
 
-      for (Value res : op->getResults()) {
-        if (llvm::any_of(res.getUsers(), outsideOp)) {
-          auto type = cast<ShapedType>(res.getType());
-          unsigned index = lazyResults.size();
-          auto lazyElms = lazycst::LazyElementsAttr::get(type, lazyFunc, index);
-          lazyResults.push_back(lazyElms);
-          Value cst = op->getName()
-                          .getDialect()
-                          ->materializeConstant(b, lazyElms, type, res.getLoc())
-                          ->getResult(0);
-          res.replaceUsesWithIf(cst, outsideOperand);
+      {
+        OpBuilder::InsertionGuard guard(b);
+        unsigned numResults = op->getNumResults();
+        for (unsigned j = 0; j < numResults; ++j) {
+          Value res = op->getResult(j);
+          if (llvm::any_of(res.getUsers(), outsideOp)) {
+            auto type = cast<ShapedType>(res.getType());
+            unsigned index = lazyResults.size();
+            auto lazyElms =
+                lazycst::LazyElementsAttr::get(type, lazyFunc, index);
+            lazyResults.push_back(lazyElms);
+            lazyReturn.getOperandsMutable().append({clone->getResult(j)});
+            b.setInsertionPointAfter(defop);
+            Value cst =
+                op->getName()
+                    .getDialect()
+                    ->materializeConstant(b, lazyElms, type, res.getLoc())
+                    ->getResult(0);
+            res.replaceUsesWithIf(cst, outsideOperand);
+          }
         }
       }
     }
@@ -277,6 +320,9 @@ void LazyConstPropONNXPass::runOnRegion(
     cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(lazyArguments)));
     cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(lazyResults)));
 
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
+    assert(succeeded(verify(cstexpr)));
+
     for (auto [begin, pos] = span; pos > begin; --pos) {
       Operation *op = opQueue[pos - 1];
       assert(op->use_empty());
@@ -284,10 +330,20 @@ void LazyConstPropONNXPass::runOnRegion(
       //       should walk from front and dropAllUses() before erase()
       op->erase();
     }
+    for (Operation *op : unreachableConstants) {
+      assert(op->use_empty());
+      op->erase();
+    }
+
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " ranOnRegion: "
+                            << *region->getParentOp() << "\n");
+    assert(succeeded(verify(region->getParentOp())));
   };
 
   // Returns a span if the value can be constantified, otherwise nulltopt
   auto traverse = [&](const auto &recurse, Value v) -> std::optional<Span> {
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " traverse: " << v << "\n");
+
     Operation *defop = v.getDefiningOp();
 
     auto begin = opQueue.size();

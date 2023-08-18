@@ -80,7 +80,8 @@ Value OnnxBuilder::concat(
 }
 
 Value OnnxBuilder::constant(Attribute denseAttr) const {
-  assert((isa<DenseElementsAttr, DisposableElementsAttr>(denseAttr)) &&
+  // assert((isa<DenseElementsAttr, DisposableElementsAttr>(denseAttr)) &&
+  assert((isa<ElementsAttr>(denseAttr)) &&
          "unsupported onnx constant value attribute");
   return createOpAndInferShapes<ONNXConstantOp>(Attribute(), denseAttr);
 }
