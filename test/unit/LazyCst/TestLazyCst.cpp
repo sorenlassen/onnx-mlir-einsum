@@ -124,8 +124,7 @@ public:
     auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
         arg_constants, res_constants, arg_attrs, res_attrs);
     SymbolTable(m).insert(cstexpr0);
-    auto block = cstexpr0.addEntryBlock();
-    b.setInsertionPointToStart(block);
+    b.setInsertionPointToStart(cstexpr0.addEntryBlock());
     auto castOp =
         b.create<arith::FPToUIOp>(loc, i32tensortype, cstexpr0.getArgument(0));
     auto returnOp = b.create<LazyReturnOp>(loc, ValueRange{castOp});
