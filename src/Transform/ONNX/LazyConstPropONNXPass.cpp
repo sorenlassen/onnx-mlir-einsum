@@ -135,6 +135,7 @@ struct LazyOpFolders {
   LazyOpFolders() {
     // TODO: move map initialization elsewhere
     insert<OpLazyFolder<ONNXAddOp>>();
+    insert<OpLazyFolder<ONNXSumOp>>();
     insert<ONNXRangeOpLazyFolder>();
   }
   llvm::StringMap<std::unique_ptr<LazyFolder>> map;
@@ -347,6 +348,8 @@ void LazyConstPropONNXPass::runOnRegion(
     LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " traverse: " << v << "\n");
 
     Operation *defop = v.getDefiningOp();
+    if (!defop)
+      return std::nullopt;
 
     auto begin = opQueue.size();
     if (isConstant(defop) || opMap.contains(defop))
