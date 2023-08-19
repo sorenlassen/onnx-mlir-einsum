@@ -148,31 +148,6 @@ bool isLazyFoldable(Operation *op) {
   return it != lazyOpFolders.map.end() && succeeded(it->second->match(op));
 }
 
-struct LazyConstPropONNXPass
-    : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstPropONNXPass);
-
-  StringRef getArgument() const override { return "lazy-constprop-onnx"; }
-
-  StringRef getDescription() const override {
-    return "Lazy constant propagation for the ONNX dialect.";
-  }
-
-  void runOnOperation() final;
-
-private:
-  void runOnRegion(Region *region, SmallVectorImpl<Region *> &regionQueue);
-};
-
-void LazyConstPropONNXPass::runOnOperation() {
-  func::FuncOp function = getOperation();
-  // LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " runOnOperation: " << function <<
-  // "\n");
-  SmallVector<Region *> regionQueue({&function.getFunctionBody()});
-  while (!regionQueue.empty())
-    runOnRegion(regionQueue.pop_back_val(), regionQueue);
-}
-
 bool isConstant(Operation *op) {
   return op && op->hasTrait<OpTrait::ConstantLike>();
 }
@@ -191,16 +166,75 @@ Attribute getConstantAttribute(Operation *op) {
   return folded.front().get<Attribute>();
 }
 
-void LazyConstPropONNXPass::runOnRegion(
-    Region *region, SmallVectorImpl<Region *> &regionQueue) {
-  // LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " runOnRegion: " <<
-  // *region->getParentOp() << "\n");
-
-  SmallVector<Operation *> opQueue;
-  DenseMap<Operation *, size_t> opMap;
+struct LazyConstProp {
   using Span = std::pair<size_t, size_t>;
 
-  auto constantify = [&](Value v, const Span &span) {
+  LazyConstProp(ArrayRef<Region *> regions) : regionQueue(regions) {}
+
+  void run() {
+    while (!regionQueue.empty()) {
+      opQueue.clear();
+      opMap.clear();
+      runOnRegion(regionQueue.pop_back_val());
+    }
+  }
+
+  void runOnRegion(Region *region) {
+    Operation *terminator = region->back().getTerminator();
+    int numOperands = terminator->getNumOperands();
+    for (int i = 0; i < numOperands; ++i) {
+      if (auto span = runOnOperand(terminator->getOperand(i)))
+        constantifyResult(terminator->getOperand(i), *span);
+    }
+  }
+
+  // Returns a span if v is the result of an expression that can be
+  // constantified, either it's already a constant, in which case the span is
+  // empty, or it's an expression tree where every node can be lazy folded.
+  // Returns nullopt otherwise, namely if v is a block argument or it
+  // is a larger expression that cannot be constantified because
+  // it has non-constant subexpressions or nodes that cannot be lazy folded.
+  std::optional<Span> runOnOperand(Value v) {
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " traverse: " << v << "\n");
+
+    Operation *defop = v.getDefiningOp();
+    if (!defop)
+      return std::nullopt;
+
+    auto begin = opQueue.size();
+    if (isConstant(defop) || opMap.contains(defop))
+      return Span(begin, begin);
+
+    for (auto &subregion : defop->getRegions())
+      regionQueue.push_back(&subregion);
+
+    bool isFoldable = isLazyFoldable(defop);
+    int numOperands = defop->getNumOperands();
+    SmallVector<std::optional<Span>> spans(numOperands, std::nullopt);
+    for (int i = 0; i < numOperands; ++i) {
+      if ((spans[i] = runOnOperand(defop->getOperand(i))).has_value()) {
+        if (!isFoldable)
+          constantifyResult(defop->getOperand(i), *spans[i]);
+      } else {
+        if (isFoldable) {
+          for (int j = 0; j < i; ++j)
+            constantifyResult(defop->getOperand(j), *spans[j]);
+        }
+        isFoldable = false;
+      }
+    }
+    if (!isFoldable)
+      return std::nullopt;
+
+    auto pos = opQueue.size();
+    opQueue.push_back(defop);
+    auto [_, inserted] = opMap.try_emplace(defop, pos);
+    assert(inserted);
+    auto end = opQueue.size();
+    return Span(begin, end);
+  }
+
+  void constantifyResult(Value v, const Span &span) {
     assert(!v.use_empty());
 
     if (span.first == span.second) {
@@ -232,7 +266,7 @@ void LazyConstPropONNXPass::runOnRegion(
     auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
     b.setInsertionPoint(lazyReturn);
 
-    const auto outsideOp = [&](Operation *op) {
+    const auto opIsOutside = [&](Operation *op) {
       auto it = opMap.find(op);
       if (it != opMap.end()) {
         auto pos = it->second;
@@ -243,10 +277,10 @@ void LazyConstPropONNXPass::runOnRegion(
       }
       return true;
     };
-    const auto outsideOperand = [&outsideOp](OpOperand &operand) {
-      return outsideOp(operand.getOwner());
+    const auto operandIsOutside = [&opIsOutside](OpOperand &operand) {
+      return opIsOutside(operand.getOwner());
     };
-    assert(llvm::all_of(v.getUsers(), outsideOp));
+    assert(llvm::all_of(v.getUsers(), opIsOutside));
 
     // TODO: consider making it a vector set to ensure determinism
     SmallPtrSet<Operation *, 4> unreachableConstants;
@@ -278,7 +312,7 @@ void LazyConstPropONNXPass::runOnRegion(
             assert(inserted);
           }
           cstOperands[i] = cst;
-          if (!llvm::any_of(operandOp->getUsers(), outsideOp))
+          if (!llvm::any_of(operandOp->getUsers(), opIsOutside))
             unreachableConstants.insert(operandOp);
         }
       }
@@ -294,7 +328,7 @@ void LazyConstPropONNXPass::runOnRegion(
         unsigned numResults = op->getNumResults();
         for (unsigned j = 0; j < numResults; ++j) {
           Value res = op->getResult(j);
-          if (llvm::any_of(res.getUsers(), outsideOp)) {
+          if (llvm::any_of(res.getUsers(), opIsOutside)) {
             auto type = cast<ShapedType>(res.getType());
             unsigned index = lazyResults.size();
             auto lazyElms =
@@ -307,7 +341,7 @@ void LazyConstPropONNXPass::runOnRegion(
                     .getDialect()
                     ->materializeConstant(b, lazyElms, type, res.getLoc())
                     ->getResult(0);
-            res.replaceUsesWithIf(cst, outsideOperand);
+            res.replaceUsesWithIf(cst, operandIsOutside);
           }
         }
       }
@@ -337,60 +371,28 @@ void LazyConstPropONNXPass::runOnRegion(
       assert(op->use_empty());
       op->erase();
     }
-
-    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " ranOnRegion: "
-                            << *region->getParentOp() << "\n");
-    assert(succeeded(verify(region->getParentOp())));
-  };
-
-  // Returns a span if the value can be constantified, otherwise nulltopt
-  auto traverse = [&](const auto &recurse, Value v) -> std::optional<Span> {
-    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " traverse: " << v << "\n");
-
-    Operation *defop = v.getDefiningOp();
-    if (!defop)
-      return std::nullopt;
-
-    auto begin = opQueue.size();
-    if (isConstant(defop) || opMap.contains(defop))
-      return Span(begin, begin);
-
-    for (auto &subregion : defop->getRegions())
-      regionQueue.push_back(&subregion);
-
-    bool isFoldable = isLazyFoldable(defop);
-    int numOperands = defop->getNumOperands();
-    SmallVector<std::optional<Span>> spans(numOperands, std::nullopt);
-    for (int i = 0; i < numOperands; ++i) {
-      if ((spans[i] = recurse(recurse, defop->getOperand(i))).has_value()) {
-        if (!isFoldable)
-          constantify(defop->getOperand(i), *spans[i]);
-      } else {
-        if (isFoldable) {
-          for (int j = 0; j < i; ++j)
-            constantify(defop->getOperand(j), *spans[j]);
-        }
-        isFoldable = false;
-      }
-    }
-    if (!isFoldable)
-      return std::nullopt;
-
-    auto pos = opQueue.size();
-    opQueue.push_back(defop);
-    auto [_, inserted] = opMap.try_emplace(defop, pos);
-    assert(inserted);
-    auto end = opQueue.size();
-    return Span(begin, end);
-  };
-
-  Operation *terminator = region->back().getTerminator();
-  int numOperands = terminator->getNumOperands();
-  for (int i = 0; i < numOperands; ++i) {
-    if (auto span = traverse(traverse, terminator->getOperand(i)))
-      constantify(terminator->getOperand(i), *span);
   }
-}
+
+  SmallVector<Region *> regionQueue;
+  SmallVector<Operation *> opQueue;
+  DenseMap<Operation *, size_t> opMap;
+};
+
+struct LazyConstPropONNXPass
+    : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
+  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstPropONNXPass);
+
+  StringRef getArgument() const override { return "lazy-constprop-onnx"; }
+
+  StringRef getDescription() const override {
+    return "Lazy constant propagation for the ONNX dialect.";
+  }
+
+  void runOnOperation() final {
+    func::FuncOp function = getOperation();
+    LazyConstProp{&function.getFunctionBody()}.run();
+  }
+};
 
 } // namespace
 
