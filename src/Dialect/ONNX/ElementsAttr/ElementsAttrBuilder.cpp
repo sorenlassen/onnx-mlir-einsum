@@ -637,13 +637,14 @@ ElementsAttr ElementsAttrBuilder::gather(
   return fromWideNums(outType, [&](MutableArrayRef<WideNum> dst) {
     size_t postAxisNumElements = ShapedType::getNumElements(postAxisShape);
     ArrayBuffer<WideNum> src = getElementsWideNums(input);
-    ArrayBuffer<int64_t> indicesArray = getElementsArray<int64_t>(indices);
+    ArrayBuffer<WideNum> indicesArray = getElementsWideNums(indices);
     size_t axisInputSize = inputShape[axis];
     size_t inputBlockLen = axisInputSize * postAxisNumElements;
     size_t outBlockLen = indicesArray.get().size() * postAxisNumElements;
     size_t start = 0;
     WideNum *out = dst.begin();
-    for (int64_t idx : indicesArray.get()) {
+    for (WideNum n : indicesArray.get()) {
+      int64_t idx = n.narrow<BType::INT64>();
       int64_t adjustedIdx = idx < 0 ? idx + axisInputSize : idx;
       const WideNum *in = src.get().begin() + adjustedIdx * postAxisNumElements;
       for (size_t offset = start; offset < dst.size(); offset += outBlockLen) {
@@ -683,8 +684,8 @@ ElementsAttr ElementsAttrBuilder::scatterND(
         getWideNumsAndStrides(updates, updatesStrides);
     StridesRange<1> updatesRange(updatesShape, {updatesStrides});
     auto updatesIter = updatesRange.begin();
-    ArrayBuffer<int64_t> indicesBuffer = getElementsArray<int64_t>(indices);
-    const int64_t *indicesIter = indicesBuffer.get().begin();
+    ArrayBuffer<WideNum> indicesBuffer = getElementsWideNums(indices);
+    const WideNum *indicesIter = indicesBuffer.get().begin();
     for (int64_t i = 0; i < n_slices; ++i) {
       ArrayRef<uint64_t> idxs =
           castArrayRef<uint64_t>(ArrayRef(indicesIter, indices_nd));

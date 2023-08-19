@@ -69,23 +69,3 @@ inline X DisposableElementsAttr::getSplatValue() const {
   assert(isSplat());
   return detail::getNumber<X>(getElementType(), getBType(), atFlatIndex(0));
 }
-
-template <typename X>
-inline onnx_mlir::ArrayBuffer<X> DisposableElementsAttr::getArray() const {
-  assert(onnx_mlir::toBType<X> == getBType() && "X must match element type");
-  // The implementation is almost the same as getRawBytes() but it is
-  // reimplemented here without code reuse because we cannot cast between
-  // ArrayBuffer<char> and ArrayBuffer<X>.
-  if (!isTransformedOrCast() && isContiguous())
-    return onnx_mlir::castArrayRef<X>(getBufferBytes());
-  typename onnx_mlir::ArrayBuffer<X>::Vector dst;
-  dst.resize_for_overwrite(getNumElements());
-  readRawBytes(onnx_mlir::castMutableArrayRef<char>(MutableArrayRef(dst)));
-  return std::move(dst);
-}
-
-template <typename X>
-inline void DisposableElementsAttr::readArray(MutableArrayRef<X> dst) const {
-  assert(onnx_mlir::toBType<X> == getBType() && "X must match element type");
-  readRawBytes(onnx_mlir::castArrayRef<X>(dst));
-}

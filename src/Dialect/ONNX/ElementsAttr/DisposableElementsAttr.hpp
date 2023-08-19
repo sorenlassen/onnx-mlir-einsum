@@ -180,7 +180,7 @@ public:
   // element and, furthermore, performs a slow calculation from flat index to
   // buffer position if the underlying buffer is not contiguous, namely when its
   // strides are not the default strides for the type shape. It's more efficient
-  // to copy out data in bulk with getArray/WideNums() and readArray/WideNums().
+  // to copy out data in bulk with getWideNums() and readWideNums().
   //===--------------------------------------------------------------------===//
 
   // All the iterable types are listed as NonContiguous here as no type
@@ -215,15 +215,14 @@ public:
   //===--------------------------------------------------------------------===//
   // Other access to the elements:
   //
-  // getArray<X>() and getWideNums() return the elements as their C++ type X
-  // or "widened" (promoted) to type WideNum, as an ArrayBuffer which either has
-  // an array reference to the underlying data, if it happens to be of that type
-  // and contiguous and not transformed, or owns a copy of the contiguous and
-  // transformed data. The caller can call the ref() method on the ArrayBuffer
-  // to access the data as an ArrayRef while it is in scope.
+  // getWideNums() returns the elements "widened" (promoted) to type WideNum,
+  // as an ArrayBuffer which either has an array reference to the underlying
+  // data, if it happens to be of that type and contiguous and not transformed,
+  // or owns a copy of the contiguous and transformed data. The caller can call
+  // the ref() method on the ArrayBuffer to access the data as an ArrayRef
+  // while it is in scope.
   //
-  // readArray<X>(dst) and readWideNums(dst) copy the elements into the dst
-  // array.
+  // readWideNums(dst) copies the elements into the dst array.
   //
   // For example, if data, indices, and updates are of type
   // DisposableElementsAttr then ScatterNDElementsAttr(data, indices, updates)
@@ -242,19 +241,6 @@ public:
   //===--------------------------------------------------------------------===//
   template <typename X>
   X getSplatValue() const;
-
-  // Returns a pointer to the underlying data as a flat aray, if
-  // everything aligns, otherwise makes and returns a copy.
-  // Presents the same view of the data as GetValues() but as a
-  // contiguous array and only for the type X matching the element type.
-  // Precondition: X must correspond to getElementType().
-  template <typename X>
-  onnx_mlir::ArrayBuffer<X> getArray() const;
-
-  // Copies out the elements in a flat array in row-major order.
-  // Precondition: X must correspond to getElementType().
-  template <typename X>
-  void readArray(MutableArrayRef<X> dst) const;
 
   // Returns a pointer to the underlying data as a flat WideNum array, if
   // everything aligns, otherwise makes and returns a copy.
@@ -286,9 +272,9 @@ private:
 
   // Similar to DenseElementsAttr::getRawData() in that it returns the
   // underlying raw data, but the data representation can be further removed
-  // from the view presented by getValues() and getArray() because of
-  // strides, bufferDType cast, and transformer. Another difference is that for
-  // element type bool the data holds one byte (with value 0 or 1) per bool.
+  // from the view presented by getValues() because of strides, bufferDType
+  // cast, and transformer. Another difference is that for element type bool
+  // the data holds one byte (with value 0 or 1) per bool.
   ArrayRef<char> getBufferBytes() const;
 
   onnx_mlir::ArrayBuffer<WideNum> getBufferAsWideNums() const;
@@ -296,10 +282,9 @@ private:
   // Warning: This is inefficient. First, it calculates the buffer position from
   // strides with divisions and modulo, unless isContiguous() or isSplat().
   // Second, it widens the buffer data type and computes any transformation for
-  // a single element without the fast inner loop of getArray/WideNums() and
-  // readArray/WideNums(),
-  // which read out all elements in bulk with faster amortized speed per
-  // element.
+  // a single element without the fast inner loop of getWideNums() and
+  // readWideNums(), which read out all elements in bulk with faster amortized
+  // speed per element.
   WideNum atFlatIndex(size_t flatIndex) const;
 
   // Warning: This is inefficient because it calls unflattenIndex on flatIndex.
