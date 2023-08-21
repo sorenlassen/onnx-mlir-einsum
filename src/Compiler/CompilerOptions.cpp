@@ -202,7 +202,8 @@ static llvm::cl::list<std::string, std::vector<std::string>>
 
 static llvm::cl::list<std::string, std::vector<std::string>> externalDataDirOpt(
     "external-data-dir",
-    llvm::cl::desc("Specify directory paths to look for external data files."),
+    llvm::cl::desc("Specify directory paths to look for external data files."
+                   " Defaults to the input file directory if unspecified."),
     llvm::cl::location(externalDataDir), llvm::cl::cat(OnnxMlirCommonOptions));
 
 // Options for onnx-mlir only
@@ -641,14 +642,6 @@ std::string getCustomEnvVarOption() {
   return (customEnvFlags != "") ? "--customEnvFlags=" + customEnvFlags : "";
 }
 
-void setExternalDirFromInputFilename(llvm::StringRef inputFilename) {
-  if (externalDataDir.empty()) {
-    llvm::SmallString<64> path(inputFilename);
-    llvm::sys::path::remove_filename(path);
-    externalDataDir.push_back(std::string(path));
-  }
-}
-
 // Support for Triple.
 void setTargetTriple(const std::string &triple) {
   assert(triple != "" && "Expecting valid target triple description");
@@ -1084,6 +1077,12 @@ void removeUnrelatedOptions(
   }
 }
 
+static std::string dirname(const std::string &filename) {
+  llvm::SmallString<64> path(inputFilename);
+  llvm::sys::path::remove_filename(path);
+  return std::string(path);
+}
+
 // This function can be called after llvm::cl::ParseCommandLineOptions
 // to create whatever options related compiler configuration states
 // based on the parsed options. It can also check for option consistency.
@@ -1116,6 +1115,11 @@ void initCompilerConfig() {
     // For example, -lextra1, -lextra2, -Lpath1, -Lpath2
     addCompilerConfig(CCM_SHARED_LIB_DEPS, extraLibs);
     addCompilerConfig(CCM_SHARED_LIB_PATH_DEPS, extraLibPaths);
+  }
+
+  // --external-data-dir defaults to the input file directory if unspecified.
+  if (externalDataDir.empty()) {
+    externalDataDir.push_back(dirname(inputFilename));
   }
 }
 

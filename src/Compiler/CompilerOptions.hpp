@@ -137,8 +137,6 @@ void setCustomEnvVar(const std::string &envVarName);
 void clearCustomEnvVar();
 std::string getCustomEnvVarOption();
 
-void setExternalDirFromInputFilename(llvm::StringRef inputFilename);
-
 void setTargetTriple(const std::string &triple);
 void clearTargetTriple();
 std::string getTargetTripleOption();

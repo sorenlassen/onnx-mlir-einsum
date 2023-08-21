@@ -142,7 +142,6 @@ int main(int argc, char **argv) {
   }
 
   initCompilerConfig();
-  setExternalDirFromInputFilename(inputFilename);
 
   // Set up the input file.
   std::string error_message;
