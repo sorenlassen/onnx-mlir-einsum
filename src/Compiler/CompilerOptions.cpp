@@ -39,6 +39,7 @@ int onnxConstPropExpansionBound;                       // common for both
 std::vector<std::string> onnxConstPropDisablePatterns; // common for both
 bool enableONNXHybridPass;                             // common for both
 std::vector<std::string> functionsToDecompose;         // common for both
+std::vector<std::string> externalDataDir;              // common for both
 std::string opsForCall;                                // common for both
 EmissionTargetType emissionTarget;                     // onnx-mlir only
 bool invokeOnnxVersionConverter;                       // onnx-mlir only
@@ -70,6 +71,7 @@ bool disableRecomposeOption;                           // onnx-mlir only
 bool enableSimdDataLayout;                             // onnx-mlir only
 bool verifyInputTensors;                               // onnx-mlir only
 bool allowSorting;                                     // onnx-mlir only
+bool onnxImportLazyCstFileData;                        // onnx-mlir only
 std::string reportHeapBefore;                          // onnx-mlir only
 std::string reportHeapAfter;                           // onnx-mlir only
 std::string modelTag;                                  // onnx-mlir only
@@ -198,10 +200,10 @@ static llvm::cl::list<std::string, std::vector<std::string>>
         llvm::cl::location(functionsToDecompose),
         llvm::cl::cat(OnnxMlirCommonOptions));
 
-static llvm::cl::opt<bool, true> disableRecomposeOptionOpt("disable-recompose",
-    llvm::cl::desc("Disable recomposition of ONNX operations."),
-    llvm::cl::location(disableRecomposeOption), llvm::cl::init(false),
-    llvm::cl::cat(OnnxMlirOptions));
+static llvm::cl::list<std::string, std::vector<std::string>> externalDataDirOpt(
+    "external-data-dir",
+    llvm::cl::desc("Specify directory paths to look for external data files."),
+    llvm::cl::location(externalDataDir), llvm::cl::cat(OnnxMlirCommonOptions));
 
 // Options for onnx-mlir only
 static llvm::cl::opt<EmissionTargetType, true> emissionTargetOpt(
@@ -423,6 +425,11 @@ static llvm::cl::opt<bool, true> disableSimdOptionOpt("disable-simd",
     llvm::cl::location(disableSimdOption), llvm::cl::init(false),
     llvm::cl::cat(OnnxMlirOptions));
 
+static llvm::cl::opt<bool, true> disableRecomposeOptionOpt("disable-recompose",
+    llvm::cl::desc("Disable recomposition of ONNX operations."),
+    llvm::cl::location(disableRecomposeOption), llvm::cl::init(false),
+    llvm::cl::cat(OnnxMlirOptions));
+
 static llvm::cl::opt<bool, true> enableSimdDataLayoutOpt("simd-data-layout",
     llvm::cl::desc("Enable SIMD optimization for convolution (default=false)\n"
                    "Set to 'true' if you want to enable SIMD optimizations."),
@@ -451,21 +458,15 @@ static llvm::cl::opt<bool, true> allowSortingOpt("allowSorting",
     llvm::cl::location(allowSorting), llvm::cl::init(true),
     llvm::cl::cat(OnnxMlirOptions));
 
-<<<<<<< HEAD
-static llvm::cl::opt<std::string, true> reportHeapBeforeOpt(
-    "report-heap-before",
-=======
-llvm::cl::opt<bool> onnxImportLazyCstFileData("onnx-import-lazycst-filedata",
+static llvm::cl::opt<bool, true> onnxImportLazyCstFileDataOpt(
+    "onnx-import-lazycst-filedata",
     llvm::cl::desc("Import onnx external data as lazycst::FileDataElementsAttr "
                    "(default=true)."),
-    llvm::cl::init(true), llvm::cl::cat(OnnxMlirOptions));
+    llvm::cl::location(onnxImportLazyCstFileData), llvm::cl::init(true),
+    llvm::cl::cat(OnnxMlirOptions));
 
-llvm::cl::list<std::string> externalDataDir("external-data-dir",
-    llvm::cl::desc("Specify directory paths to look for external data files."),
-    llvm::cl::cat(OnnxMlirCommonOptions));
-
-llvm::cl::opt<std::string> reportHeapBefore("report-heap-before",
->>>>>>> aea3f3dc (ElementsBuilders)
+static llvm::cl::opt<std::string, true> reportHeapBeforeOpt(
+    "report-heap-before",
     llvm::cl::desc("Comma separated list of names of passes.\n"
                    "Before each heap statistics are dumped to "
                    "<output-files-base-path>.heap.log"),
