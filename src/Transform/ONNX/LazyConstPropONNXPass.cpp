@@ -195,7 +195,7 @@ struct LazyConstProp {
   // is a larger expression that cannot be constantified because
   // it has non-constant subexpressions or nodes that cannot be lazy folded.
   std::optional<Span> runOnOperand(Value v) {
-    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " traverse: " << v << "\n");
+    LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " runOnOperand: " << v << "\n");
 
     Operation *defop = v.getDefiningOp();
     if (!defop)
@@ -378,6 +378,58 @@ struct LazyConstProp {
   DenseMap<Operation *, size_t> opMap;
 };
 
+struct LazyConstPropAnalysis {
+  LazyConstPropAnalysis(ArrayRef<Region *> regions) : regionQueue(regions) {}
+
+  void run() {
+    while (!regionQueue.empty()) {
+      constantFoldable.clear();
+      Region *region = regionQueue.pop_back_val();
+      runOnOperands(region->back().getTerminator()->getOperands());
+    }
+  }
+
+  void runOnOperation(Operation *op) {
+    for (Region &region : op->getRegions())
+      regionQueue.push_back(&region);
+    int numOperands = op->getNumOperands();
+    for (int i = 0; i < numOperands; ++i)
+      runOnOperand(op->getOperand(i));
+  }
+
+  bool runOnOperands(ValueRange operands) {
+    return llvm::all_of(operands, [this](Value v) { return runOnOperand(v); });
+  }
+
+  bool runOnOperand(Value operand) {
+    Operation *defop = operand.getDefiningOp();
+    if (!defop)
+      return false;
+
+    auto [it, inserted] = constantFoldable.try_emplace(defop, false);
+    if (!inserted)
+      return it->second;
+
+    for (Region &region : defop->getRegions())
+      regionQueue.push_back(&region);
+
+    if (isConstant(defop)) {
+      it->second = true;
+      return true;
+    }
+    if (runOnOperands(defop->getOperands()) && isLazyFoldable(defop)) {
+      // runOnOperands may have invalidated it, so we need to insert anew.
+      auto [_, reinserted] = constantFoldable.try_emplace(defop, true);
+      assert(!reinserted);
+      return true;
+    }
+    return false;
+  }
+
+  SmallVector<Region *> regionQueue;
+  DenseMap<Operation *, bool> constantFoldable;
+};
+
 struct LazyConstPropONNXPass
     : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstPropONNXPass);
@@ -390,6 +442,11 @@ struct LazyConstPropONNXPass
 
   void runOnOperation() final {
     func::FuncOp function = getOperation();
+    Region &region = function.getFunctionBody();
+
+    LazyConstPropAnalysis analysis{&region};
+    analysis.run();
+
     LazyConstProp{&function.getFunctionBody()}.run();
   }
 };
