@@ -370,7 +370,8 @@ struct LazyConstPropRegion {
   DenseMap<Operation *, size_t> opMap;
 };
 
-// TODO: change to function->walk([](Region *region) { ... })
+using Ops = SmallPtrSet<Operation *, 1>;
+
 class LazyConstPropAnalysis {
 public:
   void run(Region *region) { runOnOperands(region->back().getTerminator()); }
@@ -408,16 +409,92 @@ private:
   }
 
 public:
-  using Ops = SmallPtrSet<Operation *, 1>;
-
   Ops constantFoldableOps;
 
 private:
   Ops visitedOps;
 };
 
+// TODO: generalize the more dialects
+bool isOpGrouping(Operation *op) {
+  static SmallPtrSet<TypeID, 1> typeIDs{TypeID::get<ONNXMinOp>(),
+      TypeID::get<ONNXMaxOp>(), TypeID::get<ONNXSumOp>()};
+  return typeIDs.contains(op->getName().getTypeID());
+}
+
+// Groups constant foldable operands to variadic associaive and commutative ops
+// like onnx.Min/Max/Sum, e.g. min(cfop1,x,cfop2) -> min(x,min(cfop1,cfop2))
+// and adds the group min(cfop1,cfop2) to the constant foldable ops.
+void group(Region *region, Ops &constantFoldableOps) {
+  for (Operation &op : region->getOps()) {
+    if (constantFoldableOps.contains(&op))
+      continue;
+    if (!isOpGrouping(&op))
+      continue;
+    unsigned numOperands = op.getNumOperands();
+    if (numOperands < 3)
+      continue;
+    SmallVector<Value> operandGroup;
+    SmallVector<unsigned> operandGroupIdxs;
+    for (unsigned i = 0; i < numOperands; ++i) {
+      Value operand = op.getOperand(i);
+      if (Operation *defop = operand.getDefiningOp()) {
+        if (constantFoldableOps.contains(defop))
+          operandGroup.push_back(operand);
+        operandGroupIdxs.push_back(i);
+      }
+    }
+    assert(operandGroup.size() < op.getNumOperands() &&
+           "operands can't all constant fold when op can't");
+    if (operandGroup.size() >= 2) {
+      OpBuilder b(&op);
+      Operation *clone = b.clone(op);
+      clone->setOperands(operandGroup);
+      assert(clone->getNumResults() == 1 && "grouping ops have 1 result");
+      op.setOperand(operandGroupIdxs.pop_back_val(), clone->getResult(0));
+      for (unsigned i : llvm::reverse(operandGroupIdxs))
+        op.eraseOperand(i);
+    }
+  }
+}
+
+// Grows the set of constant foldable ops (cfops) with rewrites that bubble
+// cfops towards their uses, e.g. (x+cfop)+y -> (x+y)+cfop, and forms new cfops,
+// e.g. (x+cfop1)+cfop2 -> x+cfop{1+2} where cfop{1+2} = cfop1+cfop2.
+void bubble(Region *region, Ops &constantFoldableOps) {
+  SmallVector<Operation *> cfops(
+      constantFoldableOps.begin(), constantFoldableOps.end());
+  for (size_t i = 0; i < cfops.size(); ++i) {
+    Operation *cfop = cfops[i];
+    SmallVector<Operation *> users(cfop->getUsers());
+    for (Operation *user : users) {
+      if (constantFoldableOps.contains(user))
+        continue;
+
+      // TODO: continue if user is not an op that bubbles
+
+      if (!user->hasOneUse())
+        continue;
+      auto use = user->use_begin();
+      Operation *op = use->getOwner();
+      (void)op;
+
+      // TODO: continue if user and op don't facilitate bubbling
+
+      // TODO: group cfop with any other cfop op operand, if possible
+
+      // TODO: otherwise replace op with a newop with cfop as operand and
+      // users.push_back(newop)
+    }
+  }
+}
+
 void lazyConstPropRegion(Region *region) {
-  LazyConstPropAnalysis().run(region);
+  LazyConstPropAnalysis lcpa;
+  lcpa.run(region);
+  Ops &cfops = lcpa.constantFoldableOps;
+  group(region, cfops);
+  bubble(region, cfops);
   LazyConstPropRegion().run(region);
 }
 
