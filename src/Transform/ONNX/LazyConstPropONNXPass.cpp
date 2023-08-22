@@ -449,6 +449,8 @@ void group(Region *region, Ops &constantFoldableOps) {
     assert(operandGroup.size() < op.getNumOperands() &&
            "operands can't all constant fold when op can't");
     if (operandGroup.size() >= 2) {
+      // TODO: figure out if cloning and mutating op clashes with
+      //       region->getOps() traversal
       OpBuilder b(&op);
       Operation *clone = b.clone(op);
       clone->setOperands(operandGroup);
@@ -460,6 +462,13 @@ void group(Region *region, Ops &constantFoldableOps) {
   }
 }
 
+// TODO: generalize the more dialects
+bool canOpBubble(Operation *op) {
+  static const auto typeIDs =
+      setOfTypeIDs<ONNXMinOp, ONNXMaxOp, ONNXSumOp, ONNXMulOp>;
+  return typeIDs.contains(op->getName().getTypeID());
+}
+
 // Grows the set of constant foldable ops (cfops) with rewrites that bubble
 // cfops towards their uses, e.g. (x+cfop)+y -> (x+y)+cfop, and forms new cfops,
 // e.g. (x+cfop1)+cfop2 -> x+cfop{1+2} where cfop{1+2} = cfop1+cfop2.
@@ -469,24 +478,32 @@ void bubble(Region *region, Ops &constantFoldableOps) {
   for (size_t i = 0; i < cfops.size(); ++i) {
     Operation *cfop = cfops[i];
     SmallVector<Operation *> users(cfop->getUsers());
-    for (Operation *user : users) {
+    for (size_t j = 0; j < users.size(); ++j) {
+      Operation *user = users[j];
       if (constantFoldableOps.contains(user))
         continue;
 
       // TODO: continue if user is not an op that bubbles
+      if (!canOpBubble(user))
+        continue;
 
       if (!user->hasOneUse())
         continue;
       auto use = user->use_begin();
-      Operation *op = use->getOwner();
-      (void)op;
+      Operation *root = use->getOwner();
 
-      // TODO: continue if user and op don't facilitate bubbling
+      // TODO: generalize to more combinations, e.g. onnx.Add and Sub
+      if (user->getName() != root->getName())
+        continue;
 
-      // TODO: group cfop with any other cfop op operand, if possible
+      // We assume the user and root ops are associative and commutative.
+      // TODO: generalize to e.g. onnx.Sub which isn't commutative
 
-      // TODO: otherwise replace op with a newop with cfop as operand and
-      // users.push_back(newop)
+      // TODO: if root has another cfop operand, put it together with our cfop
+
+      // TODO: otherwise just bubble cfop to become root operand
+
+      // users.push_back(new root)
     }
   }
 }
