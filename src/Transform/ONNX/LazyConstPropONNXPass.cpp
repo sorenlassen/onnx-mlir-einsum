@@ -415,10 +415,12 @@ private:
   Ops visitedOps;
 };
 
+template <typename... Ts>
+const SmallPtrSet<TypeID, 1> setOfTypeIDs({TypeID::get<Ts>()...});
+
 // TODO: generalize the more dialects
-bool isOpGrouping(Operation *op) {
-  static SmallPtrSet<TypeID, 1> typeIDs{TypeID::get<ONNXMinOp>(),
-      TypeID::get<ONNXMaxOp>(), TypeID::get<ONNXSumOp>()};
+bool canOpGroup(Operation *op) {
+  static const auto typeIDs = setOfTypeIDs<ONNXMinOp, ONNXMaxOp, ONNXSumOp>;
   return typeIDs.contains(op->getName().getTypeID());
 }
 
@@ -429,7 +431,7 @@ void group(Region *region, Ops &constantFoldableOps) {
   for (Operation &op : region->getOps()) {
     if (constantFoldableOps.contains(&op))
       continue;
-    if (!isOpGrouping(&op))
+    if (!canOpGroup(&op))
       continue;
     unsigned numOperands = op.getNumOperands();
     if (numOperands < 3)
