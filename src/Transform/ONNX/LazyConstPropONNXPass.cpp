@@ -149,6 +149,7 @@ bool isLazyFoldable(Operation *op) {
 }
 
 bool isConstant(Operation *op) {
+  // TODO: consider using mlir::matchPattern(op, m_Constant())
   return op && op->hasTrait<OpTrait::ConstantLike>();
 }
 
