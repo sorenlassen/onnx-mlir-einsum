@@ -169,20 +169,10 @@ Attribute getConstantAttribute(Operation *op) {
   return folded.front().get<Attribute>();
 }
 
-struct LazyConstProp {
+struct LazyConstPropRegion {
   using Span = std::pair<size_t, size_t>;
 
-  LazyConstProp(ArrayRef<Region *> regions) : regionQueue(regions) {}
-
-  void run() {
-    while (!regionQueue.empty()) {
-      opQueue.clear();
-      opMap.clear();
-      runOnRegion(regionQueue.pop_back_val());
-    }
-  }
-
-  void runOnRegion(Region *region) {
+  void run(Region *region) {
     Operation *terminator = region->back().getTerminator();
     int numOperands = terminator->getNumOperands();
     for (int i = 0; i < numOperands; ++i) {
@@ -208,8 +198,8 @@ struct LazyConstProp {
     if (isConstant(defop) || opMap.contains(defop))
       return Span(begin, begin);
 
-    for (auto &subregion : defop->getRegions())
-      regionQueue.push_back(&subregion);
+    // Ignore defop's regions as they were walked separately
+    // in LazyConstPropONNXPass::runOnOperation().
 
     bool isFoldable = isLazyFoldable(defop);
     int numOperands = defop->getNumOperands();
@@ -376,34 +366,16 @@ struct LazyConstProp {
     }
   }
 
-  SmallVector<Region *> regionQueue;
   SmallVector<Operation *> opQueue;
   DenseMap<Operation *, size_t> opMap;
 };
 
+// TODO: change to function->walk([](Region *region) { ... })
 class LazyConstPropAnalysis {
 public:
-  LazyConstPropAnalysis(ArrayRef<Region *> regions) : regionQueue(regions) {}
-
-  void run() {
-    while (!regionQueue.empty()) {
-      Region *region = regionQueue.pop_back_val();
-      auto [it, inserted] = map.try_emplace(region);
-      assert(inserted);
-      constantFoldableOps = &it->second;
-      runOnOperands(region->back().getTerminator());
-      constantFoldableOps = nullptr;
-      visitedOps.clear();
-    }
-  }
+  void run(Region *region) { runOnOperands(region->back().getTerminator()); }
 
 private:
-  void runOnOperation(Operation *op) {
-    for (Region &region : op->getRegions())
-      regionQueue.push_back(&region);
-    runOnOperands(op);
-  }
-
   bool runOnOperands(Operation *op) {
     return llvm::all_of(
         op->getOperands(), [this](Value v) { return runOnOperand(v); });
@@ -417,11 +389,11 @@ private:
     {
       auto [_, inserted] = visitedOps.insert(defop);
       if (!inserted)
-        return constantFoldableOps->contains(defop);
+        return constantFoldableOps.contains(defop);
     }
 
-    for (Region &region : defop->getRegions())
-      regionQueue.push_back(&region);
+    // Ignore defop's regions as they were walked separately
+    // in LazyConstPropONNXPass::runOnOperation().
 
     if (isConstant(defop)) {
       assert(defop->getNumOperands() == 0);
@@ -430,23 +402,24 @@ private:
       if (!allOperandsAreConstantFoldable || !isLazyFoldable(defop))
         return false;
     }
-    auto [_, inserted] = constantFoldableOps->insert(defop);
+    auto [_, inserted] = constantFoldableOps.insert(defop);
     assert(inserted);
     return true;
   }
 
 public:
   using Ops = SmallPtrSet<Operation *, 1>;
-  // std::unordered_map so pointers to an inserted OpSet are never invalidated.
-  using RegionMap = std::unordered_map<Region *, Ops>;
 
-  RegionMap map;
+  Ops constantFoldableOps;
 
 private:
-  SmallVector<Region *> regionQueue;
-  Ops *constantFoldableOps = nullptr;
   Ops visitedOps;
 };
+
+void lazyConstPropRegion(Region *region) {
+  LazyConstPropAnalysis().run(region);
+  LazyConstPropRegion().run(region);
+}
 
 struct LazyConstPropONNXPass
     : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
@@ -458,15 +431,7 @@ struct LazyConstPropONNXPass
     return "Lazy constant propagation for the ONNX dialect.";
   }
 
-  void runOnOperation() final {
-    func::FuncOp function = getOperation();
-    Region &region = function.getFunctionBody();
-
-    LazyConstPropAnalysis analysis{&region};
-    analysis.run();
-
-    LazyConstProp{&function.getFunctionBody()}.run();
-  }
+  void runOnOperation() final { getOperation()->walk(lazyConstPropRegion); }
 };
 
 } // namespace
