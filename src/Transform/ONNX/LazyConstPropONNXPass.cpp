@@ -15,6 +15,8 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Debug.h"
 
+#include <unordered_map>
+
 #define DEBUG_TYPE "lazy-constprop-onnx"
 
 #define USE_FOLD_ADAPTOR 1
@@ -379,27 +381,32 @@ struct LazyConstProp {
   DenseMap<Operation *, size_t> opMap;
 };
 
-struct LazyConstPropAnalysis {
+class LazyConstPropAnalysis {
+public:
   LazyConstPropAnalysis(ArrayRef<Region *> regions) : regionQueue(regions) {}
 
   void run() {
     while (!regionQueue.empty()) {
-      constantFoldable.clear();
       Region *region = regionQueue.pop_back_val();
-      runOnOperands(region->back().getTerminator()->getOperands());
+      auto [it, inserted] = map.try_emplace(region);
+      assert(inserted);
+      constantFoldableOps = &it->second;
+      runOnOperands(region->back().getTerminator());
+      constantFoldableOps = nullptr;
+      visitedOps.clear();
     }
   }
 
+private:
   void runOnOperation(Operation *op) {
     for (Region &region : op->getRegions())
       regionQueue.push_back(&region);
-    int numOperands = op->getNumOperands();
-    for (int i = 0; i < numOperands; ++i)
-      runOnOperand(op->getOperand(i));
+    runOnOperands(op);
   }
 
-  bool runOnOperands(ValueRange operands) {
-    return llvm::all_of(operands, [this](Value v) { return runOnOperand(v); });
+  bool runOnOperands(Operation *op) {
+    return llvm::all_of(
+        op->getOperands(), [this](Value v) { return runOnOperand(v); });
   }
 
   bool runOnOperand(Value operand) {
@@ -407,28 +414,38 @@ struct LazyConstPropAnalysis {
     if (!defop)
       return false;
 
-    auto [it, inserted] = constantFoldable.try_emplace(defop, false);
-    if (!inserted)
-      return it->second;
+    {
+      auto [_, inserted] = visitedOps.insert(defop);
+      if (!inserted)
+        return constantFoldableOps->contains(defop);
+    }
 
     for (Region &region : defop->getRegions())
       regionQueue.push_back(&region);
 
     if (isConstant(defop)) {
-      it->second = true;
-      return true;
+      assert(defop->getNumOperands() == 0);
+    } else {
+      bool allOperandsAreConstantFoldable = runOnOperands(defop);
+      if (!allOperandsAreConstantFoldable || !isLazyFoldable(defop))
+        return false;
     }
-    if (runOnOperands(defop->getOperands()) && isLazyFoldable(defop)) {
-      // runOnOperands may have invalidated it, so we need to insert anew.
-      auto [_, reinserted] = constantFoldable.try_emplace(defop, true);
-      assert(!reinserted);
-      return true;
-    }
-    return false;
+    auto [_, inserted] = constantFoldableOps->insert(defop);
+    assert(inserted);
+    return true;
   }
 
+public:
+  using Ops = SmallPtrSet<Operation *, 1>;
+  // std::unordered_map so pointers to an inserted OpSet are never invalidated.
+  using RegionMap = std::unordered_map<Region *, Ops>;
+
+  RegionMap map;
+
+private:
   SmallVector<Region *> regionQueue;
-  DenseMap<Operation *, bool> constantFoldable;
+  Ops *constantFoldableOps = nullptr;
+  Ops visitedOps;
 };
 
 struct LazyConstPropONNXPass
