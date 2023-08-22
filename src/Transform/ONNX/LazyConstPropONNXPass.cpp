@@ -517,6 +517,166 @@ void lazyConstPropRegion(Region *region) {
   LazyConstPropRegion().run(region);
 }
 
+struct MyAnalysis {
+  Ops cfops;
+  void insertConstantFoldableOp(Operation *op) {
+    auto [_, inserted] = cfops.insert(op);
+    assert(inserted);
+  }
+  bool isConstantFoldableOp(Operation *op) const {
+    return op && cfops.contains(op);
+  }
+  bool isConstantFoldable(Value v) const {
+    return isConstantFoldableOp(v.getDefiningOp());
+  }
+  SmallVector<unsigned> constantFoldableIdxs(ValueRange values) {
+    SmallVector<unsigned> idxs;
+    for (unsigned i = 0; i < values.size(); ++i) {
+      if (isConstantFoldable(values[i]))
+        idxs.push_back(i);
+    }
+    return idxs;
+  }
+};
+
+Operation *negate(Value v, PatternRewriter &rewriter) {
+  llvm_unreachable("TODO: implement this");
+}
+
+Location fuseLocs(Location lhs, Location rhs) {
+  llvm_unreachable("TODO: implement this");
+}
+
+template <typename OpType>
+class MyOpRewritePattern : public OpRewritePattern<OpType> {
+  using Base = OpRewritePattern<OpType>;
+
+public:
+  // TODO: figure out if patterns need to fill in generatedNames
+  template <typename... Args>
+  MyOpRewritePattern(MyAnalysis &analysis, Args &&... args)
+      : Base(std::forward<Args>(args)...), analysis(analysis) {}
+
+protected:
+  MyAnalysis &analysis;
+};
+
+bool isBubblableOp(Operation *op, const MyAnalysis &analysis) {
+  assert(!analysis.isConstantFoldableOp(op));
+  return op->hasOneUse() && op->getNumOperands() >= 2 &&
+         analysis.isConstantFoldable(op->getOperand(0));
+}
+
+template <typename... OpTypes>
+bool isBubblable(Operation *op, const MyAnalysis &analysis) {
+  return isBubblableOp(op, analysis) && isa<OpTypes...>(op);
+}
+
+template <typename OpType>
+OpType castIfBubblable(Operation *op, const MyAnalysis &analysis) {
+  return isBubblableOp(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
+}
+
+struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
+  using MyOpRewritePattern<ONNXAddOp>::MyOpRewritePattern;
+
+  LogicalResult matchAndRewrite(
+      ONNXAddOp addOp, PatternRewriter &rewriter) const override {
+    if (analysis.isConstantFoldableOp(addOp))
+      return failure();
+    Value lhs = addOp.getA();
+    Value rhs = addOp.getB();
+    bool swapped = false;
+    if (analysis.isConstantFoldableOp(rhs.getDefiningOp())) {
+      rewriter.updateRootInPlace(addOp, [&] {
+        addOp->setOperands({rhs, lhs});
+      });
+      swapped = true;
+      std::swap(lhs, rhs);
+    }
+    Operation *lhsOp = lhs.getDefiningOp();
+    if (analysis.isConstantFoldableOp(lhsOp)) {
+      // op is already in canonical form.
+      Value rhs = addOp.getB();
+      Operation *rhsOp = rhs.getDefiningOp();
+      assert(!analysis.isConstantFoldableOp(rhsOp));
+      if (isBubblable<ONNXAddOp, ONNXSubOp>(rhsOp, analysis)) {
+        Value rhsLhs = rhsOp->getOperand(0);
+        Location loc = fuseLocs(lhsOp->getLoc(), rhsLhs.getLoc());
+        Value newLhs = rewriter.create<ONNXAddOp>(loc, lhs, rhsLhs);
+        rhsOp->setOperand(0, newLhs);
+        rewriter.replaceOp(addOp, rhsOp->getResult(0));
+        return success();
+      }
+      // success if swapped (addOp changed), otherwise failure (no changes)
+      return success(swapped);
+    }
+    // TODO
+    return failure();
+  }
+};
+
+struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
+  using MyOpRewritePattern<ONNXNegOp>::MyOpRewritePattern;
+
+  LogicalResult matchAndRewrite(
+      ONNXNegOp negOp, PatternRewriter &rewriter) const override {
+    if (analysis.isConstantFoldableOp(negOp))
+      return failure();
+    Operation *defop = negOp.getX().getDefiningOp();
+    if (!defop)
+      return failure();
+#if 1
+    if (ONNXAddOp addOp = castIfBubblable<ONNXAddOp>(defop, analysis)) {
+      Operation *negLhsOp = negate(addOp.getA(), rewriter);
+      analysis.insertConstantFoldableOp(negLhsOp);
+      Value negLhs = negLhsOp->getResult(0);
+      Value rhs = addOp.getB();
+      ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), negLhs, rhs);
+      rewriter.replaceOp(negOp, subOp);
+      return success();
+    }
+    if (ONNXSubOp subOp = castIfBubblable<ONNXSubOp>(defop, analysis)) {
+      Operation *negLhsOp = negate(subOp.getA(), rewriter);
+      analysis.insertConstantFoldableOp(negLhsOp);
+      Value negLhs = negLhsOp->getResult(0);
+      Value rhs = subOp.getB();
+      ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), negLhs, rhs);
+      rewriter.replaceOp(negOp, addOp);
+      return success();
+    }
+#else
+    if (!defop->hasOneUse())
+      return failure();
+    if (ONNXAddOp addOp = dyn_cast<ONNXAddOp>(defop)) {
+      Value lhs = addOp.getA();
+      if (!analysis.isConstantFoldable(lhs))
+        return failure();
+      Operation *negLhs = negate(lhs, rewriter);
+      analysis.insertConstantFoldableOp(negLhs);
+      Value newLhs = negLhs->getResult(0);
+      Value rhs = addOp.getB();
+      ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), newLhs, rhs);
+      rewriter.replaceOp(negOp, subOp);
+      return success();
+    }
+    if (ONNXSubOp subOp = dyn_cast<ONNXSubOp>(defop)) {
+      Value lhs = subOp.getA();
+      if (!analysis.isConstantFoldable(lhs))
+        return failure();
+      Operation *negLhs = negate(lhs, rewriter);
+      analysis.insertConstantFoldableOp(negLhs);
+      Value newLhs = negLhs->getResult(0);
+      Value rhs = subOp.getB();
+      ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), newLhs, rhs);
+      rewriter.replaceOp(negOp, addOp);
+      return success();
+    }
+#endif
+    return failure();
+  }
+};
+
 struct LazyConstPropONNXPass
     : public PassWrapper<LazyConstPropONNXPass, OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstPropONNXPass);
@@ -527,7 +687,16 @@ struct LazyConstPropONNXPass
     return "Lazy constant propagation for the ONNX dialect.";
   }
 
-  void runOnOperation() final { getOperation()->walk(lazyConstPropRegion); }
+  void runOnOperation() final {
+    MLIRContext *ctx = &getContext();
+
+    MyAnalysis analysis;
+
+    RewritePatternSet patterns(ctx);
+    patterns.insert<NegPattern>(analysis, ctx);
+
+    getOperation()->walk(lazyConstPropRegion);
+  }
 };
 
 } // namespace
