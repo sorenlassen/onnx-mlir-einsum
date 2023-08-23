@@ -599,12 +599,20 @@ struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
         std::swap(lhs, rhs);
       }
       // lhs is in canonical form: add/sub(cstfldb, x),
-      // now bubble up
-      llvm_unreachable("TODO: implement this");
+      // now bubble up to add(cstfldb, add/sub(rhs, x))
+      Operation *lhsOp = lhs.getDefiningOp();
+      Value cstfldb = lhsOp->getOperand(0);
+      Operation *newRhs = rewriter.clone(*lhsOp); // add or sub
+      newRhs->setOperand(0, rhs);
+      Operation *newRoot = rewriter.create<ONNXAddOp>(
+          addOp.getLoc(), cstfldb, newRhs->getResult(0));
+      rewriter.replaceOp(addOp, newRoot->getResult(0));
+      return success();
     }
-    // addOp is in canonical form: add(cstfldb, rhs),
-    // now try to bubble up cstfldb2 if rhs == add/sub(cstfldb2, x)
+    // addOp is in canonical form: add(cstfldb, rhs)
     if (isBubblable<ONNXAddOp, ONNXSubOp>(rhs, analysis)) {
+      // rhs is in canonical form: add/sub(cstfldb2, x),
+      // now bubble up to add/sub(add(cstfldb, cstfldb2), x)
       Operation *rhsOp = rhs.getDefiningOp();
       Value rhsLhs = rhsOp->getOperand(0);
       Location loc = rewriter.getFusedLoc({lhs.getLoc(), rhsLhs.getLoc()});
