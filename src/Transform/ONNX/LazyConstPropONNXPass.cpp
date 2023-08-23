@@ -543,10 +543,6 @@ Operation *negate(Value v, PatternRewriter &rewriter) {
   llvm_unreachable("TODO: implement this");
 }
 
-Location fuseLocs(Location lhs, Location rhs) {
-  llvm_unreachable("TODO: implement this");
-}
-
 template <typename OpType>
 class MyOpRewritePattern : public OpRewritePattern<OpType> {
   using Base = OpRewritePattern<OpType>;
@@ -561,64 +557,75 @@ protected:
   MyAnalysis &analysis;
 };
 
-bool isBubblableOp(Operation *op, const MyAnalysis &analysis) {
+bool isBubblableOpImpl(Operation *op, const MyAnalysis &analysis) {
   assert(!analysis.isConstantFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
          analysis.isConstantFoldable(op->getOperand(0));
 }
 
 template <typename... OpTypes>
-bool isBubblable(Operation *op, const MyAnalysis &analysis) {
-  return isBubblableOp(op, analysis) && isa<OpTypes...>(op);
+bool isBubblableOp(Operation *op, const MyAnalysis &analysis) {
+  return isBubblableOpImpl(op, analysis) && isa<OpTypes...>(op);
+}
+
+template <typename... OpTypes>
+bool isBubblable(Value v, const MyAnalysis &analysis) {
+  Operation *op = v.getDefiningOp();
+  return op && isBubblableOp<OpTypes...>(op, analysis);
 }
 
 template <typename OpType>
-OpType castIfBubblable(Operation *op, const MyAnalysis &analysis) {
-  return isBubblableOp(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
+OpType castIfBubblableOp(Operation *op, const MyAnalysis &analysis) {
+  return isBubblableOpImpl(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
 }
 
 struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
   using MyOpRewritePattern<ONNXAddOp>::MyOpRewritePattern;
-
   LogicalResult matchAndRewrite(
       ONNXAddOp addOp, PatternRewriter &rewriter) const override {
+    // TODO: try to insert this check in the base class MyOpRewritePattern
     if (analysis.isConstantFoldableOp(addOp))
       return failure();
     Value lhs = addOp.getA();
     Value rhs = addOp.getB();
     bool swapped = false;
     if (analysis.isConstantFoldableOp(rhs.getDefiningOp())) {
-      rewriter.updateRootInPlace(addOp, [&] {
-        addOp->setOperands({rhs, lhs});
-      });
-      swapped = true;
       std::swap(lhs, rhs);
-    }
-    Operation *lhsOp = lhs.getDefiningOp();
-    if (analysis.isConstantFoldableOp(lhsOp)) {
-      // op is already in canonical form.
-      Value rhs = addOp.getB();
-      Operation *rhsOp = rhs.getDefiningOp();
-      assert(!analysis.isConstantFoldableOp(rhsOp));
-      if (isBubblable<ONNXAddOp, ONNXSubOp>(rhsOp, analysis)) {
-        Value rhsLhs = rhsOp->getOperand(0);
-        Location loc = fuseLocs(lhsOp->getLoc(), rhsLhs.getLoc());
-        Value newLhs = rewriter.create<ONNXAddOp>(loc, lhs, rhsLhs);
-        rhsOp->setOperand(0, newLhs);
-        rewriter.replaceOp(addOp, rhsOp->getResult(0));
-        return success();
+      swapped = true; // if addOp isn't replaced, swap the operands at the end
+    } else if (!analysis.isConstantFoldable(lhs)) {
+      if (!isBubblable<ONNXAddOp, ONNXSubOp>(lhs, analysis)) {
+        if (!isBubblable<ONNXAddOp, ONNXSubOp>(rhs, analysis))
+          return failure();
+        std::swap(lhs, rhs);
       }
-      // success if swapped (addOp changed), otherwise failure (no changes)
-      return success(swapped);
+      // lhs is in canonical form: add/sub(cstfldb, x),
+      // now bubble up
+      llvm_unreachable("TODO: implement this");
     }
-    // TODO
+    // addOp is in canonical form: add(cstfldb, rhs),
+    // now try to bubble up cstfldb2 if rhs == add/sub(cstfldb2, x)
+    if (isBubblable<ONNXAddOp, ONNXSubOp>(rhs, analysis)) {
+      Operation *rhsOp = rhs.getDefiningOp();
+      Value rhsLhs = rhsOp->getOperand(0);
+      Location loc = rewriter.getFusedLoc({lhs.getLoc(), rhsLhs.getLoc()});
+      Value newLhs = rewriter.create<ONNXAddOp>(loc, lhs, rhsLhs);
+      Operation *newRoot = rewriter.clone(*rhsOp); // add or sub
+      newRoot->setOperand(0, newLhs);
+      rewriter.replaceOp(addOp, newRoot->getResult(0));
+      return success();
+    }
+    if (swapped) {
+      rewriter.updateRootInPlace(addOp, [&] {
+        addOp->setOperands({lhs, rhs});
+      });
+      return success();
+    }
     return failure();
   }
 };
 
 struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
   using MyOpRewritePattern<ONNXNegOp>::MyOpRewritePattern;
-
   LogicalResult matchAndRewrite(
       ONNXNegOp negOp, PatternRewriter &rewriter) const override {
     if (analysis.isConstantFoldableOp(negOp))
@@ -627,7 +634,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
     if (!defop)
       return failure();
 #if 1
-    if (ONNXAddOp addOp = castIfBubblable<ONNXAddOp>(defop, analysis)) {
+    if (ONNXAddOp addOp = castIfBubblableOp<ONNXAddOp>(defop, analysis)) {
       Operation *negLhsOp = negate(addOp.getA(), rewriter);
       analysis.insertConstantFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
@@ -636,7 +643,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
       rewriter.replaceOp(negOp, subOp);
       return success();
     }
-    if (ONNXSubOp subOp = castIfBubblable<ONNXSubOp>(defop, analysis)) {
+    if (ONNXSubOp subOp = castIfBubblableOp<ONNXSubOp>(defop, analysis)) {
       Operation *negLhsOp = negate(subOp.getA(), rewriter);
       analysis.insertConstantFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
