@@ -517,7 +517,9 @@ void lazyConstPropRegion(Region *region) {
   LazyConstPropRegion().run(region);
 }
 
-struct MyAnalysis {
+// Given that ONNX If/Loop/Scan regions can refer to values from parent regions,
+// the CFAnalysis needs to be done as a "Preorder" region traversal.
+struct CFAnalysis { // "CF" == "Constant Foldable"
   Ops cfops;
   void insertConstantFoldableOp(Operation *op) {
     auto [_, inserted] = cfops.insert(op);
@@ -550,32 +552,32 @@ class MyOpRewritePattern : public OpRewritePattern<OpType> {
 public:
   // TODO: figure out if patterns need to fill in generatedNames
   template <typename... Args>
-  MyOpRewritePattern(MyAnalysis &analysis, Args &&... args)
+  MyOpRewritePattern(CFAnalysis &analysis, Args &&... args)
       : Base(std::forward<Args>(args)...), analysis(analysis) {}
 
 protected:
-  MyAnalysis &analysis;
+  CFAnalysis &analysis;
 };
 
-bool isBubblableOpImpl(Operation *op, const MyAnalysis &analysis) {
+bool isBubblableOpImpl(Operation *op, const CFAnalysis &analysis) {
   assert(!analysis.isConstantFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
          analysis.isConstantFoldable(op->getOperand(0));
 }
 
 template <typename... OpTypes>
-bool isBubblableOp(Operation *op, const MyAnalysis &analysis) {
+bool isBubblableOp(Operation *op, const CFAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) && isa<OpTypes...>(op);
 }
 
 template <typename... OpTypes>
-bool isBubblable(Value v, const MyAnalysis &analysis) {
+bool isBubblable(Value v, const CFAnalysis &analysis) {
   Operation *op = v.getDefiningOp();
   return op && isBubblableOp<OpTypes...>(op, analysis);
 }
 
 template <typename OpType>
-OpType castIfBubblableOp(Operation *op, const MyAnalysis &analysis) {
+OpType castIfBubblableOp(Operation *op, const CFAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
 }
 
@@ -705,7 +707,7 @@ struct LazyConstPropONNXPass
   void runOnOperation() final {
     MLIRContext *ctx = &getContext();
 
-    MyAnalysis analysis;
+    CFAnalysis analysis;
 
     RewritePatternSet patterns(ctx);
     patterns.insert<NegPattern>(analysis, ctx);
