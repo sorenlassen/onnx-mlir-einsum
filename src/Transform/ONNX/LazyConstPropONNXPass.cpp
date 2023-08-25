@@ -7,6 +7,7 @@
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Interfaces/CopyOpInterface.h" // TODO: remove
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
@@ -559,6 +560,20 @@ protected:
   CFAnalysis &analysis;
 };
 
+template <typename OpInterfaceType>
+class MyOpInterfaceRewritePattern : public OpInterfaceRewritePattern<OpInterfaceType> {
+  using Base = OpInterfaceRewritePattern<OpInterfaceType>;
+
+public:
+  // TODO: figure out if patterns need to fill in generatedNames
+  template <typename... Args>
+  MyOpInterfaceRewritePattern(CFAnalysis &analysis, Args &&... args)
+      : Base(std::forward<Args>(args)...), analysis(analysis) {}
+
+protected:
+  CFAnalysis &analysis;
+};
+
 bool isBubblableOpImpl(Operation *op, const CFAnalysis &analysis) {
   assert(!analysis.isConstantFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
@@ -580,6 +595,73 @@ template <typename OpType>
 OpType castIfBubblableOp(Operation *op, const CFAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
 }
+
+Value cloneOpAndSetOperands(Operation *op, ValueRange operands, PatternRewriter &rewriter) {
+  Operation *clone = rewriter.clone(*op);
+  clone->setOperands(operands);
+  // TODO: set result type
+  return clone->getResult(0);
+}
+
+// TODO: create ACCF (Associative, Commutative, Constant-Foldable) op interface
+//       and attach it to onnx.Add/Sum/Min/Xor etc
+using ACCFOpInterface = CopyOpInterface; // TODO: replace this placeholder
+
+// This pattern rewrites non-constant-foldable expression op(x1,x2) towards the
+// form op(noncstfldb,cstfldb) (in any operand order) in one of two ways:
+// 1. op(cstfldb1,op(cstfldb2,x2)) -> op(op(cstfldb1,cstfldb2),x2)
+// 2. op(x1,op(cstfldb2,x2)) -> op(op(x1,x2),cstfldb2), if x1 is not constant foldable
+struct BinaryACCFOpPattern : public MyOpInterfaceRewritePattern<ACCFOpInterface> {
+  using MyOpInterfaceRewritePattern<ACCFOpInterface>::MyOpInterfaceRewritePattern;
+
+  // Pair of a non-constant-foldable value and a constant-foldable value.
+  using ValuePair = std::array<Value, 2>;
+
+  LogicalResult doRewrite(
+      ACCFOpInterface binaryOp, Value operand, ValuePair vp, PatternRewriter &rewriter) const {
+    auto [noncstfldb, cstfldb] = vp;
+    if (analysis.isConstantFoldable(operand)) {
+      // rewrite op to op(noncstfldb,op(operand,cstfldb))
+      cstfldb = cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
+    } else {
+      // rewrite op to op(op(operand,noncstfldb),cstfldb)
+      noncstfldb = cloneOpAndSetOperands(binaryOp, {operand, noncstfldb}, rewriter);
+    }
+    rewriter.startRootUpdate(binaryOp);
+    binaryOp->setOperands({noncstfldb, cstfldb});
+    rewriter.finalizeRootUpdate(binaryOp);
+    return success();
+  }
+
+  std::optional<ValuePair> isBubbleable(OperationName opName, Value operand) const {
+    if (Operation *defop = operand.getDefiningOp()) {
+      if (defop->hasOneUse() && defop->getName() == opName) {
+        assert(defop->getNumOperands() == 2);
+        Value lhs = defop->getOperand(0), rhs = defop->getOperand(1);
+        if (analysis.isConstantFoldable(rhs))
+          return ValuePair{lhs, rhs};
+        if (analysis.isConstantFoldable(lhs))
+          return ValuePair{rhs, lhs};
+      }
+    }
+    return std::nullopt;
+  }
+
+  LogicalResult matchAndRewrite(
+      ACCFOpInterface binaryOp, PatternRewriter &rewriter) const override {
+    // TODO: try to insert this check in the base class MyOpRewritePattern
+    if (analysis.isConstantFoldableOp(binaryOp))
+      return failure();
+    assert(binaryOp->getNumOperands() == 2);
+    Value lhs = binaryOp->getOperand(0), rhs = binaryOp->getOperand(1);
+    OperationName opName = binaryOp->getName();
+    if (auto vp = isBubbleable(opName, lhs))
+      return doRewrite(binaryOp, rhs, *vp, rewriter);
+    if (auto vp = isBubbleable(opName, rhs))
+      return doRewrite(binaryOp, lhs, *vp, rewriter);
+    return failure();
+  }
+};
 
 struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
   using MyOpRewritePattern<ONNXAddOp>::MyOpRewritePattern;
