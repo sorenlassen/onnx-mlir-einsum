@@ -41,6 +41,7 @@ bool enableONNXHybridPass;                             // common for both
 std::vector<std::string> functionsToDecompose;         // common for both
 std::vector<std::string> externalDataDir;              // common for both
 std::string opsForCall;                                // common for both
+std::vector<std::string> externalDataDir;              // common for both
 EmissionTargetType emissionTarget;                     // onnx-mlir only
 bool invokeOnnxVersionConverter;                       // onnx-mlir only
 bool preserveLocations;                                // onnx-mlir only
