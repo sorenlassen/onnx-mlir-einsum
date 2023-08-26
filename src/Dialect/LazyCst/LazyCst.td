@@ -27,6 +27,7 @@ def LazyCst_Dialect : Dialect {
   let extraClassDeclaration = [{
     FileDataManager fileDataManager;
     LazyFunctionManager lazyFunctionManager;
+    LazyFolders lazyFolders;
   }];
 }
 

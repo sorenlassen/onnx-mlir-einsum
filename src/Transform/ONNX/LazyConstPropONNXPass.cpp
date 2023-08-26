@@ -1,15 +1,19 @@
-// SPDX-License-Identifier: Apache-2.0
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ */
 
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
+#include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
+#include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
-#include "mlir/Interfaces/CopyOpInterface.h" // TODO: remove
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Verifier.h"
+#include "mlir/Interfaces/CopyOpInterface.h" // TODO: remove
 #include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/DenseMap.h"
@@ -19,8 +23,6 @@
 #include <unordered_map>
 
 #define DEBUG_TYPE "lazy-constprop-onnx"
-
-#define USE_FOLD_ADAPTOR 1
 
 namespace {
 
@@ -33,63 +35,6 @@ struct LazyConstPropONNXPassConfiguration {
 };
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
-
-// Similar to OpConversionPattern or Operation::fold().
-class LazyFolder {
-public:
-  virtual ~LazyFolder() = default;
-
-  virtual LogicalResult match(Operation *op) const = 0;
-  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
-      SmallVectorImpl<Attribute> &results) const = 0;
-};
-
-class AlwaysMatchLazyFolder : public LazyFolder {
-public:
-  LogicalResult match(Operation *op) const override { return success(); }
-};
-
-template <typename OP>
-class OpLazyFolder : public LazyFolder {
-public:
-  using Op = OP;
-  virtual ~OpLazyFolder() = default;
-
-  virtual LogicalResult match(OP op) const { return success(); }
-  LogicalResult match(Operation *op) const override {
-    return match(cast<OP>(op));
-  }
-
-#if USE_FOLD_ADAPTOR
-  using FoldAdaptor = typename OP::FoldAdaptor;
-  virtual Attribute fold(OP op, FoldAdaptor adaptor) const {
-    llvm_unreachable("unimplemented");
-  }
-  virtual void fold(
-      OP op, FoldAdaptor adaptor, SmallVectorImpl<Attribute> &results) const {
-    results.emplace_back(fold(op, adaptor));
-  }
-  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
-      SmallVectorImpl<Attribute> &results) const override {
-    return fold(cast<OP>(op),
-        FoldAdaptor(operands, op->getAttrDictionary(),
-            op->getPropertiesStorage(), op->getRegions()),
-        results);
-  }
-#else
-  virtual Attribute fold(OP op, ArrayRef<Attribute> operands) const {
-    llvm_unreachable("unimplemented");
-  }
-  virtual void fold(OP op, ArrayRef<Attribute> operands,
-      SmallVectorImpl<Attribute> &results) const {
-    results.emplace_back(fold(op), operands);
-  }
-  virtual void fold(Operation *op, ArrayRef<Attribute> operands,
-      SmallVectorImpl<Attribute> &results) const override {
-    return fold(cast<OP>(op), operands, results);
-  }
-#endif
-};
 
 // Extracts number from a scalar elements attribute.
 WideNum getScalarNum(ElementsAttr elements) {
@@ -105,9 +50,8 @@ WideNum getScalarNum(ElementsAttr elements) {
   }
 }
 
-class ONNXRangeOpLazyFolder : public OpLazyFolder<ONNXRangeOp> {
+class ONNXRangeOpLazyFolder : public lazycst::OpLazyFolder<ONNXRangeOp> {
 public:
-#if USE_FOLD_ADAPTOR
   virtual Attribute fold(ONNXRangeOp op, FoldAdaptor adaptor) const override {
     ElementsAttr start = cast<ElementsAttr>(adaptor.getStart());
     ElementsAttr delta = cast<ElementsAttr>(adaptor.getDelta());
@@ -115,40 +59,19 @@ public:
     OnnxElementsAttrBuilder eb(op.getContext());
     return eb.range(type, getScalarNum(start), getScalarNum(delta));
   }
-#else
-  virtual Attribute fold(
-      ONNXRangeOp op, ArrayRef<Attribute> operands) const override {
-    assert(operands.size() == 3);
-    ElementsAttr start = cast<ElementsAttr>(operands[0]);
-    ElementsAttr delta = cast<ElementsAttr>(operands[2]);
-    ShapedType type = cast<ShapedType>(op.getType());
-    OnnxElementsAttrBuilder eb(op.getContext());
-    return eb.range(type, getScalarNum(start), getScalarNum(delta));
-  }
-#endif
 };
-
-struct LazyOpFolders {
-  template <class T>
-  void insert() {
-    auto [_, inserted] =
-        map.try_emplace(T::Op::getOperationName(), std::make_unique<T>());
-    assert(inserted);
-  }
-  LazyOpFolders() {
-    // TODO: move map initialization elsewhere
-    insert<OpLazyFolder<ONNXAddOp>>();
-    insert<OpLazyFolder<ONNXSumOp>>();
-    insert<ONNXRangeOpLazyFolder>();
-  }
-  llvm::StringMap<std::unique_ptr<LazyFolder>> map;
-};
-
-LazyOpFolders lazyOpFolders;
 
 bool isLazyFoldable(Operation *op) {
-  auto it = lazyOpFolders.map.find(op->getName().getIdentifier());
-  return it != lazyOpFolders.map.end() && succeeded(it->second->match(op));
+  return succeeded(op->getContext()
+                       ->getLoadedDialect<lazycst::LazyCstDialect>()
+                       ->lazyFolders.match(op));
+}
+
+void populateONNXLazyFolders(MLIRContext *ctx) {
+  ctx->getLoadedDialect<lazycst::LazyCstDialect>()
+      ->lazyFolders.insertOpLazyFolder<lazycst::OpLazyFolder<ONNXAddOp>>()
+      .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXSumOp>>()
+      .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
 }
 
 bool isConstant(Operation *op) {
@@ -518,30 +441,6 @@ void lazyConstPropRegion(Region *region) {
   LazyConstPropRegion().run(region);
 }
 
-// Given that ONNX If/Loop/Scan regions can refer to values from parent regions,
-// the CFAnalysis needs to be done as a "Preorder" region traversal.
-struct CFAnalysis { // "CF" == "Constant Foldable"
-  Ops cfops;
-  void insertConstantFoldableOp(Operation *op) {
-    auto [_, inserted] = cfops.insert(op);
-    assert(inserted);
-  }
-  bool isConstantFoldableOp(Operation *op) const {
-    return op && cfops.contains(op);
-  }
-  bool isConstantFoldable(Value v) const {
-    return isConstantFoldableOp(v.getDefiningOp());
-  }
-  SmallVector<unsigned> constantFoldableIdxs(ValueRange values) {
-    SmallVector<unsigned> idxs;
-    for (unsigned i = 0; i < values.size(); ++i) {
-      if (isConstantFoldable(values[i]))
-        idxs.push_back(i);
-    }
-    return idxs;
-  }
-};
-
 Operation *negate(Value v, PatternRewriter &rewriter) {
   llvm_unreachable("TODO: implement this");
 }
@@ -553,50 +452,56 @@ class MyOpRewritePattern : public OpRewritePattern<OpType> {
 public:
   // TODO: figure out if patterns need to fill in generatedNames
   template <typename... Args>
-  MyOpRewritePattern(CFAnalysis &analysis, Args &&... args)
+  MyOpRewritePattern(lazycst::LazyFoldableAnalysis &analysis, Args &&... args)
       : Base(std::forward<Args>(args)...), analysis(analysis) {}
 
 protected:
-  CFAnalysis &analysis;
+  lazycst::LazyFoldableAnalysis &analysis;
 };
 
 template <typename OpInterfaceType>
-class MyOpInterfaceRewritePattern : public OpInterfaceRewritePattern<OpInterfaceType> {
+class MyOpInterfaceRewritePattern
+    : public OpInterfaceRewritePattern<OpInterfaceType> {
   using Base = OpInterfaceRewritePattern<OpInterfaceType>;
 
 public:
   // TODO: figure out if patterns need to fill in generatedNames
   template <typename... Args>
-  MyOpInterfaceRewritePattern(CFAnalysis &analysis, Args &&... args)
+  MyOpInterfaceRewritePattern(
+      lazycst::LazyFoldableAnalysis &analysis, Args &&... args)
       : Base(std::forward<Args>(args)...), analysis(analysis) {}
 
 protected:
-  CFAnalysis &analysis;
+  lazycst::LazyFoldableAnalysis &analysis;
 };
 
-bool isBubblableOpImpl(Operation *op, const CFAnalysis &analysis) {
+bool isBubblableOpImpl(
+    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
   assert(!analysis.isConstantFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
          analysis.isConstantFoldable(op->getOperand(0));
 }
 
 template <typename... OpTypes>
-bool isBubblableOp(Operation *op, const CFAnalysis &analysis) {
+bool isBubblableOp(
+    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) && isa<OpTypes...>(op);
 }
 
 template <typename... OpTypes>
-bool isBubblable(Value v, const CFAnalysis &analysis) {
+bool isBubblable(Value v, const lazycst::LazyFoldableAnalysis &analysis) {
   Operation *op = v.getDefiningOp();
   return op && isBubblableOp<OpTypes...>(op, analysis);
 }
 
 template <typename OpType>
-OpType castIfBubblableOp(Operation *op, const CFAnalysis &analysis) {
+OpType castIfBubblableOp(
+    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
 }
 
-Value cloneOpAndSetOperands(Operation *op, ValueRange operands, PatternRewriter &rewriter) {
+Value cloneOpAndSetOperands(
+    Operation *op, ValueRange operands, PatternRewriter &rewriter) {
   Operation *clone = rewriter.clone(*op);
   clone->setOperands(operands);
   // TODO: set result type
@@ -610,22 +515,26 @@ using ACCFOpInterface = CopyOpInterface; // TODO: replace this placeholder
 // This pattern rewrites non-constant-foldable expression op(x1,x2) towards the
 // form op(noncstfldb,cstfldb) (in any operand order) in one of two ways:
 // 1. op(cstfldb1,op(cstfldb2,x2)) -> op(op(cstfldb1,cstfldb2),x2)
-// 2. op(x1,op(cstfldb2,x2)) -> op(op(x1,x2),cstfldb2), if x1 is not constant foldable
-struct BinaryACCFOpPattern : public MyOpInterfaceRewritePattern<ACCFOpInterface> {
-  using MyOpInterfaceRewritePattern<ACCFOpInterface>::MyOpInterfaceRewritePattern;
+// 2. op(x1,op(cstfldb2,x2)) -> op(op(x1,x2),cstfldb2), if x1 is not constant
+// foldable
+struct BinaryACCFOpPattern
+    : public MyOpInterfaceRewritePattern<ACCFOpInterface> {
+  using MyOpInterfaceRewritePattern<
+      ACCFOpInterface>::MyOpInterfaceRewritePattern;
 
   // Pair of a non-constant-foldable value and a constant-foldable value.
   using ValuePair = std::array<Value, 2>;
 
-  LogicalResult doRewrite(
-      ACCFOpInterface binaryOp, Value operand, ValuePair vp, PatternRewriter &rewriter) const {
+  LogicalResult doRewrite(ACCFOpInterface binaryOp, Value operand, ValuePair vp,
+      PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
     if (analysis.isConstantFoldable(operand)) {
       // rewrite op to op(noncstfldb,op(operand,cstfldb))
       cstfldb = cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
     } else {
       // rewrite op to op(op(operand,noncstfldb),cstfldb)
-      noncstfldb = cloneOpAndSetOperands(binaryOp, {operand, noncstfldb}, rewriter);
+      noncstfldb =
+          cloneOpAndSetOperands(binaryOp, {operand, noncstfldb}, rewriter);
     }
     rewriter.startRootUpdate(binaryOp);
     binaryOp->setOperands({noncstfldb, cstfldb});
@@ -633,7 +542,8 @@ struct BinaryACCFOpPattern : public MyOpInterfaceRewritePattern<ACCFOpInterface>
     return success();
   }
 
-  std::optional<ValuePair> isBubbleable(OperationName opName, Value operand) const {
+  std::optional<ValuePair> isBubbleable(
+      OperationName opName, Value operand) const {
     if (Operation *defop = operand.getDefiningOp()) {
       if (defop->hasOneUse() && defop->getName() == opName) {
         assert(defop->getNumOperands() == 2);
@@ -788,13 +698,17 @@ struct LazyConstPropONNXPass
 
   void runOnOperation() final {
     MLIRContext *ctx = &getContext();
+    func::FuncOp function = getOperation();
 
-    CFAnalysis analysis;
+    // TODO: call this up front when loading/configuring/initializing dialects
+    populateONNXLazyFolders(ctx);
+
+    lazycst::LazyFoldableAnalysis analysis(function);
 
     RewritePatternSet patterns(ctx);
     patterns.insert<NegPattern>(analysis, ctx);
 
-    getOperation()->walk(lazyConstPropRegion);
+    function->walk(lazyConstPropRegion);
   }
 };
 
