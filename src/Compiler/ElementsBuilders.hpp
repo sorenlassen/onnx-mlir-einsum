@@ -10,8 +10,10 @@
 
 namespace onnx_mlir {
 
-std::unique_ptr<ElementsBuilder> getDisposableElementsBuilder(mlir::MLIRContext *context);
+std::unique_ptr<ElementsBuilder> getDisposableElementsBuilder(
+    mlir::MLIRContext *context);
 
-std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(mlir::MLIRContext *context);
+std::unique_ptr<ElementsBuilder> getLazyElementsBuilder(
+    mlir::MLIRContext *context);
 
 } // namespace onnx_mlir
