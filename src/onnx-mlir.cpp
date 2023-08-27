@@ -67,11 +67,12 @@ int main(int argc, char *argv[]) {
 
   // Create context after MLIRContextCLOptions are registered and parsed.
   mlir::MLIRContext context;
-  mlir::registerOpenMPDialectTranslation(context);
   if (!context.isMultithreadingEnabled()) {
     assert(context.getNumThreads() == 1 && "1 thread if no multithreading");
     LLVM_DEBUG(llvm::dbgs() << "multithreading is disabled\n");
   }
+  // TODO: consider moving the OpenMP setup into configureDialects()
+  mlir::registerOpenMPDialectTranslation(context);
   loadDialects(context);
 
   mlir::OwningOpRef<mlir::ModuleOp> module;

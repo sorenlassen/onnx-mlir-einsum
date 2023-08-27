@@ -52,15 +52,18 @@ DialectRegistry registerDialects(ArrayRef<accel::Accelerator::Kind> accels) {
   return registry;
 }
 
-void loadAndConfigureRegisteredDialects(mlir::MLIRContext *context) {
-  context->loadAllAvailableDialects();
+void configureDialects(mlir::DialectRegistry &registry) {
+  // We do this in onnx-mlir instead to exclude OpenMP from tests etc.
+  // registerOpenMPDialectTranslation(registry);
 
-  auto &lazyDialect = *context->getLoadedDialect<lazycst::LazyCstDialect>();
-  lazycst::FileDataManager::Config config;
-  config.readDirectoryPaths.assign(
-      externalDataDir.begin(), externalDataDir.end());
-  // TODO: configure writePathPrefix/Suffix
-  lazyDialect.fileDataManager.configure(config);
+  registry.addExtension(
+      +[](MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect) {
+        lazycst::FileDataManager::Config config;
+        config.readDirectoryPaths.assign(
+            externalDataDir.begin(), externalDataDir.end());
+        // TODO: configure writePathPrefix/Suffix
+        lazycstDialect->fileDataManager.configure(config);
+      });
 }
 
 } // namespace onnx_mlir

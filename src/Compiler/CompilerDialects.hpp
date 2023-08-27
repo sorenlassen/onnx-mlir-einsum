@@ -18,7 +18,7 @@ namespace onnx_mlir {
 mlir::DialectRegistry registerDialects(
     llvm::ArrayRef<accel::Accelerator::Kind> accels);
 
-// Loads and configures all registered mlir and onnx-mlir dialects.
-void loadAndConfigureRegisteredDialects(mlir::MLIRContext *context);
+// Configures all registered mlir and onnx-mlir dialects.
+void configureDialects(mlir::DialectRegistry &registry);
 
 } // namespace onnx_mlir
