@@ -7,7 +7,6 @@
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
-#include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -17,7 +16,6 @@
 #include "mlir/Pass/Pass.h"
 
 #include "llvm/ADT/DenseMap.h"
-#include "llvm/ADT/StringMap.h"
 #include "llvm/Support/Debug.h"
 
 #include <unordered_map>
@@ -36,6 +34,7 @@ struct LazyConstPropONNXPassConfiguration {
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
 
+#if 0
 // Extracts number from a scalar elements attribute.
 WideNum getScalarNum(ElementsAttr elements) {
   Type elementType = elements.getElementType();
@@ -61,17 +60,18 @@ public:
   }
 };
 
-bool isLazyFoldable(Operation *op) {
-  return succeeded(op->getContext()
-                       ->getLoadedDialect<lazycst::LazyCstDialect>()
-                       ->lazyFolders.match(op));
-}
-
 void populateONNXLazyFolders(MLIRContext *ctx) {
   ctx->getLoadedDialect<lazycst::LazyCstDialect>()
       ->lazyFolders.insertOpLazyFolder<lazycst::OpLazyFolder<ONNXAddOp>>()
       .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXSumOp>>()
       .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
+}
+#endif
+
+bool isLazyFoldable(Operation *op) {
+  return succeeded(op->getContext()
+                       ->getLoadedDialect<lazycst::LazyCstDialect>()
+                       ->lazyFolders.match(op));
 }
 
 bool isConstant(Operation *op) {
@@ -699,9 +699,6 @@ struct LazyConstPropONNXPass
   void runOnOperation() final {
     MLIRContext *ctx = &getContext();
     func::FuncOp function = getOperation();
-
-    // TODO: call this up front when loading/configuring/initializing dialects
-    populateONNXLazyFolders(ctx);
 
     lazycst::LazyFoldableAnalysis analysis(function);
 

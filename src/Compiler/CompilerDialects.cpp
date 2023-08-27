@@ -10,6 +10,7 @@
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
+#include "src/Dialect/ONNX/ONNXLazyFolders.hpp"
 
 #include "mlir/InitAllDialects.h"
 
@@ -63,6 +64,12 @@ void configureDialects(mlir::DialectRegistry &registry) {
             externalDataDir.begin(), externalDataDir.end());
         // TODO: configure writePathPrefix/Suffix
         lazycstDialect->fileDataManager.configure(config);
+      });
+
+  registry.addExtension(
+      +[](MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect,
+           ONNXDialect *onnxDalect) {
+        populateONNXLazyFolders(ctx, lazycstDialect, onnxDalect);
       });
 }
 

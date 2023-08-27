@@ -2,6 +2,14 @@
 
 add_subdirectory(ONNX)
 
+add_onnx_mlir_library(OMLazyFoldableAnalysisPass
+  LazyFoldableAnalysisPass.cpp
+
+  LINK_LIBS PUBLIC
+  OMLazyCst
+  MLIRTransformUtils
+  )
+
 add_onnx_mlir_library(OMElideKrnlGlobalConstants
   ElideKrnlGlobalConstants.cpp
 
