@@ -34,40 +34,6 @@ struct LazyConstPropONNXPassConfiguration {
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
 
-#if 0
-// Extracts number from a scalar elements attribute.
-WideNum getScalarNum(ElementsAttr elements) {
-  Type elementType = elements.getElementType();
-  if (isa<FloatType>(elementType)) {
-    APFloat f = *elements.value_begin<APFloat>();
-    return WideNum::fromAPFloat(f);
-  } else if (auto itype = dyn_cast<IntegerType>(elementType)) {
-    APInt i = *elements.value_begin<APInt>();
-    return WideNum::fromAPInt(i, !itype.isUnsigned());
-  } else {
-    llvm_unreachable("Only integer and float types are supported");
-  }
-}
-
-class ONNXRangeOpLazyFolder : public lazycst::OpLazyFolder<ONNXRangeOp> {
-public:
-  virtual Attribute fold(ONNXRangeOp op, FoldAdaptor adaptor) const override {
-    ElementsAttr start = cast<ElementsAttr>(adaptor.getStart());
-    ElementsAttr delta = cast<ElementsAttr>(adaptor.getDelta());
-    ShapedType type = cast<ShapedType>(op.getType());
-    OnnxElementsAttrBuilder eb(op.getContext());
-    return eb.range(type, getScalarNum(start), getScalarNum(delta));
-  }
-};
-
-void populateONNXLazyFolders(MLIRContext *ctx) {
-  ctx->getLoadedDialect<lazycst::LazyCstDialect>()
-      ->lazyFolders.insertOpLazyFolder<lazycst::OpLazyFolder<ONNXAddOp>>()
-      .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXSumOp>>()
-      .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
-}
-#endif
-
 bool isLazyFoldable(Operation *op) {
   return succeeded(op->getContext()
                        ->getLoadedDialect<lazycst::LazyCstDialect>()
