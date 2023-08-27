@@ -70,6 +70,7 @@ add_onnx_mlir_library(OMCompilerDialects
   OMONNXOps
   MLIRIR
   MLIROpenMPDialect
+  MLIROpenMPToLLVMIRTranslation
   )
 
 add_onnx_mlir_library(OMCompilerPasses

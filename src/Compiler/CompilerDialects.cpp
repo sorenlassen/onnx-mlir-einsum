@@ -13,6 +13,7 @@
 #include "src/Dialect/ONNX/ONNXLazyFolders.hpp"
 
 #include "mlir/InitAllDialects.h"
+#include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
 
 using namespace mlir;
 
@@ -54,8 +55,7 @@ DialectRegistry registerDialects(ArrayRef<accel::Accelerator::Kind> accels) {
 }
 
 void configureDialects(mlir::DialectRegistry &registry) {
-  // We do this in onnx-mlir instead to exclude OpenMP from tests etc.
-  // registerOpenMPDialectTranslation(registry);
+  registerOpenMPDialectTranslation(registry);
 
   registry.addExtension(
       +[](MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect) {
