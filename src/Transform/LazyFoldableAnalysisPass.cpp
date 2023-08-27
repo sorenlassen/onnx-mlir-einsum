@@ -28,15 +28,8 @@ struct LazyFoldableAnalysisPass
   }
 
   void runOnOperation() final {
-    MLIRContext *ctx = &getContext();
     func::FuncOp function = getOperation();
-
     lazycst::LazyFoldableAnalysis analysis(function);
-
-    // RewritePatternSet patterns(ctx);
-    // patterns.insert<NegPattern>(analysis, ctx);
-    //
-    // function->walk(lazyConstPropRegion);
   }
 };
 
