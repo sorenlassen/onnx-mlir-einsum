@@ -8,14 +8,9 @@
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Pass/Pass.h"
 
-#include "llvm/Support/Debug.h"
-
-#define DEBUG_TYPE "lazyfoldableanalysis-pass"
-
 namespace {
 
 using namespace mlir;
-using namespace onnx_mlir;
 
 struct LazyFoldableAnalysisPass : public PassWrapper<LazyFoldableAnalysisPass,
                                       OperationPass<func::FuncOp>> {
