@@ -66,6 +66,7 @@ add_onnx_mlir_library(OMCompilerDialects
   OMAccelerator
   OMInitAccelerators
   OMCompilerOptions
+  OMMlirDialects
   OMKrnlOps
   OMONNXOps
   MLIRIR

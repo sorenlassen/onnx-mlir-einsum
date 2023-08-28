@@ -9,6 +9,7 @@
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/Mlir/ConstantPrinter.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
 #include "src/Dialect/ONNX/ONNXLazyFolders.hpp"
 
@@ -55,6 +56,9 @@ DialectRegistry registerDialects(ArrayRef<accel::Accelerator::Kind> accels) {
 }
 
 void configureDialects(mlir::DialectRegistry &registry) {
+  // Note that we can consult command line options because they have
+  // been parsed when configureDialects() is called.
+
   registerOpenMPDialectTranslation(registry);
 
   registry.addExtension(
@@ -71,6 +75,8 @@ void configureDialects(mlir::DialectRegistry &registry) {
            ONNXDialect *onnxDalect) {
         populateONNXLazyFolders(ctx, lazycstDialect, onnxDalect);
       });
+
+  ConstantPrinter::hideDensifiableElementsAttrs(hideDensifiableElementsAttrs);
 }
 
 } // namespace onnx_mlir

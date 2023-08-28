@@ -13,9 +13,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "src/Dialect/ONNX/ONNXOps.hpp"
-#include "src/Dialect/ONNX/DialectBuilder.hpp"
 
-#include "src/Interface/DensifiableElementsAttrInterface.hpp"
+#include "src/Dialect/Mlir/ConstantPrinter.hpp"
+#include "src/Dialect/ONNX/DialectBuilder.hpp"
 
 #include "mlir/Dialect/Traits.h"
 #include "llvm/ADT/STLExtras.h"
@@ -76,71 +76,6 @@ Type getBroadcastedRankedType(
 
 using namespace mlir;
 
-namespace {
-
-//===----------------------------------------------------------------------===//
-// Helpers adapted from corresponding methods in mlir/lib/AsmParser/Parser.cpp
-//===----------------------------------------------------------------------===//
-
-void printAsDenseElementsAttr(
-    AsmPrinter &printer, DensifiableElementsAttrInterface elements) {
-  // It would be ideal if we could read the printer flags from printer instead
-  // of constructing them here, because printer may have been constructed with
-  // an override of elideLargeElementsAttrs which we cannot see here.
-  // Oh well, at least OpPrintingFlags().shouldElideElementsAttr(ElementsAttr)
-  // lets us respect the --mlir-elide-elementsattrs-if-larger command line flag.
-  static OpPrintingFlags printerFlags{};
-  if (elements.isSplat() || !printerFlags.shouldElideElementsAttr(elements)) {
-    // Take shortcut by first converting to DenseElementsAttr.
-    // NOTE: This creates a copy which is never garbage collected. This is not
-    // only slow but also defeats the garbage collection benefits of
-    // DisposableElementsAttr at al, depending on when the printing
-    // takes place (the print at the end of onnx-mlir-opt in lit tests is ok).
-    printer.printAttribute(elements.toDenseElementsAttr());
-    // TODO: Do the work to print without constructing DenseElementsAttr.
-  } else {
-    // In this special case it's easy to avoid conversion to DenseElementsAttr.
-    printer << "dense<__elided__> : " << elements.getType();
-  }
-}
-
-// Print DensifiableElementsAttr as a DenseElementsAttr, because
-// the DensifiableElementsAttrs are internal representations, so we hide them
-// in this way.
-void printAttribute(OpAsmPrinter &printer, Attribute attr) {
-  if (auto densifiable = attr.dyn_cast<DensifiableElementsAttrInterface>())
-    printAsDenseElementsAttr(printer, densifiable);
-  else
-    printer.printAttribute(attr);
-}
-
-void printNamedAttribute(OpAsmPrinter &printer, NamedAttribute namedAttr) {
-  // Print the name without quotes if possible.
-  printer.printKeywordOrString(namedAttr.getName().strref());
-
-  // Pretty printing elides the attribute value for unit attributes.
-  if (namedAttr.getValue().isa<UnitAttr>())
-    return;
-
-  printer << " = ";
-  printAttribute(printer, namedAttr.getValue());
-}
-
-void printOptionalAttrDict(
-    OpAsmPrinter &printer, ArrayRef<NamedAttribute> attrs) {
-  // If there are no attributes, then there is nothing to be done.
-  if (attrs.empty())
-    return;
-
-  // Otherwise, print them all out in braces.
-  printer << " {";
-  llvm::interleaveComma(attrs, printer.getStream(),
-      [&](NamedAttribute attr) { printNamedAttribute(printer, attr); });
-  printer << '}';
-}
-
-} // namespace
-
 //===----------------------------------------------------------------------===//
 // ONNXConstantOp custom assembly format print and parse.
 // If the op has a sparse_value attr, it just prints its SparseElementsAttr:
@@ -179,7 +114,7 @@ void ONNXConstantOp::print(OpAsmPrinter &printer) {
            "ONNXConstantOp value cannot be sparse");
     if (elements.getType() == resultType) {
       printer << ' ';
-      printAttribute(printer, elements);
+      ConstantPrinter(printer).printAttribute(elements);
       return;
     }
   }
@@ -194,7 +129,7 @@ void ONNXConstantOp::print(OpAsmPrinter &printer) {
   }
   // Fallback if there's something funny: no value or sparse_value attribute,
   // or types mismatch.
-  printOptionalAttrDict(printer, (*this)->getAttrs());
+  ConstantPrinter(printer).printOptionalAttrDict((*this)->getAttrs());
   printer << " : " << resultType;
 }
 
@@ -236,7 +171,7 @@ void ONNXConstantOfShapeOp::print(OpAsmPrinter &printer) {
   printer << "(";
   printer.printOperand(getInput());
   printer << ")";
-  printOptionalAttrDict(printer, (*this)->getAttrs());
+  ConstantPrinter(printer).printOptionalAttrDict((*this)->getAttrs());
   printer << " : ";
   printer.printFunctionalType(*this);
 }

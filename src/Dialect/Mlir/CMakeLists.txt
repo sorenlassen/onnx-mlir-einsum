@@ -5,6 +5,7 @@ add_onnx_mlir_library(OMMlirDialects
   IndexExprDetail.cpp
   IndexExprBuilder.cpp
   DialectBuilder.cpp
+  ConstantPrinter.cpp
   VectorMachineSupport.cpp
 
   DEPENDS
