@@ -20,8 +20,6 @@ func.func @test_add_scalars() -> tensor<f32> {
 
 // -----
 
-// TODO: figure out a robust file location, for now you need to place a
-//       20 bytes file in /tmp/foo.data for this test to not crash
 func.func @test_add_file() -> tensor<5xf32> {
   %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
   %1 = onnx.Constant dense<2.0> : tensor<f32>

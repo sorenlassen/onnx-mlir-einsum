@@ -17,8 +17,8 @@ namespace {
 using namespace mlir;
 using namespace onnx_mlir;
 
-struct LazyFoldableAnalysisPass
-    : public PassWrapper<LazyFoldableAnalysisPass, OperationPass<func::FuncOp>> {
+struct LazyFoldableAnalysisPass : public PassWrapper<LazyFoldableAnalysisPass,
+                                      OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyFoldableAnalysisPass);
 
   StringRef getArgument() const override { return "lazyfoldableanalysis-pass"; }
@@ -29,7 +29,7 @@ struct LazyFoldableAnalysisPass
 
   void runOnOperation() final {
     func::FuncOp function = getOperation();
-    lazycst::LazyFoldableAnalysis analysis(function);
+    lazycst::LazyFoldableAnalysis analysis(function, /*label=*/true);
   }
 };
 
