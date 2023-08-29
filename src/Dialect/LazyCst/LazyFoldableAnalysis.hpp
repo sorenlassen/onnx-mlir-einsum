@@ -11,8 +11,6 @@
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
 
-#define IF_CF_DEBUG(X) X
-
 namespace lazycst {
 
 // Given that ONNX If/Loop/Scan regions can refer to values from parent regions,
@@ -30,8 +28,6 @@ private:
 
   const bool label;
   const LazyFolders &lazyFolders;
-  [[maybe_unused]] mlir::Operation *root;
-  IF_CF_DEBUG(Ops visited;)
   Ops cfops;
 };
 

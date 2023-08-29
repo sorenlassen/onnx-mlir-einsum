@@ -9,6 +9,9 @@
 #include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
+#include "src/Support/TypeUtilities.hpp"
+
+#include "mlir/IR/PatternMatch.h"
 
 using namespace mlir;
 
@@ -17,7 +20,16 @@ namespace onnx_mlir {
 namespace {
 
 template <typename OpType>
-class ONNXBinaryOpLazyFolder : public lazycst::OpLazyFolder<OpType> {
+class ONNXElementwiseBinaryOpLazyFolder : public lazycst::OpLazyFolder<OpType> {
+public:
+  using FoldAdaptor = typename OpType::FoldAdaptor;
+  virtual Attribute fold(OpType op, FoldAdaptor adaptor) const override {
+    llvm_unreachable("TODO: implement this");
+  }
+};
+
+template <typename OpType>
+class ONNXElementwiseUnaryOpLazyFolder : public lazycst::OpLazyFolder<OpType> {
 public:
   using FoldAdaptor = typename OpType::FoldAdaptor;
   virtual Attribute fold(OpType op, FoldAdaptor adaptor) const override {
@@ -50,19 +62,58 @@ public:
   }
 };
 
+struct SubConstToNegPattern : public OpRewritePattern<ONNXSubOp> {
+  using Base = OpRewritePattern<ONNXSubOp>;
+
+  SubConstToNegPattern(
+      lazycst::LazyFoldableAnalysis &analysis, MLIRContext *ctx)
+      : Base(ctx), analysis(analysis) {}
+
+  LogicalResult matchAndRewrite(
+      ONNXSubOp subOp, PatternRewriter &rewriter) const override {
+    if (analysis.isLazyFoldableOp(subOp))
+      return failure();
+    Value rhs = subOp.getB();
+    if (!analysis.isLazyFoldable(rhs))
+      return failure();
+    // onnx.Neg doesn't work on unsigned types. In principle we could negate
+    // with onnx.Sub(dense<0>,_) but "negative" unsigned numbers are tricky
+    // so we just bail out.
+    if (getElementType(rhs.getType()).isUnsignedInteger())
+      return failure();
+
+    ONNXNegOp negOp =
+        rewriter.create<ONNXNegOp>(rhs.getLoc(), rhs.getType(), rhs);
+    analysis.insertLazyFoldableOp(negOp);
+    ONNXAddOp addOp = rewriter.create<ONNXAddOp>(
+        subOp.getLoc(), subOp.getType(), subOp.getA(), negOp);
+    rewriter.replaceOp(subOp, addOp);
+    return success();
+  }
+
+  lazycst::LazyFoldableAnalysis &analysis;
+};
+
 } // namespace
 
 void populateONNXLazyFolders(
     MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect, ONNXDialect *) {
   lazycstDialect->lazyFolders
-      .insertOpLazyFolder<ONNXBinaryOpLazyFolder<ONNXAddOp>>()
-      .insertOpLazyFolder<ONNXBinaryOpLazyFolder<ONNXMulOp>>()
+      .insertOpLazyFolder<ONNXElementwiseUnaryOpLazyFolder<ONNXNegOp>>()
+      .insertOpLazyFolder<ONNXElementwiseBinaryOpLazyFolder<ONNXAddOp>>()
+      .insertOpLazyFolder<ONNXElementwiseBinaryOpLazyFolder<ONNXMulOp>>()
       .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
 
   ONNXAddOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
   ONNXMulOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
   ONNXXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
   ONNXBitwiseXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+
+  lazycstDialect->lazyFolders.addPatternsGetter(
+      [](lazycst::LazyFoldableAnalysis &analysis,
+          mlir::RewritePatternSet &results) {
+        results.add<SubConstToNegPattern>(analysis, results.getContext());
+      });
 }
 
 } // namespace onnx_mlir

@@ -41,3 +41,39 @@ func.func @test_add_arg_2(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 // CHECK:           [[VAR_5_:%.+]] = "onnx.Add"([[PARAM_0_]], [[VAR_4_]]) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
 // CHECK:           onnx.Return [[VAR_5_]] : tensor<5xf32>
 // CHECK:         }
+
+// -----
+
+func.func @test_sub_const(%arg0: tensor<5xf32>) -> tensor<5xf32> {
+  %0 = onnx.Constant dense<1.0> : tensor<f32>
+  %1 = "onnx.Sub"(%arg0, %0) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
+  onnx.Return %1 : tensor<5xf32>
+}
+// CHECK-LABEL:  func.func @test_sub_const
+// CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<5xf32>) -> tensor<5xf32> {
+// CHECK:           [[VAR_0_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
+// CHECK:           [[VAR_1_:%.+]] = "onnx.Neg"([[VAR_0_]]) {lazyfoldable} : (tensor<f32>) -> tensor<f32>
+// CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[PARAM_0_]], [[VAR_1_]]) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
+// CHECK:           onnx.Return [[VAR_2_]] : tensor<5xf32>
+// CHECK:         }
+
+// -----
+
+func.func @test_sub_lazyfoldable(%arg0: tensor<5xf32>) -> tensor<5xf32> {
+  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %1 = onnx.Constant dense<1.0> : tensor<f32>
+  %2 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
+  %3 = "onnx.Sub"(%arg0, %2) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
+  %4 = "onnx.Add"(%3, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
+  onnx.Return %4 : tensor<5xf32>
+}
+// CHECK-LABEL:  func.func @test_sub_lazyfoldable
+// CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<5xf32>) -> tensor<5xf32> {
+// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+// CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
+// CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[VAR_0_]], [[VAR_1_]]) {lazyfoldable} : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
+// CHECK:           [[VAR_3_:%.+]] = "onnx.Neg"([[VAR_2_]]) {lazyfoldable} : (tensor<5xf32>) -> tensor<5xf32>
+// CHECK:           [[VAR_4_:%.+]] = "onnx.Add"([[VAR_1_]], [[VAR_3_]]) {lazyfoldable} : (tensor<f32>, tensor<5xf32>) -> tensor<5xf32>
+// CHECK:           [[VAR_5_:%.+]] = "onnx.Add"([[PARAM_0_]], [[VAR_4_]]) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
+// CHECK:           onnx.Return [[VAR_5_]] : tensor<5xf32>
+// CHECK:         }

@@ -24,19 +24,13 @@ bool isConstant(Operation *op) {
 LazyFoldableAnalysis::LazyFoldableAnalysis(Operation *root, bool label)
     : label(label),
       lazyFolders(
-          root->getContext()->getLoadedDialect<LazyCstDialect>()->lazyFolders),
-      root(root) {
+          root->getContext()->getLoadedDialect<LazyCstDialect>()->lazyFolders) {
   root->walk([this](Operation *op) {
     bool areOperandsFoldable = llvm::all_of(
         op->getOperands(), [this](Value v) { return isLazyFoldable(v); });
     if (areOperandsFoldable &&
         (isConstant(op) || mlir::succeeded(lazyFolders.match(op))))
       insertLazyFoldableOp(op);
-    else
-      IF_CF_DEBUG({
-        bool insd = visited.insert(op).second;
-        assert(insd);
-      })
   });
 }
 
@@ -45,16 +39,11 @@ void LazyFoldableAnalysis::insertLazyFoldableOp(mlir::Operation *op) {
   assert(inserted);
   if (label)
     op->setAttr("lazyfoldable", mlir::UnitAttr::get(op->getContext()));
-  IF_CF_DEBUG({
-    bool insd = visited.insert(op).second;
-    assert(insd);
-  })
 }
 
 bool LazyFoldableAnalysis::isLazyFoldableOp(mlir::Operation *op) const {
   if (!op)
     return false;
-  IF_CF_DEBUG(assert(visited.contains(op));)
   return cfops.contains(op);
 }
 

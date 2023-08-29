@@ -7,6 +7,8 @@
 #include "src/Dialect/LazyCst/ACLazyFoldableOpInterface.hpp"
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
 
+#include "mlir/IR/PatternMatch.h"
+
 using namespace mlir;
 
 namespace lazycst {
@@ -84,7 +86,6 @@ struct BinaryACCFOpPattern
 
   LogicalResult matchAndRewrite(
       OpIF binaryOp, PatternRewriter &rewriter) const override {
-    // TODO: try to insert this check in the base class MyOpRewritePattern
     if (analysis.isLazyFoldableOp(binaryOp))
       return failure();
     assert(binaryOp->getNumOperands() == 2);
