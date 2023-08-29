@@ -280,7 +280,7 @@ private:
     {
       auto [_, inserted] = visitedOps.insert(defop);
       if (!inserted)
-        return constantFoldableOps.contains(defop);
+        return LazyFoldableOps.contains(defop);
     }
 
     // Ignore defop's regions as they were walked separately
@@ -289,17 +289,17 @@ private:
     if (isConstant(defop)) {
       assert(defop->getNumOperands() == 0);
     } else {
-      bool allOperandsAreConstantFoldable = runOnOperands(defop);
-      if (!allOperandsAreConstantFoldable || !isLazyFoldable(defop))
+      bool allOperandsAreLazyFoldable = runOnOperands(defop);
+      if (!allOperandsAreLazyFoldable || !isLazyFoldable(defop))
         return false;
     }
-    auto [_, inserted] = constantFoldableOps.insert(defop);
+    auto [_, inserted] = LazyFoldableOps.insert(defop);
     assert(inserted);
     return true;
   }
 
 public:
-  Ops constantFoldableOps;
+  Ops LazyFoldableOps;
 
 private:
   Ops visitedOps;
@@ -317,9 +317,9 @@ bool canOpGroup(Operation *op) {
 // Groups constant foldable operands to variadic associaive and commutative ops
 // like onnx.Min/Max/Sum, e.g. min(cfop1,x,cfop2) -> min(x,min(cfop1,cfop2))
 // and adds the group min(cfop1,cfop2) to the constant foldable ops.
-void group(Region *region, Ops &constantFoldableOps) {
+void group(Region *region, Ops &LazyFoldableOps) {
   for (Operation &op : region->getOps()) {
-    if (constantFoldableOps.contains(&op))
+    if (LazyFoldableOps.contains(&op))
       continue;
     if (!canOpGroup(&op))
       continue;
@@ -331,7 +331,7 @@ void group(Region *region, Ops &constantFoldableOps) {
     for (unsigned i = 0; i < numOperands; ++i) {
       Value operand = op.getOperand(i);
       if (Operation *defop = operand.getDefiningOp()) {
-        if (constantFoldableOps.contains(defop))
+        if (LazyFoldableOps.contains(defop))
           operandGroup.push_back(operand);
         operandGroupIdxs.push_back(i);
       }
@@ -362,15 +362,15 @@ bool canOpBubble(Operation *op) {
 // Grows the set of constant foldable ops (cfops) with rewrites that bubble
 // cfops towards their uses, e.g. (x+cfop)+y -> (x+y)+cfop, and forms new cfops,
 // e.g. (x+cfop1)+cfop2 -> x+cfop{1+2} where cfop{1+2} = cfop1+cfop2.
-void bubble(Region *region, Ops &constantFoldableOps) {
+void bubble(Region *region, Ops &LazyFoldableOps) {
   SmallVector<Operation *> cfops(
-      constantFoldableOps.begin(), constantFoldableOps.end());
+      LazyFoldableOps.begin(), LazyFoldableOps.end());
   for (size_t i = 0; i < cfops.size(); ++i) {
     Operation *cfop = cfops[i];
     SmallVector<Operation *> users(cfop->getUsers());
     for (size_t j = 0; j < users.size(); ++j) {
       Operation *user = users[j];
-      if (constantFoldableOps.contains(user))
+      if (LazyFoldableOps.contains(user))
         continue;
 
       // TODO: continue if user is not an op that bubbles
@@ -401,7 +401,7 @@ void bubble(Region *region, Ops &constantFoldableOps) {
 void lazyConstPropRegion(Region *region) {
   LazyConstPropAnalysis lcpa;
   lcpa.run(region);
-  Ops &cfops = lcpa.constantFoldableOps;
+  Ops &cfops = lcpa.LazyFoldableOps;
   group(region, cfops);
   bubble(region, cfops);
   LazyConstPropRegion().run(region);
@@ -443,9 +443,9 @@ protected:
 
 bool isBubblableOpImpl(
     Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
-  assert(!analysis.isConstantFoldableOp(op));
+  assert(!analysis.isLazyFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
-         analysis.isConstantFoldable(op->getOperand(0));
+         analysis.isLazyFoldable(op->getOperand(0));
 }
 
 template <typename... OpTypes>
@@ -494,7 +494,7 @@ struct BinaryACCFOpPattern
   LogicalResult doRewrite(ACCFOpInterface binaryOp, Value operand, ValuePair vp,
       PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
-    if (analysis.isConstantFoldable(operand)) {
+    if (analysis.isLazyFoldable(operand)) {
       // rewrite op to op(noncstfldb,op(operand,cstfldb))
       cstfldb = cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
     } else {
@@ -514,9 +514,9 @@ struct BinaryACCFOpPattern
       if (defop->hasOneUse() && defop->getName() == opName) {
         assert(defop->getNumOperands() == 2);
         Value lhs = defop->getOperand(0), rhs = defop->getOperand(1);
-        if (analysis.isConstantFoldable(rhs))
+        if (analysis.isLazyFoldable(rhs))
           return ValuePair{lhs, rhs};
-        if (analysis.isConstantFoldable(lhs))
+        if (analysis.isLazyFoldable(lhs))
           return ValuePair{rhs, lhs};
       }
     }
@@ -526,7 +526,7 @@ struct BinaryACCFOpPattern
   LogicalResult matchAndRewrite(
       ACCFOpInterface binaryOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
-    if (analysis.isConstantFoldableOp(binaryOp))
+    if (analysis.isLazyFoldableOp(binaryOp))
       return failure();
     assert(binaryOp->getNumOperands() == 2);
     Value lhs = binaryOp->getOperand(0), rhs = binaryOp->getOperand(1);
@@ -544,15 +544,15 @@ struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
   LogicalResult matchAndRewrite(
       ONNXAddOp addOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
-    if (analysis.isConstantFoldableOp(addOp))
+    if (analysis.isLazyFoldableOp(addOp))
       return failure();
     Value lhs = addOp.getA();
     Value rhs = addOp.getB();
     bool swapped = false;
-    if (analysis.isConstantFoldableOp(rhs.getDefiningOp())) {
+    if (analysis.isLazyFoldableOp(rhs.getDefiningOp())) {
       std::swap(lhs, rhs);
       swapped = true; // if addOp isn't replaced, swap the operands at the end
-    } else if (!analysis.isConstantFoldable(lhs)) {
+    } else if (!analysis.isLazyFoldable(lhs)) {
       if (!isBubblable<ONNXAddOp, ONNXSubOp>(lhs, analysis)) {
         if (!isBubblable<ONNXAddOp, ONNXSubOp>(rhs, analysis))
           return failure();
@@ -596,7 +596,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
   using MyOpRewritePattern<ONNXNegOp>::MyOpRewritePattern;
   LogicalResult matchAndRewrite(
       ONNXNegOp negOp, PatternRewriter &rewriter) const override {
-    if (analysis.isConstantFoldableOp(negOp))
+    if (analysis.isLazyFoldableOp(negOp))
       return failure();
     Operation *defop = negOp.getX().getDefiningOp();
     if (!defop)
@@ -604,7 +604,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
 #if 1
     if (ONNXAddOp addOp = castIfBubblableOp<ONNXAddOp>(defop, analysis)) {
       Operation *negLhsOp = negate(addOp.getA(), rewriter);
-      analysis.insertConstantFoldableOp(negLhsOp);
+      analysis.insertLazyFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
       Value rhs = addOp.getB();
       ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), negLhs, rhs);
@@ -613,7 +613,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
     }
     if (ONNXSubOp subOp = castIfBubblableOp<ONNXSubOp>(defop, analysis)) {
       Operation *negLhsOp = negate(subOp.getA(), rewriter);
-      analysis.insertConstantFoldableOp(negLhsOp);
+      analysis.insertLazyFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
       Value rhs = subOp.getB();
       ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), negLhs, rhs);
@@ -625,10 +625,10 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
       return failure();
     if (ONNXAddOp addOp = dyn_cast<ONNXAddOp>(defop)) {
       Value lhs = addOp.getA();
-      if (!analysis.isConstantFoldable(lhs))
+      if (!analysis.isLazyFoldable(lhs))
         return failure();
       Operation *negLhs = negate(lhs, rewriter);
-      analysis.insertConstantFoldableOp(negLhs);
+      analysis.insertLazyFoldableOp(negLhs);
       Value newLhs = negLhs->getResult(0);
       Value rhs = addOp.getB();
       ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), newLhs, rhs);
@@ -637,10 +637,10 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
     }
     if (ONNXSubOp subOp = dyn_cast<ONNXSubOp>(defop)) {
       Value lhs = subOp.getA();
-      if (!analysis.isConstantFoldable(lhs))
+      if (!analysis.isLazyFoldable(lhs))
         return failure();
       Operation *negLhs = negate(lhs, rewriter);
-      analysis.insertConstantFoldableOp(negLhs);
+      analysis.insertLazyFoldableOp(negLhs);
       Value newLhs = negLhs->getResult(0);
       Value rhs = subOp.getB();
       ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), newLhs, rhs);

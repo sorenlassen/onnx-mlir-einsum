@@ -28,10 +28,10 @@ LazyFoldableAnalysis::LazyFoldableAnalysis(Operation *root, bool label)
       root(root) {
   root->walk([this](Operation *op) {
     bool areOperandsFoldable = llvm::all_of(
-        op->getOperands(), [this](Value v) { return isConstantFoldable(v); });
+        op->getOperands(), [this](Value v) { return isLazyFoldable(v); });
     if (areOperandsFoldable &&
         (isConstant(op) || mlir::succeeded(lazyFolders.match(op))))
-      insertConstantFoldableOp(op);
+      insertLazyFoldableOp(op);
     else
       IF_CF_DEBUG({
         bool insd = visited.insert(op).second;
@@ -40,7 +40,7 @@ LazyFoldableAnalysis::LazyFoldableAnalysis(Operation *root, bool label)
   });
 }
 
-void LazyFoldableAnalysis::insertConstantFoldableOp(mlir::Operation *op) {
+void LazyFoldableAnalysis::insertLazyFoldableOp(mlir::Operation *op) {
   auto [_, inserted] = cfops.insert(op);
   assert(inserted);
   if (label)
@@ -51,22 +51,22 @@ void LazyFoldableAnalysis::insertConstantFoldableOp(mlir::Operation *op) {
   })
 }
 
-bool LazyFoldableAnalysis::isConstantFoldableOp(mlir::Operation *op) const {
+bool LazyFoldableAnalysis::isLazyFoldableOp(mlir::Operation *op) const {
   if (!op)
     return false;
   IF_CF_DEBUG(assert(visited.contains(op));)
   return cfops.contains(op);
 }
 
-bool LazyFoldableAnalysis::isConstantFoldable(mlir::Value v) const {
-  return isConstantFoldableOp(v.getDefiningOp());
+bool LazyFoldableAnalysis::isLazyFoldable(mlir::Value v) const {
+  return isLazyFoldableOp(v.getDefiningOp());
 }
 
-llvm::SmallVector<unsigned> LazyFoldableAnalysis::constantFoldableIdxs(
+llvm::SmallVector<unsigned> LazyFoldableAnalysis::LazyFoldableIdxs(
     mlir::ValueRange values) {
   llvm::SmallVector<unsigned> idxs;
   for (unsigned i = 0; i < values.size(); ++i) {
-    if (isConstantFoldable(values[i]))
+    if (isLazyFoldable(values[i]))
       idxs.push_back(i);
   }
   return idxs;

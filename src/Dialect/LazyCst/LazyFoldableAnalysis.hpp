@@ -20,10 +20,10 @@ namespace lazycst {
 class LazyFoldableAnalysis {
 public:
   LazyFoldableAnalysis(mlir::Operation *root, bool label = false);
-  void insertConstantFoldableOp(mlir::Operation *op);
-  bool isConstantFoldableOp(mlir::Operation *op) const;
-  bool isConstantFoldable(mlir::Value v) const;
-  llvm::SmallVector<unsigned> constantFoldableIdxs(mlir::ValueRange values);
+  void insertLazyFoldableOp(mlir::Operation *op);
+  bool isLazyFoldableOp(mlir::Operation *op) const;
+  bool isLazyFoldable(mlir::Value v) const;
+  llvm::SmallVector<unsigned> LazyFoldableIdxs(mlir::ValueRange values);
 
 private:
   using Ops = llvm::SmallPtrSet<mlir::Operation *, 1>;

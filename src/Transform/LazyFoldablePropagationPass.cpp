@@ -124,11 +124,11 @@ struct BinaryACCFOpPattern
   LogicalResult doRewrite(ACCFOpInterface binaryOp, Value operand, ValuePair vp,
       PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
-    if (analysis.isConstantFoldable(operand)) {
+    if (analysis.isLazyFoldable(operand)) {
       // rewrite op to op(noncstfldb,op(operand,cstfldb))
       Operation *cstfldbOp =
           cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
-      analysis.insertConstantFoldableOp(cstfldbOp);
+      analysis.insertLazyFoldableOp(cstfldbOp);
       cstfldb = cstfldbOp->getResult(0);
     } else {
       // rewrite op to op(op(operand,noncstfldb),cstfldb)
@@ -145,9 +145,9 @@ struct BinaryACCFOpPattern
   std::optional<ValuePair> hasLazyFoldableOperand(Operation *op) const {
     assert(op->getNumOperands() == 2);
     Value lhs = op->getOperand(0), rhs = op->getOperand(1);
-    if (analysis.isConstantFoldable(rhs))
+    if (analysis.isLazyFoldable(rhs))
       return ValuePair{lhs, rhs};
-    if (analysis.isConstantFoldable(lhs))
+    if (analysis.isLazyFoldable(lhs))
       return ValuePair{rhs, lhs};
     return std::nullopt;
   }
@@ -157,7 +157,7 @@ struct BinaryACCFOpPattern
     if (Operation *defop = operand.getDefiningOp()) {
       // Don't bubble up any operand if defop is foldable in whole,
       // and don't decompose it by bubbling if it has multiple uses.
-      if (!analysis.isConstantFoldableOp(defop) && defop->hasOneUse() &&
+      if (!analysis.isLazyFoldableOp(defop) && defop->hasOneUse() &&
           defop->getName() == opName)
         return hasLazyFoldableOperand(defop);
     }
@@ -167,7 +167,7 @@ struct BinaryACCFOpPattern
   LogicalResult matchAndRewrite(
       ACCFOpInterface binaryOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
-    if (analysis.isConstantFoldableOp(binaryOp))
+    if (analysis.isLazyFoldableOp(binaryOp))
       return failure();
     assert(binaryOp->getNumOperands() == 2);
     Value lhs = binaryOp->getOperand(0), rhs = binaryOp->getOperand(1);
