@@ -32,10 +32,11 @@ LazyFoldableAnalysis::LazyFoldableAnalysis(Operation *root, bool label)
     if (areOperandsFoldable &&
         (isConstant(op) || mlir::succeeded(lazyFolders.match(op))))
       insertConstantFoldableOp(op);
-    IF_CF_DEBUG({
-      bool insd = visited.insert(op).second;
-      assert(insd);
-    })
+    else
+      IF_CF_DEBUG({
+        bool insd = visited.insert(op).second;
+        assert(insd);
+      })
   });
 }
 
@@ -44,6 +45,10 @@ void LazyFoldableAnalysis::insertConstantFoldableOp(mlir::Operation *op) {
   assert(inserted);
   if (label)
     op->setAttr("lazyfoldable", mlir::UnitAttr::get(op->getContext()));
+  IF_CF_DEBUG({
+    bool insd = visited.insert(op).second;
+    assert(insd);
+  })
 }
 
 bool LazyFoldableAnalysis::isConstantFoldableOp(mlir::Operation *op) const {

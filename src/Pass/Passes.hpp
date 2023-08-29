@@ -54,6 +54,8 @@ std::unique_ptr<mlir::Pass> createConstPropONNXToONNXPass();
 
 std::unique_ptr<mlir::Pass> createLazyFoldableAnalysisPass();
 
+std::unique_ptr<mlir::Pass> createLazyFoldablePropagationPass();
+
 // To configure LazyConstPropONNXPass at program start.
 void configureLazyConstPropONNXPass(int expansionBound);
 

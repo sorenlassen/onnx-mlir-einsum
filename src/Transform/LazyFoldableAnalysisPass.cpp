@@ -16,7 +16,9 @@ struct LazyFoldableAnalysisPass : public PassWrapper<LazyFoldableAnalysisPass,
                                       OperationPass<func::FuncOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyFoldableAnalysisPass);
 
-  StringRef getArgument() const override { return "lazyfoldableanalysis-pass"; }
+  StringRef getArgument() const override {
+    return "lazyfoldable-analysis-pass";
+  }
 
   StringRef getDescription() const override {
     return "Runs LazyFoldableAnalysis";

@@ -10,6 +10,14 @@ add_onnx_mlir_library(OMLazyFoldableAnalysisPass
   MLIRTransformUtils
   )
 
+add_onnx_mlir_library(OMLazyFoldablePropagationPass
+  LazyFoldablePropagationPass.cpp
+
+  LINK_LIBS PUBLIC
+  OMLazyCst
+  MLIRTransformUtils
+  )
+
 add_onnx_mlir_library(OMElideKrnlGlobalConstants
   ElideKrnlGlobalConstants.cpp
 
