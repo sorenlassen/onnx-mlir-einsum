@@ -2,11 +2,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/ACLazyFoldableOpInterface.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/LazyFolder.hpp"
-#include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -34,12 +32,6 @@ struct LazyFoldablePropagationPass
     MLIRContext *ctx = &getContext();
     func::FuncOp function = getOperation();
     lazycst::LazyFoldableAnalysis analysis(function);
-
-    // TODO: move this to configurePasses() or something like that
-    ONNXAddOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
-    ONNXMulOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
-    ONNXXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
-    ONNXBitwiseXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
 
     RewritePatternSet patterns(ctx);
     ctx->getLoadedDialect<lazycst::LazyCstDialect>()->lazyFolders.getPatterns(

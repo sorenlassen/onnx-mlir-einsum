@@ -3,6 +3,7 @@
  */
 
 #include "src/Dialect/ONNX/ONNXLazyFolders.hpp"
+#include "src/Dialect/LazyCst/ACLazyFoldableOpInterface.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/LazyFolder.hpp"
@@ -43,11 +44,16 @@ public:
 } // namespace
 
 void populateONNXLazyFolders(
-    MLIRContext *, lazycst::LazyCstDialect *lazycstDialect, ONNXDialect *) {
+    MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect, ONNXDialect *) {
   lazycstDialect->lazyFolders
       .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXAddOp>>()
       .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXSumOp>>()
       .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
+
+  ONNXAddOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+  ONNXMulOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+  ONNXXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+  ONNXBitwiseXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
 }
 
 } // namespace onnx_mlir
