@@ -13,22 +13,6 @@ namespace lazycst {
 
 namespace {
 
-template <typename OpInterfaceType>
-class MyOpInterfaceRewritePattern
-    : public OpInterfaceRewritePattern<OpInterfaceType> {
-  using Base = OpInterfaceRewritePattern<OpInterfaceType>;
-
-public:
-  // TODO: figure out if patterns need to fill in generatedNames
-  template <typename... Args>
-  MyOpInterfaceRewritePattern(
-      lazycst::LazyFoldableAnalysis &analysis, Args &&... args)
-      : Base(std::forward<Args>(args)...), analysis(analysis) {}
-
-protected:
-  lazycst::LazyFoldableAnalysis &analysis;
-};
-
 Operation *cloneOpAndSetOperands(
     Operation *op, ValueRange operands, PatternRewriter &rewriter) {
   Operation *clone = rewriter.clone(*op);
@@ -45,9 +29,12 @@ Operation *cloneOpAndSetOperands(
 //
 // TODO: generalize to variadic ops, like onnx.Min/Max/Sum
 struct BinaryACCFOpPattern
-    : public MyOpInterfaceRewritePattern<lazycst::ACLazyFoldableOpInterface> {
+    : public OpInterfaceRewritePattern<lazycst::ACLazyFoldableOpInterface> {
   using OpIF = lazycst::ACLazyFoldableOpInterface;
-  using MyOpInterfaceRewritePattern<OpIF>::MyOpInterfaceRewritePattern;
+  using Base = OpInterfaceRewritePattern<OpIF>;
+
+  BinaryACCFOpPattern(lazycst::LazyFoldableAnalysis &analysis, MLIRContext *ctx)
+      : Base(ctx), analysis(analysis) {}
 
   // Pair of a non-constant-foldable value and a constant-foldable value.
   using ValuePair = std::array<Value, 2>;
@@ -109,6 +96,8 @@ struct BinaryACCFOpPattern
       return doRewrite(binaryOp, lhs, *vp, rewriter);
     return failure();
   }
+
+  lazycst::LazyFoldableAnalysis &analysis;
 };
 
 } // namespace
