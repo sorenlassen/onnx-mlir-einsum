@@ -6,6 +6,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Value.h"
 
 #include "llvm/ADT/ArrayRef.h"
@@ -13,9 +14,13 @@
 #include "llvm/ADT/StringMap.h"
 #include "llvm/ADT/StringRef.h"
 
+#include <functional>
 #include <memory>
+#include <vector>
 
 namespace lazycst {
+
+class LazyFoldableAnalysis;
 
 // Similar to ConversionPattern and Operation::fold().
 // Every instance needs to implement both 'match' and 'fold'.
@@ -73,11 +78,8 @@ public:
 
 class LazyFolders {
 public:
-  mlir::LogicalResult match(mlir::Operation *op) const {
-    if (const LazyFolder *lazyFolder = lookup(op->getName()))
-      return lazyFolder->match(op);
-    return mlir::failure();
-  }
+  using PatternsGetter =
+      std::function<void(LazyFoldableAnalysis &, mlir::RewritePatternSet &)>;
 
   const LazyFolder *lookup(llvm::StringRef opName) const {
     auto it = map.find(opName);
@@ -113,12 +115,27 @@ public:
         OP_LAZY_FOLDER::Op::getOperationName(), std::forward<Args>(args)...);
   }
 
+  void addPatternsGetter(PatternsGetter getter) {
+    patternsGetters.emplace_back(std::move(getter));
+  }
+
+  void getPatterns(
+      LazyFoldableAnalysis &analysis, mlir::RewritePatternSet &results) const;
+
+  mlir::LogicalResult match(mlir::Operation *op) const {
+    if (const LazyFolder *lazyFolder = lookup(op->getName()))
+      return lazyFolder->match(op);
+    return mlir::failure();
+  }
+
 private:
   // Keyed by operation name, i.e.
   // OP::getOperationName() or OperationName::getIdentifier().
   // TODO: consider using TypeID as key, i.e.
   //       TypeID::get<OP>() or  OperationName::getTypeID()
   llvm::StringMap<std::unique_ptr<LazyFolder>> map;
+
+  std::vector<PatternsGetter> patternsGetters;
 };
 
 } // namespace lazycst
