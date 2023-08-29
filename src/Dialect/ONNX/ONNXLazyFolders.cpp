@@ -16,6 +16,15 @@ namespace onnx_mlir {
 
 namespace {
 
+template <typename OpType>
+class ONNXBinaryOpLazyFolder : public lazycst::OpLazyFolder<OpType> {
+public:
+  using FoldAdaptor = typename OpType::FoldAdaptor;
+  virtual Attribute fold(OpType op, FoldAdaptor adaptor) const override {
+    llvm_unreachable("TODO: implement this");
+  }
+};
+
 // Extracts number from a scalar elements attribute.
 WideNum getScalarNum(ElementsAttr elements) {
   Type elementType = elements.getElementType();
@@ -46,8 +55,8 @@ public:
 void populateONNXLazyFolders(
     MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect, ONNXDialect *) {
   lazycstDialect->lazyFolders
-      .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXAddOp>>()
-      .insertOpLazyFolder<lazycst::OpLazyFolder<ONNXSumOp>>()
+      .insertOpLazyFolder<ONNXBinaryOpLazyFolder<ONNXAddOp>>()
+      .insertOpLazyFolder<ONNXBinaryOpLazyFolder<ONNXMulOp>>()
       .insertOpLazyFolder<ONNXRangeOpLazyFolder>();
 
   ONNXAddOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
