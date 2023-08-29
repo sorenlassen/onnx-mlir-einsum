@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "src/Dialect/LazyCst/ACLazyFoldableOpInterface.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
@@ -73,39 +74,6 @@ Operation *cloneOpAndSetOperands(
   return clone;
 }
 
-// ACCF: Associative, Commutative, Constant-Foldable.
-// TODO: Move declaration to TableGen.
-class ACCFOpInterface;
-struct ACCFOpInterfaceTraits {
-  struct Concept {
-    virtual ~Concept() = default;
-  };
-  template <typename ConcreteOp>
-  struct Model : public Concept {
-    using Interface = ACCFOpInterface;
-  };
-  template <typename ConcreteOp>
-  struct FallbackModel : public Concept {
-    using Interface = ACCFOpInterface;
-  };
-  template <typename ConcreteModel, typename ConcreteOp>
-  struct ExternalModel : public FallbackModel<ConcreteModel> {};
-};
-template <typename ConcreteOp>
-struct ACCFOpInterfaceTrait;
-class ACCFOpInterface
-    : public OpInterface<ACCFOpInterface, ACCFOpInterfaceTraits> {
-public:
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(ACCFOpInterface);
-  /// Inherit the base class constructor to support LLVM-style casting.
-  using OpInterface<ACCFOpInterface, ACCFOpInterfaceTraits>::OpInterface;
-  template <typename ConcreteOp>
-  struct Trait : public ACCFOpInterfaceTrait<ConcreteOp> {};
-};
-template <typename ConcreteOp>
-struct ACCFOpInterfaceTrait : public OpInterface<ACCFOpInterface,
-                                  ACCFOpInterfaceTraits>::Trait<ConcreteOp> {};
-
 // This pattern rewrites non-constant-foldable expression op(x1,x2) towards the
 // form op(noncstfldb,cstfldb) (in any operand order) in one of two ways:
 // 1. op(cstfldb1,op(cstfldb2,x2)) -> op(op(cstfldb1,cstfldb2),x2)
@@ -114,14 +82,14 @@ struct ACCFOpInterfaceTrait : public OpInterface<ACCFOpInterface,
 //
 // TODO: generalize to variadic ops, like onnx.Min/Max/Sum
 struct BinaryACCFOpPattern
-    : public MyOpInterfaceRewritePattern<ACCFOpInterface> {
-  using MyOpInterfaceRewritePattern<
-      ACCFOpInterface>::MyOpInterfaceRewritePattern;
+    : public MyOpInterfaceRewritePattern<lazycst::ACLazyFoldableOpInterface> {
+  using OpIF = lazycst::ACLazyFoldableOpInterface;
+  using MyOpInterfaceRewritePattern<OpIF>::MyOpInterfaceRewritePattern;
 
   // Pair of a non-constant-foldable value and a constant-foldable value.
   using ValuePair = std::array<Value, 2>;
 
-  LogicalResult doRewrite(ACCFOpInterface binaryOp, Value operand, ValuePair vp,
+  LogicalResult doRewrite(OpIF binaryOp, Value operand, ValuePair vp,
       PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
     if (analysis.isLazyFoldable(operand)) {
@@ -165,7 +133,7 @@ struct BinaryACCFOpPattern
   }
 
   LogicalResult matchAndRewrite(
-      ACCFOpInterface binaryOp, PatternRewriter &rewriter) const override {
+      OpIF binaryOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
     if (analysis.isLazyFoldableOp(binaryOp))
       return failure();
@@ -199,10 +167,10 @@ struct LazyFoldablePropagationPass
     lazycst::LazyFoldableAnalysis analysis(function);
 
     // TODO: move this to configurePasses() or something like that
-    ONNXAddOp::attachInterface<ACCFOpInterface>(*ctx);
-    ONNXMulOp::attachInterface<ACCFOpInterface>(*ctx);
-    ONNXXorOp::attachInterface<ACCFOpInterface>(*ctx);
-    ONNXBitwiseXorOp::attachInterface<ACCFOpInterface>(*ctx);
+    ONNXAddOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+    ONNXMulOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+    ONNXXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
+    ONNXBitwiseXorOp::attachInterface<lazycst::ACLazyFoldableOpInterface>(*ctx);
 
     RewritePatternSet patterns(ctx);
     patterns.insert<BinaryACCFOpPattern>(analysis, ctx);
