@@ -151,6 +151,7 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
         clone->setOperand(i, cst);
     }
   }
+  // clone is now the clone of resultOp which was the op in the last iteration.
 
   SmallVector<Attribute> lazyResults;
   {
