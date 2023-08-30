@@ -19,6 +19,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/iterator.h"
 #include "llvm/Support/Debug.h"
 
 #include <optional>
@@ -57,35 +58,38 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   LazyFoldableAnalysis analysis(function);
   DenseMap<Operation *, size_t> lazyConstantMap;
   // assert: function ends in terminator which is no lazy foldable
-  function->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (isConstant(op))
-      return;
-    if (!analysis.isLazyFoldableOp(op))
-      return;
-    std::optional<size_t> idx;
-    for (Operation *user : op->getUsers()) {
-      assert(!isConstant(user));
-      if (analysis.isLazyFoldableOp(user)) {
-        auto it = lazyConstantMap.find(user);
-        if (it == lazyConstantMap.end())
-          continue;
-        size_t userIdx = it->second;
-        if (!idx.has_value() || idx.value() == userIdx) {
-          idx = userIdx;
-          continue;
+  function->walk([&](Region *region) {
+    SmallVector<Operation *> ops(llvm::make_pointer_range(region->getOps()));
+    for (Operation *op : llvm::reverse(ops)) {
+      if (isConstant(op))
+        continue;
+      if (!analysis.isLazyFoldableOp(op))
+        continue;
+      std::optional<size_t> idx;
+      for (Operation *user : op->getUsers()) {
+        assert(!isConstant(user));
+        if (analysis.isLazyFoldableOp(user)) {
+          auto it = lazyConstantMap.find(user);
+          if (it == lazyConstantMap.end())
+            continue;
+          size_t userIdx = it->second;
+          if (!idx.has_value() || idx.value() == userIdx) {
+            idx = userIdx;
+            continue;
+          }
         }
+        // op has a non lazy foldable user, or it is used by two or more other
+        // lazy constants; in either case, we make op a new lazy constant result
+        idx = lazyConstantOps.size();
+        lazyConstantOps.emplace_back();
+        break;
       }
-      // op has a non lazy foldable user, or it is used by two or more other
-      // lazy constants - in either case, we make op a new lazy constant result
-      idx = lazyConstantOps.size();
-      lazyConstantOps.emplace_back();
-      break;
+      if (!idx.has_value())
+        continue;
+      lazyConstantOps[idx.value()].push_back(op);
+      auto [_, inserted] = lazyConstantMap.try_emplace(op, idx.value());
+      assert(inserted);
     }
-    if (!idx.has_value())
-      return;
-    lazyConstantOps[idx.value()].push_back(op);
-    auto [_, inserted] = lazyConstantMap.try_emplace(op, idx.value());
-    assert(inserted);
   });
   return lazyConstantOps;
 }
