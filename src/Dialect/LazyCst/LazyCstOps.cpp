@@ -14,6 +14,14 @@ using namespace mlir;
 
 namespace lazycst {
 
+void LazyFuncOp::build(
+    OpBuilder &odsBuilder, OperationState &odsState, StringAttr sym_name) {
+  auto noFuncType = odsBuilder.getFunctionType({}, {});
+  auto noArray = odsBuilder.getArrayAttr({});
+  build(odsBuilder, odsState, sym_name, noFuncType, noArray, noArray, nullptr,
+      nullptr);
+}
+
 // Implementation is copied from func::FuncOp.
 ParseResult LazyFuncOp::parse(OpAsmParser &parser, OperationState &result) {
   auto buildFuncType =

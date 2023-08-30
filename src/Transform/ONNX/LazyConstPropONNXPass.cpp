@@ -140,10 +140,7 @@ struct LazyConstPropRegion {
     auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
 
     Location loc = defop->getLoc();
-    auto noFuncType = b.getFunctionType({}, {});
-    auto noArray = b.getArrayAttr({});
-    auto cstexpr = b.create<lazycst::LazyFuncOp>(
-        loc, lazyFuncName, noFuncType, noArray, noArray, nullptr, nullptr);
+    auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, lazyFuncName);
     SymbolTable(module).insert(cstexpr);
     b.setInsertionPointToStart(cstexpr.addEntryBlock());
     auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});

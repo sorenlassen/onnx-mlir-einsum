@@ -156,6 +156,10 @@ def LazyFuncOp : LazyCst_Op<"func", [
                        OptionalAttr<DictArrayAttr>:$arg_attrs,
                        OptionalAttr<DictArrayAttr>:$res_attrs);
   let regions = (region SizedRegion<1>:$body);
+  let builders = [
+    // Creates with empty function type, args, results, to be filled in later.
+    OpBuilder<(ins "mlir::StringAttr":$sym_name)>
+  ];
   let extraClassDeclaration = [{
     //===------------------------------------------------------------------===//
     // CallableOpInterface
