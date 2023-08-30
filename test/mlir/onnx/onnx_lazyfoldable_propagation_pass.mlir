@@ -77,3 +77,32 @@ func.func @test_sub_lazyfoldable(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 // CHECK:           [[VAR_5_:%.+]] = "onnx.Add"([[PARAM_0_]], [[VAR_4_]]) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
 // CHECK:           onnx.Return [[VAR_5_]] : tensor<5xf32>
 // CHECK:         }
+
+// -----
+
+func.func @test_if(%arg0: tensor<i1>, %arg1: tensor<f32>) -> (tensor<f32>) {
+  %0 = onnx.Constant dense<1.0> : tensor<f32>
+  %1 = "onnx.Neg"(%0) : (tensor<f32>) -> tensor<f32>
+  %2 = "onnx.If"(%arg0) ({
+    %3 = "onnx.Neg"(%1) : (tensor<f32>) -> tensor<f32>
+    onnx.Yield %3 : tensor<f32>
+  }, {
+    %3 = "onnx.Sub"(%arg1, %1) : (tensor<f32>, tensor<f32>) -> tensor<f32>
+    onnx.Yield %3 : tensor<f32>
+  }) : (tensor<i1>) -> (tensor<f32>)
+  onnx.Return %2 : tensor<f32>
+}
+// CHECK-LABEL:  func.func @test_if
+// CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<i1>, [[PARAM_1_:%.+]]: tensor<f32>) -> tensor<f32> {
+// CHECK:           [[VAR_0_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
+// CHECK-DAG:       [[VAR_1_:%.+]] = "onnx.Neg"([[VAR_0_]]) {lazyfoldable} : (tensor<f32>) -> tensor<f32>
+// CHECK-DAG:       [[VAR_2_:%.+]] = "onnx.If"([[PARAM_0_]]) ({
+// CHECK:             [[VAR_3_:%.+]] = "onnx.Neg"([[VAR_1_]]) {lazyfoldable} : (tensor<f32>) -> tensor<f32>
+// CHECK:             onnx.Yield [[VAR_3_]] : tensor<f32>
+// CHECK:           }, {
+// CHECK:             [[VAR_3_1_:%.+]] = "onnx.Neg"([[VAR_1_]]) {lazyfoldable} : (tensor<f32>) -> tensor<f32>
+// CHECK:             [[VAR_4_:%.+]] = "onnx.Add"([[PARAM_1_]], [[VAR_3_1_]]) : (tensor<f32>, tensor<f32>) -> tensor<f32>
+// CHECK:             onnx.Yield [[VAR_4_]] : tensor<f32>
+// CHECK:           }) : (tensor<i1>) -> tensor<f32>
+// CHECK:           onnx.Return [[VAR_2_]] : tensor<f32>
+// CHECK:         }
