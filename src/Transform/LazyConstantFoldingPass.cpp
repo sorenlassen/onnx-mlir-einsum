@@ -124,7 +124,7 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
       if (Attribute attr = getConstantAttribute(operandOp)) {
         auto [it, inserted] = cloneConstants.try_emplace(attr, nullptr);
         Value &cst = it->second;
-        if (!inserted) {
+        if (inserted) {
           if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
                   attr)) {
             Region &body = cstexpr.getBody();
