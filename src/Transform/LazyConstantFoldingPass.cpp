@@ -9,8 +9,22 @@
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/IR/IRMapping.h"
+#include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+
+#include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/Support/Debug.h"
+
+#include <optional>
+#include <vector>
+
+#define DEBUG_TYPE "lazy-constant-folding-pass"
 
 namespace {
 
@@ -20,6 +34,18 @@ using lazycst::LazyFoldableAnalysis;
 bool isConstant(Operation *op) {
   // TODO: consider using mlir::matchPattern(op, m_Constant())
   return op->hasTrait<OpTrait::ConstantLike>();
+}
+
+// Returns nullptr if v is not a constant result.
+Attribute getConstantAttribute(Operation *op) {
+  if (!isConstant(op))
+    return nullptr;
+  SmallVector<OpFoldResult, 1> folded;
+  auto ok = op->fold(folded);
+  assert(succeeded(ok));
+  assert(folded.size() == 1);
+  assert(folded.front().is<Attribute>());
+  return folded.front().get<Attribute>();
 }
 
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
@@ -75,7 +101,99 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
   auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, lazyFuncName);
   symbolTable.insert(cstexpr);
 
-  llvm_unreachable("TODO: implement this");
+  b.setInsertionPointToStart(cstexpr.addEntryBlock());
+  auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
+  b.setInsertionPoint(lazyReturn);
+
+  SmallPtrSet<Operation *, 1> opsSet(ops.begin(), ops.end());
+  const auto opIsOutside = [&opsSet](
+                               Operation *op) { return !opsSet.contains(op); };
+  const auto operandIsOutside = [&opIsOutside](OpOperand &operand) {
+    return opIsOutside(operand.getOwner());
+  };
+  assert(llvm::all_of(resultOp->getUsers(), opIsOutside));
+
+  // TODO: consider making it a vector set to ensure determinism
+  SmallPtrSet<Operation *, 4> unreachableConstants;
+  llvm::SmallDenseMap<Attribute, Value> cloneConstants;
+  SmallVector<Attribute> lazyArguments;
+  IRMapping mapping;
+  Operation *clone;
+  for (Operation *op : llvm::reverse(ops)) {
+    unsigned numOperands = op->getNumOperands();
+    SmallVector<Value> cstOperands(numOperands, nullptr);
+    for (unsigned i = 0; i < numOperands; ++i) {
+      Value operand = op->getOperand(i);
+      Operation *operandOp = operand.getDefiningOp();
+      if (Attribute attr = getConstantAttribute(operandOp)) {
+        auto [it, inserted] = cloneConstants.try_emplace(attr, nullptr);
+        Value &cst = it->second;
+        if (!inserted) {
+          if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
+                  attr)) {
+            Region &body = cstexpr.getBody();
+            assert(body.getNumArguments() == lazyArguments.size());
+            cst = body.addArgument(operand.getType(), operand.getLoc());
+            lazyArguments.push_back(attr);
+          } else {
+            cst = b.clone(*operandOp)->getResult(0);
+          }
+        }
+        cstOperands[i] = cst;
+        if (!llvm::any_of(operandOp->getUsers(), opIsOutside))
+          unreachableConstants.insert(operandOp);
+      }
+    }
+
+    clone = b.clone(*op, mapping);
+    for (unsigned i = 0; i < numOperands; ++i) {
+      if (Value cst = cstOperands[i])
+        clone->setOperand(i, cst);
+    }
+  }
+
+  SmallVector<Attribute> lazyResults;
+  {
+    auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
+    unsigned numResults = resultOp->getNumResults();
+    for (unsigned j = 0; j < numResults; ++j) {
+      Value res = resultOp->getResult(j);
+      if (res.use_empty())
+        continue;
+      auto type = cast<ShapedType>(res.getType());
+      unsigned index = lazyResults.size();
+      auto lazyElms = lazycst::LazyElementsAttr::get(type, lazyFunc, index);
+      lazyResults.push_back(lazyElms);
+      lazyReturn.getOperandsMutable().append({clone->getResult(j)});
+      b.setInsertionPointAfter(resultOp);
+      Dialect *dialect = resultOp->getName().getDialect();
+      Operation *cstOp =
+          dialect->materializeConstant(b, lazyElms, type, res.getLoc());
+      res.replaceAllUsesWith(cstOp->getResult(0));
+    }
+  }
+  assert(!lazyResults.empty());
+
+  const auto getAttrType = [](Attribute ta) {
+    return cast<TypedAttr>(ta).getType();
+  };
+  SmallVector<Type> argTypes(llvm::map_range(lazyArguments, getAttrType));
+  SmallVector<Type> resTypes(llvm::map_range(lazyResults, getAttrType));
+  cstexpr.setFunctionType(b.getFunctionType(argTypes, resTypes));
+  cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(lazyArguments)));
+  cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(lazyResults)));
+
+  LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
+  assert(succeeded(verify(cstexpr)));
+
+  for (Operation *op : ops) {
+    assert(op->use_empty());
+    op->erase();
+  }
+  for (Operation *op : unreachableConstants) {
+    assert(op->use_empty());
+    op->erase();
+  }
 }
 
 struct LazyConstantFoldingPass
