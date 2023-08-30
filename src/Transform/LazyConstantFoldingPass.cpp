@@ -22,49 +22,6 @@ bool isConstant(Operation *op) {
   return op->hasTrait<OpTrait::ConstantLike>();
 }
 
-#if 0
-// Return the non-constant lazy foldable ops in function that have any non lazy
-// foldable user or is used (maybe transitively) by multiple other returned ops.
-// In reverse topological order: successors before predecessors.
-SmallVector<Operation *> lazyConstantResultOpsOld(func::FuncOp function) {
-  SmallVector<Operation *> lazyConstantResultOps;
-  LazyFoldableAnalysis analysis(function);
-  DenseMap<Operation *, Operation *> resultOpMap;
-  // assert: function ends in terminator which is no lazy foldable
-  function->walk<WalkOrder::PreOrder>([&](Operation *op) {
-    if (isConstant(op))
-      return;
-    if (!analysis.isLazyFoldableOp(op))
-      return;
-    Operation *resultOp = nullptr;
-    for (Operation *user : op->getUsers()) {
-      assert(!isConstant(user));
-      if (!analysis.isLazyFoldableOp(user)) {
-        resultOp = op;
-        break;
-      }
-      auto it = resultOpMap.find(user);
-      if (it == resultOpMap.end())
-        continue;
-      Operation *userResultOp = it->second;
-      assert(userResultOp != op);
-      if (resultOp != nullptr && resultOp != userResultOp) {
-        resultOp = op;
-        break;
-      }
-      resultOp = userResultOp;
-    }
-    if (resultOp == nullptr)
-      return;
-    auto [_, inserted] = resultOpMap.try_emplace(op, resultOp);
-    assert(inserted);
-    if (resultOp == op)
-      lazyConstantResultOps.push_back(op);
-  });
-  return lazyConstantResultOps;
-}
-#endif
-
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
 // Outer and inner vectors are in reverse topological order: successors before
 // predecessors.
