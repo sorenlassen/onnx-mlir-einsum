@@ -3,6 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstOps.hpp"
 #include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Pass/Passes.hpp"
@@ -106,8 +107,17 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   return lazyConstantOps;
 }
 
-void turnIntoLazyConstant(
-    const std::vector<Operation *> &ops, ModuleOp module) {
+void convertIntoLazyConstant(const std::vector<Operation *> &ops,
+    StringAttr lazyFuncName, SymbolTable &symbolTable) {
+  auto module = cast<ModuleOp>(symbolTable.getOp());
+  OpBuilder b(module.getBodyRegion());
+
+  assert(!ops.empty());
+  Operation *resultOp = ops.front();
+  Location loc = resultOp->getLoc();
+  auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, lazyFuncName);
+  symbolTable.insert(cstexpr);
+
   llvm_unreachable("TODO: implement this");
 }
 
@@ -127,8 +137,14 @@ struct LazyConstantFoldingPass
     func::FuncOp function = getOperation();
     auto resultOps = lazyConstantResultOps(function);
     auto module = function->getParentOfType<ModuleOp>();
-    for (const auto &ops : llvm::reverse(resultOps))
-      turnIntoLazyConstant(ops, module);
+    SymbolTable symbolTable(module);
+    auto *lazyCstDialect =
+        getContext().getLoadedDialect<lazycst::LazyCstDialect>();
+    for (const auto &ops : llvm::reverse(resultOps)) {
+      StringAttr lazyFuncName =
+          lazyCstDialect->lazyFunctionManager.nextName(module);
+      convertIntoLazyConstant(ops, lazyFuncName, symbolTable);
+    }
   }
 };
 
