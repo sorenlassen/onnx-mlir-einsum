@@ -106,12 +106,8 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
   b.setInsertionPoint(lazyReturn);
 
   SmallPtrSet<Operation *, 1> opsSet(ops.begin(), ops.end());
-  const auto opIsOutside = [&opsSet](
-                               Operation *op) { return !opsSet.contains(op); };
-  const auto operandIsOutside = [&opIsOutside](OpOperand &operand) {
-    return opIsOutside(operand.getOwner());
-  };
-  assert(llvm::all_of(resultOp->getUsers(), opIsOutside));
+  const auto inOps = [&](Operation *op) { return opsSet.contains(op); };
+  assert(!llvm::any_of(resultOp->getUsers(), inOps));
 
   // TODO: consider making it a vector set to ensure determinism
   SmallPtrSet<Operation *, 4> unreachableConstants;
@@ -140,7 +136,7 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
           }
         }
         cstOperands[i] = cst;
-        if (!llvm::any_of(operandOp->getUsers(), opIsOutside))
+        if (llvm::all_of(operandOp->getUsers(), inOps))
           unreachableConstants.insert(operandOp);
       }
     }
