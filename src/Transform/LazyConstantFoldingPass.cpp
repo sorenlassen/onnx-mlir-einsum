@@ -56,8 +56,13 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
     func::FuncOp function) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
   LazyFoldableAnalysis analysis(function);
+  // Maps every used, non-constant, lazy foldable op to a lazy constant's
+  // index in lazyConstantOps.
   DenseMap<Operation *, size_t> lazyConstantMap;
-  // assert: function ends in terminator which is no lazy foldable
+  // Walk regions post-order and then the ops in each region backwards to
+  // visit them in reverse topological order. This deals correctly with ops
+  // like onnx.If whose sub-regions can use values from the parent region
+  // while each sub-region's results have no uses outside the sub-region.
   function->walk([&](Region *region) {
     SmallVector<std::reference_wrapper<Operation>> ops(region->getOps());
     for (Operation &op : llvm::reverse(ops)) {
