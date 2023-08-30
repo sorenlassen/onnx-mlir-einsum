@@ -19,9 +19,9 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/iterator.h"
 #include "llvm/Support/Debug.h"
 
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -59,14 +59,14 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   DenseMap<Operation *, size_t> lazyConstantMap;
   // assert: function ends in terminator which is no lazy foldable
   function->walk([&](Region *region) {
-    SmallVector<Operation *> ops(llvm::make_pointer_range(region->getOps()));
-    for (Operation *op : llvm::reverse(ops)) {
-      if (isConstant(op))
+    SmallVector<std::reference_wrapper<Operation>> ops(region->getOps());
+    for (Operation &op : llvm::reverse(ops)) {
+      if (isConstant(&op))
         continue;
-      if (!analysis.isLazyFoldableOp(op))
+      if (!analysis.isLazyFoldableOp(&op))
         continue;
       std::optional<size_t> idx;
-      for (Operation *user : op->getUsers()) {
+      for (Operation *user : op.getUsers()) {
         assert(!isConstant(user));
         if (analysis.isLazyFoldableOp(user)) {
           auto it = lazyConstantMap.find(user);
@@ -86,8 +86,8 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
       }
       if (!idx.has_value())
         continue;
-      lazyConstantOps[idx.value()].push_back(op);
-      auto [_, inserted] = lazyConstantMap.try_emplace(op, idx.value());
+      lazyConstantOps[idx.value()].push_back(&op);
+      auto [_, inserted] = lazyConstantMap.try_emplace(&op, idx.value());
       assert(inserted);
     }
   });
