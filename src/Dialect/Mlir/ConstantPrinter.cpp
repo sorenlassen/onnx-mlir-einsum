@@ -44,8 +44,10 @@ void printAsDenseElementsAttr(
 
 void ConstantPrinter::printAttribute(Attribute attr) {
   if (hidingDensifiableElementsAttrs) {
-    if (auto densifiable = attr.dyn_cast<DensifiableElementsAttrInterface>())
+    if (auto densifiable = attr.dyn_cast<DensifiableElementsAttrInterface>()) {
       printAsDenseElementsAttr(asmPrinter, densifiable);
+      return;
+    }
   }
   asmPrinter.printAttribute(attr);
 }
