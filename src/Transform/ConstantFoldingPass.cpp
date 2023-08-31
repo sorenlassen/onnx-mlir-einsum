@@ -37,8 +37,9 @@ Attribute getConstantAttribute(Operation *op) {
   return folded.front().get<Attribute>();
 }
 
-bool tryConstantFold(
-    Operation *op, const lazycst::ConstantFolders &constantFolders) {
+bool tryConstantFold(Operation *op,
+    const lazycst::ConstantFolders &constantFolders,
+    SmallVectorImpl<Operation *> &uselessOps) {
   if (isConstant(op))
     return false;
   if (!llvm::all_of(op->getOperands(), isConstantResult))
@@ -49,8 +50,15 @@ bool tryConstantFold(
     return false;
   if (!succeeded(constantFolder->match(op)))
     return false;
-  SmallVector<Attribute> operandsAttrs(llvm::map_range(op->getOperands(),
-      [](Value v) { return getConstantAttribute(v.getDefiningOp()); }));
+  SmallVector<Attribute> operandsAttrs;
+  for (Value operand : op->getOperands()) {
+    Operation *defop = operand.getDefiningOp();
+    operandsAttrs.push_back(getConstantAttribute(defop));
+    // operand's defop will become useless if op is its only user
+    if (llvm::equal(defop->getUsers(), ArrayRef(op)))
+      uselessOps.push_back(defop);
+  }
+  uselessOps.push_back(op);
   SmallVector<Attribute> resultsAttrs;
   constantFolder->fold(op, operandsAttrs, resultsAttrs);
   assert(resultsAttrs.size() == op->getNumResults());
@@ -80,9 +88,12 @@ struct ConstantFoldingPass
         ctx->getLoadedDialect<lazycst::LazyCstDialect>()->constantFolders;
     function->walk<WalkOrder::PreOrder>([&](Region *region) {
       for (Operation &op : llvm::make_early_inc_range(region->getOps())) {
-        if (tryConstantFold(&op, constantFolders)) {
-          assert(op.use_empty());
-          op.erase();
+        SmallVector<Operation *> uselessOps;
+        if (tryConstantFold(&op, constantFolders, uselessOps)) {
+          for (Operation *uselessOp : llvm::reverse(uselessOps)) {
+            assert(uselessOp->use_empty());
+            uselessOp->erase();
+          }
         }
       }
     });
