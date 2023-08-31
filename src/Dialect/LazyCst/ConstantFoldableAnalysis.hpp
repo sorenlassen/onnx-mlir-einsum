@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/LazyFolder.hpp"
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
@@ -15,19 +15,19 @@ namespace lazycst {
 
 // Given that ONNX If/Loop/Scan regions can refer to values from parent regions,
 // the CFAnalysis needs to be done as a "Preorder" region traversal.
-class LazyFoldableAnalysis {
+class ConstantFoldableAnalysis {
 public:
-  LazyFoldableAnalysis(mlir::Operation *root, bool label = false);
-  void insertLazyFoldableOp(mlir::Operation *op);
-  bool isLazyFoldableOp(mlir::Operation *op) const;
-  bool isLazyFoldable(mlir::Value v) const;
-  llvm::SmallVector<unsigned> LazyFoldableIdxs(mlir::ValueRange values);
+  ConstantFoldableAnalysis(mlir::Operation *root, bool label = false);
+  void insertConstantFoldableOp(mlir::Operation *op);
+  bool isConstantFoldableOp(mlir::Operation *op) const;
+  bool isConstantFoldable(mlir::Value v) const;
+  // llvm::SmallVector<unsigned> ConstantFoldableIdxs(mlir::ValueRange values);
 
 private:
   using Ops = llvm::SmallPtrSet<mlir::Operation *, 1>;
 
   const bool label;
-  const LazyFolders &lazyFolders;
+  const ConstantFolders &constantFolders;
   Ops cfops;
 };
 

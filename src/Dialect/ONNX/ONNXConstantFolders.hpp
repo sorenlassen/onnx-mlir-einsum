@@ -12,7 +12,7 @@ class ONNXDialect;
 
 namespace onnx_mlir {
 
-void populateONNXLazyFolders(mlir::MLIRContext *ctx,
+void populateONNXConstantFolders(mlir::MLIRContext *ctx,
     lazycst::LazyCstDialect *lazycstDialect, mlir::ONNXDialect *onnxDalect);
 
 }

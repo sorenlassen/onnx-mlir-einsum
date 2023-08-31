@@ -4,8 +4,8 @@
 
 #pragma once
 
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
-#include "src/Dialect/LazyCst/LazyFolder.hpp"
 
 #include "src/Dialect/LazyCst/WideNum.hpp"
 #include "src/Interface/DensifiableElementsAttrInterface.hpp"

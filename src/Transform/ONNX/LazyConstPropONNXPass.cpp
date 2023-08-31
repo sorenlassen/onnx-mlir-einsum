@@ -2,10 +2,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
-#include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
-#include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Pass/Passes.hpp"
 
@@ -34,10 +34,10 @@ struct LazyConstPropONNXPassConfiguration {
 
 int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
 
-bool isLazyFoldable(Operation *op) {
+bool isConstantFoldable(Operation *op) {
   return succeeded(op->getContext()
                        ->getLoadedDialect<lazycst::LazyCstDialect>()
-                       ->lazyFolders.match(op));
+                       ->constantFolders.match(op));
 }
 
 bool isConstant(Operation *op) {
@@ -91,7 +91,7 @@ struct LazyConstPropRegion {
     // Ignore defop's regions as they were walked separately
     // in LazyConstPropONNXPass::runOnOperation().
 
-    bool isFoldable = isLazyFoldable(defop);
+    bool isFoldable = isConstantFoldable(defop);
     int numOperands = defop->getNumOperands();
     SmallVector<std::optional<Span>> spans(numOperands, std::nullopt);
     for (int i = 0; i < numOperands; ++i) {
@@ -287,7 +287,7 @@ private:
       assert(defop->getNumOperands() == 0);
     } else {
       bool allOperandsAreLazyFoldable = runOnOperands(defop);
-      if (!allOperandsAreLazyFoldable || !isLazyFoldable(defop))
+      if (!allOperandsAreLazyFoldable || !isConstantFoldable(defop))
         return false;
     }
     auto [_, inserted] = LazyFoldableOps.insert(defop);
@@ -415,11 +415,12 @@ class MyOpRewritePattern : public OpRewritePattern<OpType> {
 public:
   // TODO: figure out if patterns need to fill in generatedNames
   template <typename... Args>
-  MyOpRewritePattern(lazycst::LazyFoldableAnalysis &analysis, Args &&... args)
+  MyOpRewritePattern(
+      lazycst::ConstantFoldableAnalysis &analysis, Args &&... args)
       : Base(std::forward<Args>(args)...), analysis(analysis) {}
 
 protected:
-  lazycst::LazyFoldableAnalysis &analysis;
+  lazycst::ConstantFoldableAnalysis &analysis;
 };
 
 template <typename OpInterfaceType>
@@ -431,35 +432,35 @@ public:
   // TODO: figure out if patterns need to fill in generatedNames
   template <typename... Args>
   MyOpInterfaceRewritePattern(
-      lazycst::LazyFoldableAnalysis &analysis, Args &&... args)
+      lazycst::ConstantFoldableAnalysis &analysis, Args &&... args)
       : Base(std::forward<Args>(args)...), analysis(analysis) {}
 
 protected:
-  lazycst::LazyFoldableAnalysis &analysis;
+  lazycst::ConstantFoldableAnalysis &analysis;
 };
 
 bool isBubblableOpImpl(
-    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
-  assert(!analysis.isLazyFoldableOp(op));
+    Operation *op, const lazycst::ConstantFoldableAnalysis &analysis) {
+  assert(!analysis.isConstantFoldableOp(op));
   return op->hasOneUse() && op->getNumOperands() >= 2 &&
-         analysis.isLazyFoldable(op->getOperand(0));
+         analysis.isConstantFoldable(op->getOperand(0));
 }
 
 template <typename... OpTypes>
 bool isBubblableOp(
-    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
+    Operation *op, const lazycst::ConstantFoldableAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) && isa<OpTypes...>(op);
 }
 
 template <typename... OpTypes>
-bool isBubblable(Value v, const lazycst::LazyFoldableAnalysis &analysis) {
+bool isBubblable(Value v, const lazycst::ConstantFoldableAnalysis &analysis) {
   Operation *op = v.getDefiningOp();
   return op && isBubblableOp<OpTypes...>(op, analysis);
 }
 
 template <typename OpType>
 OpType castIfBubblableOp(
-    Operation *op, const lazycst::LazyFoldableAnalysis &analysis) {
+    Operation *op, const lazycst::ConstantFoldableAnalysis &analysis) {
   return isBubblableOpImpl(op, analysis) ? dyn_cast<OpType>(op) : nullptr;
 }
 
@@ -491,7 +492,7 @@ struct BinaryACCFOpPattern
   LogicalResult doRewrite(ACCFOpInterface binaryOp, Value operand, ValuePair vp,
       PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
-    if (analysis.isLazyFoldable(operand)) {
+    if (analysis.isConstantFoldable(operand)) {
       // rewrite op to op(noncstfldb,op(operand,cstfldb))
       cstfldb = cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
     } else {
@@ -511,9 +512,9 @@ struct BinaryACCFOpPattern
       if (defop->hasOneUse() && defop->getName() == opName) {
         assert(defop->getNumOperands() == 2);
         Value lhs = defop->getOperand(0), rhs = defop->getOperand(1);
-        if (analysis.isLazyFoldable(rhs))
+        if (analysis.isConstantFoldable(rhs))
           return ValuePair{lhs, rhs};
-        if (analysis.isLazyFoldable(lhs))
+        if (analysis.isConstantFoldable(lhs))
           return ValuePair{rhs, lhs};
       }
     }
@@ -523,7 +524,7 @@ struct BinaryACCFOpPattern
   LogicalResult matchAndRewrite(
       ACCFOpInterface binaryOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
-    if (analysis.isLazyFoldableOp(binaryOp))
+    if (analysis.isConstantFoldableOp(binaryOp))
       return failure();
     assert(binaryOp->getNumOperands() == 2);
     Value lhs = binaryOp->getOperand(0), rhs = binaryOp->getOperand(1);
@@ -541,15 +542,15 @@ struct AddPattern : public MyOpRewritePattern<ONNXAddOp> {
   LogicalResult matchAndRewrite(
       ONNXAddOp addOp, PatternRewriter &rewriter) const override {
     // TODO: try to insert this check in the base class MyOpRewritePattern
-    if (analysis.isLazyFoldableOp(addOp))
+    if (analysis.isConstantFoldableOp(addOp))
       return failure();
     Value lhs = addOp.getA();
     Value rhs = addOp.getB();
     bool swapped = false;
-    if (analysis.isLazyFoldableOp(rhs.getDefiningOp())) {
+    if (analysis.isConstantFoldableOp(rhs.getDefiningOp())) {
       std::swap(lhs, rhs);
       swapped = true; // if addOp isn't replaced, swap the operands at the end
-    } else if (!analysis.isLazyFoldable(lhs)) {
+    } else if (!analysis.isConstantFoldable(lhs)) {
       if (!isBubblable<ONNXAddOp, ONNXSubOp>(lhs, analysis)) {
         if (!isBubblable<ONNXAddOp, ONNXSubOp>(rhs, analysis))
           return failure();
@@ -593,7 +594,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
   using MyOpRewritePattern<ONNXNegOp>::MyOpRewritePattern;
   LogicalResult matchAndRewrite(
       ONNXNegOp negOp, PatternRewriter &rewriter) const override {
-    if (analysis.isLazyFoldableOp(negOp))
+    if (analysis.isConstantFoldableOp(negOp))
       return failure();
     Operation *defop = negOp.getX().getDefiningOp();
     if (!defop)
@@ -601,7 +602,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
 #if 1
     if (ONNXAddOp addOp = castIfBubblableOp<ONNXAddOp>(defop, analysis)) {
       Operation *negLhsOp = negate(addOp.getA(), rewriter);
-      analysis.insertLazyFoldableOp(negLhsOp);
+      analysis.insertConstantFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
       Value rhs = addOp.getB();
       ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), negLhs, rhs);
@@ -610,7 +611,7 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
     }
     if (ONNXSubOp subOp = castIfBubblableOp<ONNXSubOp>(defop, analysis)) {
       Operation *negLhsOp = negate(subOp.getA(), rewriter);
-      analysis.insertLazyFoldableOp(negLhsOp);
+      analysis.insertConstantFoldableOp(negLhsOp);
       Value negLhs = negLhsOp->getResult(0);
       Value rhs = subOp.getB();
       ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), negLhs, rhs);
@@ -622,10 +623,10 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
       return failure();
     if (ONNXAddOp addOp = dyn_cast<ONNXAddOp>(defop)) {
       Value lhs = addOp.getA();
-      if (!analysis.isLazyFoldable(lhs))
+      if (!analysis.isConstantFoldable(lhs))
         return failure();
       Operation *negLhs = negate(lhs, rewriter);
-      analysis.insertLazyFoldableOp(negLhs);
+      analysis.insertConstantFoldableOp(negLhs);
       Value newLhs = negLhs->getResult(0);
       Value rhs = addOp.getB();
       ONNXSubOp subOp = rewriter.create<ONNXSubOp>(addOp.getLoc(), newLhs, rhs);
@@ -634,10 +635,10 @@ struct NegPattern : public MyOpRewritePattern<ONNXNegOp> {
     }
     if (ONNXSubOp subOp = dyn_cast<ONNXSubOp>(defop)) {
       Value lhs = subOp.getA();
-      if (!analysis.isLazyFoldable(lhs))
+      if (!analysis.isConstantFoldable(lhs))
         return failure();
       Operation *negLhs = negate(lhs, rewriter);
-      analysis.insertLazyFoldableOp(negLhs);
+      analysis.insertConstantFoldableOp(negLhs);
       Value newLhs = negLhs->getResult(0);
       Value rhs = subOp.getB();
       ONNXAddOp addOp = rewriter.create<ONNXAddOp>(subOp.getLoc(), newLhs, rhs);
@@ -663,7 +664,7 @@ struct LazyConstPropONNXPass
     MLIRContext *ctx = &getContext();
     func::FuncOp function = getOperation();
 
-    lazycst::LazyFoldableAnalysis analysis(function);
+    lazycst::ConstantFoldableAnalysis analysis(function);
 
     RewritePatternSet patterns(ctx);
     patterns.insert<NegPattern>(analysis, ctx);

@@ -20,16 +20,16 @@
 
 namespace lazycst {
 
-class LazyFoldableAnalysis;
+class ConstantFoldableAnalysis;
 
 // Similar to ConversionPattern and Operation::fold().
 // Every instance needs to implement both 'match' and 'fold'.
 // Unlike ConversionPattern it's not enough to implement a combined
 // 'matchAndFold' method because ConstantFoldableAnalysis needs to call
 // 'match' without 'fold'.
-class LazyFolder {
+class ConstantFolder {
 public:
-  virtual ~LazyFolder() = default;
+  virtual ~ConstantFolder() = default;
 
   virtual mlir::LogicalResult match(mlir::Operation *op) const = 0;
   virtual void fold(mlir::Operation *op,
@@ -47,12 +47,12 @@ public:
 };
 
 template <typename OP>
-class OpLazyFolder : public LazyFolder {
+class OpConstantFolder : public ConstantFolder {
 public:
   using Op = OP;
   using FoldAdaptor = typename OP::FoldAdaptor;
 
-  virtual ~OpLazyFolder() = default;
+  virtual ~OpConstantFolder() = default;
 
   virtual mlir::LogicalResult match(OP op) const { return mlir::success(); }
   mlir::LogicalResult match(mlir::Operation *op) const override final {
@@ -76,55 +76,56 @@ public:
   }
 };
 
-class LazyFolders {
+class ConstantFolders {
 public:
-  using PatternsGetter =
-      std::function<void(LazyFoldableAnalysis &, mlir::RewritePatternSet &)>;
+  using PatternsGetter = std::function<void(
+      ConstantFoldableAnalysis &, mlir::RewritePatternSet &)>;
 
-  const LazyFolder *lookup(llvm::StringRef opName) const {
+  const ConstantFolder *lookup(llvm::StringRef opName) const {
     auto it = map.find(opName);
     return it == map.end() ? nullptr : it->second.get();
   }
 
-  const LazyFolder *lookup(mlir::OperationName opName) const {
+  const ConstantFolder *lookup(mlir::OperationName opName) const {
     return lookup(opName.getIdentifier());
   }
 
-  LazyFolders &insert(
-      llvm::StringRef opName, std::unique_ptr<LazyFolder> lazyFolder) {
-    auto [_, inserted] = map.try_emplace(opName, std::move(lazyFolder));
+  ConstantFolders &insert(
+      llvm::StringRef opName, std::unique_ptr<ConstantFolder> constantFolder) {
+    auto [_, inserted] = map.try_emplace(opName, std::move(constantFolder));
     assert(inserted);
     return *this;
   }
 
-  template <class LAZY_FOLDER, typename... Args>
-  LazyFolders &insert(llvm::StringRef opName, Args &&... args) {
+  template <class CONSTANT_FOLDER, typename... Args>
+  ConstantFolders &insert(llvm::StringRef opName, Args &&... args) {
     return insert(
-        opName, std::make_unique<LAZY_FOLDER>(std::forward<Args>(args)...));
+        opName, std::make_unique<CONSTANT_FOLDER>(std::forward<Args>(args)...));
   }
 
-  template <class LAZY_FOLDER, typename... Args>
-  LazyFolders &insert(mlir::OperationName opName, Args &&... args) {
-    return insert<LAZY_FOLDER, Args...>(
+  template <class CONSTANT_FOLDER, typename... Args>
+  ConstantFolders &insert(mlir::OperationName opName, Args &&... args) {
+    return insert<CONSTANT_FOLDER, Args...>(
         opName.getIdentifier(), std::forward<Args>(args)...);
   }
 
-  template <class OP_LAZY_FOLDER, typename... Args>
-  LazyFolders &insertOpLazyFolder(Args &&... args) {
-    return insert<OP_LAZY_FOLDER, Args...>(
-        OP_LAZY_FOLDER::Op::getOperationName(), std::forward<Args>(args)...);
+  template <class OP_CONSTANT_FOLDER, typename... Args>
+  ConstantFolders &insertOpConstantFolder(Args &&... args) {
+    return insert<OP_CONSTANT_FOLDER, Args...>(
+        OP_CONSTANT_FOLDER::Op::getOperationName(),
+        std::forward<Args>(args)...);
   }
 
   void addPatternsGetter(PatternsGetter getter) {
     patternsGetters.emplace_back(std::move(getter));
   }
 
-  void getPatterns(
-      LazyFoldableAnalysis &analysis, mlir::RewritePatternSet &results) const;
+  void getPatterns(ConstantFoldableAnalysis &analysis,
+      mlir::RewritePatternSet &results) const;
 
   mlir::LogicalResult match(mlir::Operation *op) const {
-    if (const LazyFolder *lazyFolder = lookup(op->getName()))
-      return lazyFolder->match(op);
+    if (const ConstantFolder *constantFolder = lookup(op->getName()))
+      return constantFolder->match(op);
     return mlir::failure();
   }
 
@@ -133,7 +134,7 @@ private:
   // OP::getOperationName() or OperationName::getIdentifier().
   // TODO: consider using TypeID as key, i.e.
   //       TypeID::get<OP>() or  OperationName::getTypeID()
-  llvm::StringMap<std::unique_ptr<LazyFolder>> map;
+  llvm::StringMap<std::unique_ptr<ConstantFolder>> map;
 
   std::vector<PatternsGetter> patternsGetters;
 };

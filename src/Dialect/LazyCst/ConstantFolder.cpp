@@ -2,10 +2,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/LazyFolder.hpp"
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 
-#include "src/Dialect/LazyCst/ACLazyFoldableOpInterface.hpp"
-#include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
+#include "src/Dialect/LazyCst/ACConstantFoldableOpInterface.hpp"
+#include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
 
 #include "mlir/IR/PatternMatch.h"
 
@@ -31,11 +31,12 @@ Operation *cloneOpAndSetOperands(
 //
 // TODO: generalize to variadic ops, like onnx.Min/Max/Sum
 struct BinaryACCFOpPattern
-    : public OpInterfaceRewritePattern<lazycst::ACLazyFoldableOpInterface> {
-  using OpIF = lazycst::ACLazyFoldableOpInterface;
+    : public OpInterfaceRewritePattern<lazycst::ACConstantFoldableOpInterface> {
+  using OpIF = lazycst::ACConstantFoldableOpInterface;
   using Base = OpInterfaceRewritePattern<OpIF>;
 
-  BinaryACCFOpPattern(lazycst::LazyFoldableAnalysis &analysis, MLIRContext *ctx)
+  BinaryACCFOpPattern(
+      lazycst::ConstantFoldableAnalysis &analysis, MLIRContext *ctx)
       : Base(ctx), analysis(analysis) {}
 
   // Pair of a non-constant-foldable value and a constant-foldable value.
@@ -44,11 +45,11 @@ struct BinaryACCFOpPattern
   LogicalResult doRewrite(OpIF binaryOp, Value operand, ValuePair vp,
       PatternRewriter &rewriter) const {
     auto [noncstfldb, cstfldb] = vp;
-    if (analysis.isLazyFoldable(operand)) {
+    if (analysis.isConstantFoldable(operand)) {
       // rewrite op to op(noncstfldb,op(operand,cstfldb))
       Operation *cstfldbOp =
           cloneOpAndSetOperands(binaryOp, {operand, cstfldb}, rewriter);
-      analysis.insertLazyFoldableOp(cstfldbOp);
+      analysis.insertConstantFoldableOp(cstfldbOp);
       cstfldb = cstfldbOp->getResult(0);
     } else {
       // rewrite op to op(op(operand,noncstfldb),cstfldb)
@@ -62,12 +63,12 @@ struct BinaryACCFOpPattern
     return success();
   }
 
-  std::optional<ValuePair> hasLazyFoldableOperand(Operation *op) const {
+  std::optional<ValuePair> hasConstantFoldableOperand(Operation *op) const {
     assert(op->getNumOperands() == 2);
     Value lhs = op->getOperand(0), rhs = op->getOperand(1);
-    if (analysis.isLazyFoldable(rhs))
+    if (analysis.isConstantFoldable(rhs))
       return ValuePair{lhs, rhs};
-    if (analysis.isLazyFoldable(lhs))
+    if (analysis.isConstantFoldable(lhs))
       return ValuePair{rhs, lhs};
     return std::nullopt;
   }
@@ -77,16 +78,16 @@ struct BinaryACCFOpPattern
     if (Operation *defop = operand.getDefiningOp()) {
       // Don't bubble up any operand if defop is foldable in whole,
       // and don't decompose it by bubbling if it has multiple uses.
-      if (!analysis.isLazyFoldableOp(defop) && defop->hasOneUse() &&
+      if (!analysis.isConstantFoldableOp(defop) && defop->hasOneUse() &&
           defop->getName() == opName)
-        return hasLazyFoldableOperand(defop);
+        return hasConstantFoldableOperand(defop);
     }
     return std::nullopt;
   }
 
   LogicalResult matchAndRewrite(
       OpIF binaryOp, PatternRewriter &rewriter) const override {
-    if (analysis.isLazyFoldableOp(binaryOp))
+    if (analysis.isConstantFoldableOp(binaryOp))
       return failure();
     assert(binaryOp->getNumOperands() == 2);
     Value lhs = binaryOp->getOperand(0), rhs = binaryOp->getOperand(1);
@@ -98,13 +99,13 @@ struct BinaryACCFOpPattern
     return failure();
   }
 
-  lazycst::LazyFoldableAnalysis &analysis;
+  lazycst::ConstantFoldableAnalysis &analysis;
 };
 
 } // namespace
 
-void LazyFolders::getPatterns(
-    LazyFoldableAnalysis &analysis, mlir::RewritePatternSet &results) const {
+void ConstantFolders::getPatterns(ConstantFoldableAnalysis &analysis,
+    mlir::RewritePatternSet &results) const {
   results.insert<BinaryACCFOpPattern>(analysis, results.getContext());
   for (const PatternsGetter &getter : patternsGetters)
     getter(analysis, results);

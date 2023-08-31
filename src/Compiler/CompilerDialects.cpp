@@ -10,8 +10,8 @@
 #include "src/Dialect/Krnl/KrnlOps.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/Mlir/ConstantPrinter.hpp"
+#include "src/Dialect/ONNX/ONNXConstantFolders.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"
-#include "src/Dialect/ONNX/ONNXLazyFolders.hpp"
 
 #include "mlir/InitAllDialects.h"
 #include "mlir/Target/LLVMIR/Dialect/OpenMP/OpenMPToLLVMIRTranslation.h"
@@ -73,7 +73,7 @@ void configureDialects(mlir::DialectRegistry &registry) {
   registry.addExtension(
       +[](MLIRContext *ctx, lazycst::LazyCstDialect *lazycstDialect,
            ONNXDialect *onnxDalect) {
-        populateONNXLazyFolders(ctx, lazycstDialect, onnxDalect);
+        populateONNXConstantFolders(ctx, lazycstDialect, onnxDalect);
       });
 
   ConstantPrinter::hideDensifiableElementsAttrs(hideDensifiableElementsAttrs);

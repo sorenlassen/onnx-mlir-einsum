@@ -20,7 +20,7 @@ add_onnx_mlir_library(OMONNXOps
   ONNXAttributes.cpp
   ONNXDialect.cpp
   ONNXDimAnalysis.cpp
-  ONNXLazyFolders.cpp
+  ONNXConstantFolders.cpp
   ONNXOps.cpp
   ONNXOps/OpHelper.cpp
   ONNXOps/ShapeHelper.cpp

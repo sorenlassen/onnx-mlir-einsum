@@ -52,9 +52,9 @@ void configureConstPropONNXToONNXPass(bool roundFPToInt, int expansionBound,
 
 std::unique_ptr<mlir::Pass> createConstPropONNXToONNXPass();
 
-std::unique_ptr<mlir::Pass> createLazyFoldableAnalysisPass();
+std::unique_ptr<mlir::Pass> createConstantFoldableAnalysisPass();
 
-std::unique_ptr<mlir::Pass> createLazyFoldablePropagationPass();
+std::unique_ptr<mlir::Pass> createConstantFoldablePropagationPass();
 
 std::unique_ptr<mlir::Pass> createLazyConstantFoldingPass();
 

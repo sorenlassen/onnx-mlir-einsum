@@ -7,8 +7,8 @@ add_onnx_mlir_library(OMLazyCst
   LazyCst.cpp
   LazyCstOps.cpp
   BType.cpp
-  LazyFoldableAnalysis.cpp
-  LazyFolder.cpp
+  ConstantFoldableAnalysis.cpp
+  ConstantFolder.cpp
   FileDataManager.cpp
   WideNum.cpp
 

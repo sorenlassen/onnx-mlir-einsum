@@ -2,10 +2,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
-#include "src/Dialect/LazyCst/LazyFoldableAnalysis.hpp"
-#include "src/Dialect/LazyCst/LazyFolder.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -30,7 +30,7 @@
 namespace {
 
 using namespace mlir;
-using lazycst::LazyFoldableAnalysis;
+using lazycst::ConstantFoldableAnalysis;
 
 bool isConstant(Operation *op) {
   // TODO: consider using mlir::matchPattern(op, m_Constant())
@@ -55,7 +55,7 @@ Attribute getConstantAttribute(Operation *op) {
 std::vector<std::vector<Operation *>> lazyConstantResultOps(
     func::FuncOp function) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
-  LazyFoldableAnalysis analysis(function);
+  ConstantFoldableAnalysis analysis(function);
   // Maps every used, non-constant, lazy foldable op to a lazy constant's
   // index in lazyConstantOps.
   DenseMap<Operation *, size_t> lazyConstantMap;
@@ -68,12 +68,12 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
     for (Operation &op : llvm::reverse(ops)) {
       if (isConstant(&op))
         continue;
-      if (!analysis.isLazyFoldableOp(&op))
+      if (!analysis.isConstantFoldableOp(&op))
         continue;
       std::optional<size_t> idx;
       for (Operation *user : op.getUsers()) {
         assert(!isConstant(user));
-        if (analysis.isLazyFoldableOp(user)) {
+        if (analysis.isConstantFoldableOp(user)) {
           auto it = lazyConstantMap.find(user);
           if (it == lazyConstantMap.end())
             continue;
