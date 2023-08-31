@@ -29,7 +29,6 @@
 namespace {
 
 using namespace mlir;
-using lazycst::ConstantFoldableAnalysis;
 
 bool isConstant(Operation *op) {
   // TODO: consider using mlir::matchPattern(op, m_Constant())
@@ -54,7 +53,7 @@ Attribute getConstantAttribute(Operation *op) {
 std::vector<std::vector<Operation *>> lazyConstantResultOps(
     func::FuncOp function) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
-  ConstantFoldableAnalysis analysis(function);
+  lazycst::ConstantFoldableAnalysis analysis(function);
   // Maps every used, non-constant, lazy foldable op to a lazy constant's
   // index in lazyConstantOps.
   DenseMap<Operation *, size_t> lazyConstantMap;
