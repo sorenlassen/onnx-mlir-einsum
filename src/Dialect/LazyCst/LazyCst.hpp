@@ -22,6 +22,10 @@ namespace lazycst {
 
 using DensifiableElementsAttrInterface = mlir::DensifiableElementsAttrInterface;
 
+// Makes deep copy.
+mlir::DenseElementsAttr denseElementsFromRawBytes(
+    mlir::ShapedType, llvm::ArrayRef<char> bytes);
+
 class LazyFunctionManager {
 public:
   LazyFunctionManager() : counter(0) {}
@@ -34,8 +38,6 @@ private:
 template <class C>
 struct BufferElementsAttr : public mlir::Attribute {
   using Attribute::Attribute;
-
-  // mlir::StringAttr getPath() const;
 
   llvm::ArrayRef<char> getRawBytes() const {
     return static_cast<const C *>(this)->getRawBytesImpl();

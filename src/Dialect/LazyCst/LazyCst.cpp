@@ -89,12 +89,6 @@ mlir::StringAttr LazyFunctionManager::nextName(mlir::ModuleOp module) {
   return name;
 }
 
-// template <class C>
-// StringAttr BufferElementsAttr<C>::getPath() const {
-//   // using T = typename C::ContiguousIterableTypesT;
-//   return static_cast<typename C::ImplType *>(impl)->path;
-// }
-
 ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   LazyCstDialect *lazyElementsDialect =
       getContext()->getLoadedDialect<LazyCstDialect>();
@@ -105,13 +99,12 @@ ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   return onnx_mlir::asArrayRef(buffer.substr(offset, size));
 }
 
-DenseElementsAttr FileDataElementsAttr::toDenseElementsAttr() const {
-  ArrayRef<char> bytes = getRawBytes();
-  if (getElementType().isInteger(1))
+DenseElementsAttr denseElementsFromRawBytes(
+    ShapedType type, ArrayRef<char> bytes) {
+  if (type.getElementType().isInteger(1))
     // don't use getFromRawBuffer which requires bit packing
-    return DenseElementsAttr::get(
-        getType(), onnx_mlir::castArrayRef<bool>(bytes));
-  return DenseElementsAttr::getFromRawBuffer(getType(), bytes);
+    return DenseElementsAttr::get(type, onnx_mlir::castArrayRef<bool>(bytes));
+  return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
 } // namespace lazycst

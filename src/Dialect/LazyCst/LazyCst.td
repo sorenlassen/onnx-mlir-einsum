@@ -108,10 +108,13 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
       return getValues<X>().end();
     }
 
+    // BufferElementsAttr implementation.
     llvm::ArrayRef<char> getRawBytesImpl() const;
 
-    // Makes deep copy.
-    mlir::DenseElementsAttr toDenseElementsAttr() const;
+    // DensifiableElementsAttrInterface implementation.
+    mlir::DenseElementsAttr toDenseElementsAttr() const {
+      return denseElementsFromRawBytes(getType(), getRawBytes());
+    }
   }];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
 }
