@@ -9,6 +9,6 @@
 namespace mlir {
 
 /// Include the auto-generated declarations.
-#include "src/Interface/DensifiableElementsAttrInterface.hpp.inc"
+#include "src/Interface/DenseLikeElementsAttrInterface.hpp.inc"
 
 } // namespace mlir

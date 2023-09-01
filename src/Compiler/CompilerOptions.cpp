@@ -42,7 +42,7 @@ std::vector<std::string> functionsToDecompose;         // common for both
 std::vector<std::string> externalDataDir;              // common for both
 std::string opsForCall;                                // common for both
 std::vector<std::string> externalDataDir;              // common for both
-bool hideDensifiableElementsAttrs;                     // common for both
+bool hideDenseLikeElementsAttrs;                       // common for both
 EmissionTargetType emissionTarget;                     // onnx-mlir only
 bool invokeOnnxVersionConverter;                       // onnx-mlir only
 bool preserveLocations;                                // onnx-mlir only
@@ -208,10 +208,10 @@ static llvm::cl::list<std::string, std::vector<std::string>> externalDataDirOpt(
                    " Defaults to the input file directory if unspecified."),
     llvm::cl::location(externalDataDir), llvm::cl::cat(OnnxMlirCommonOptions));
 
-static llvm::cl::opt<bool, true> hideDensifiableElementsAttrsOpt(
-    "hideDensifiableElementsAttrs",
-    llvm::cl::desc("print each DensifiableElementsAttr as a DenseElementsAttr"),
-    llvm::cl::location(hideDensifiableElementsAttrs), llvm::cl::init(true),
+static llvm::cl::opt<bool, true> hideDenseLikeElementsAttrsOpt(
+    "hideDenseLikeElementsAttrs",
+    llvm::cl::desc("print each DenseLikeElementsAttr as a DenseElementsAttr"),
+    llvm::cl::location(hideDenseLikeElementsAttrs), llvm::cl::init(true),
     llvm::cl::cat(OnnxMlirCommonOptions));
 
 // Options for onnx-mlir only

@@ -17,6 +17,7 @@ add_onnx_mlir_library(OMLazyCst
 
   LINK_LIBS PUBLIC
   OMMlirUtilities
+  OMDenseLikeElementsAttrInterface
   MLIRIR
   MLIRDialect # Dialect/Traits
   )

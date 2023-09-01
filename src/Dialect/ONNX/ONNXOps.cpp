@@ -163,7 +163,7 @@ ParseResult ONNXConstantOp::parse(OpAsmParser &parser, OperationState &result) {
 
 //===----------------------------------------------------------------------===//
 // ONNXConstantOfShapeOp custom assembly format print and parse.
-// Same as the generic format except that any DensifiableElementsAttr is
+// Same as the generic format except that any DenseLikeElementsAttr is
 // printed with printAsDenseElementsAttr().
 //===----------------------------------------------------------------------===//
 

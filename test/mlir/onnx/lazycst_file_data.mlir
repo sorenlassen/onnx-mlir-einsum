@@ -3,7 +3,7 @@
 // RUN: test $(wc -c < arange5xf32.npy) -eq 148
 
 // RUN: onnx-mlir-opt --external-data-dir=. %s -split-input-file | FileCheck --check-prefix=DENSE %s
-// RUN: onnx-mlir-opt --hideDensifiableElementsAttrs=false %s -split-input-file | FileCheck --check-prefix=FILEDATA %s
+// RUN: onnx-mlir-opt --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck --check-prefix=FILEDATA %s
 
 func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
   %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy", offset=128> : tensor<5xf32>

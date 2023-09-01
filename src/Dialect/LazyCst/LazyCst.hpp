@@ -8,7 +8,7 @@
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
 
 #include "src/Dialect/LazyCst/WideNum.hpp"
-#include "src/Interface/DensifiableElementsAttrInterface.hpp"
+#include "src/Interface/DenseLikeElementsAttrInterface.hpp"
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
@@ -20,7 +20,7 @@
 
 namespace lazycst {
 
-using DensifiableElementsAttrInterface = mlir::DensifiableElementsAttrInterface;
+using DenseLikeElementsAttrInterface = mlir::DenseLikeElementsAttrInterface;
 
 // Makes deep copy.
 mlir::DenseElementsAttr denseElementsFromRawBytes(

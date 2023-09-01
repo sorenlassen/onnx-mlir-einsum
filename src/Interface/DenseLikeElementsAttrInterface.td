@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#ifdef DENSIFIABLE_ELEMENTS_ATTR_INTERFACE
+#ifdef DENSE_LIKE_ELEMENTS_ATTR_INTERFACE
 #else
-#define DENSIFIABLE_ELEMENTS_ATTR_INTERFACE
+#define DENSE_LIKE_ELEMENTS_ATTR_INTERFACE
 
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
-// TODO: rename to DenseLikeElementsAttrInterface
-def DensifiableElementsAttrInterface : AttrInterface<"DensifiableElementsAttrInterface", [ElementsAttrInterface]> {
+def DenseLikeElementsAttrInterface : AttrInterface<"DenseLikeElementsAttrInterface", [ElementsAttrInterface]> {
   let description = [{
     Interface for elements attributes with a toDenseElementsAttr() method.
   }];
@@ -22,4 +21,4 @@ def DensifiableElementsAttrInterface : AttrInterface<"DensifiableElementsAttrInt
   ];
 }
 
-#endif // DENSIFIABLE_ELEMENTS_ATTR_INTERFACE
+#endif // DENSE_LIKE_ELEMENTS_ATTR_INTERFACE

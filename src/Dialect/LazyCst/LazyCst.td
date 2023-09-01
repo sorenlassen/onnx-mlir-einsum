@@ -11,7 +11,7 @@ include "mlir/IR/BuiltinAttributeInterfaces.td"
 include "mlir/IR/FunctionInterfaces.td"
 include "mlir/IR/OpBase.td"
 include "mlir/IR/SymbolInterfaces.td"
-include "src/Interface/DensifiableElementsAttrInterface.td"
+include "src/Interface/DenseLikeElementsAttrInterface.td"
 
 //===----------------------------------------------------------------------===//
 // The Lazy Constants Dialect.
@@ -42,7 +42,7 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
 }
 
 def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
-    DensifiableElementsAttrInterface
+    DenseLikeElementsAttrInterface
   ], "BufferElementsAttr<FileDataElementsAttr>"> {
   let summary = "Attribute for external data: file with raw bytes.";
   let parameters = (ins
@@ -96,7 +96,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     // BufferElementsAttr implementation.
     llvm::ArrayRef<char> getRawBytesImpl() const;
 
-    // DensifiableElementsAttrInterface implementation.
+    // DenseLikeElementsAttrInterface implementation.
     mlir::DenseElementsAttr toDenseElementsAttr() const {
       return denseElementsFromRawBytes(getType(), getRawBytes());
     }

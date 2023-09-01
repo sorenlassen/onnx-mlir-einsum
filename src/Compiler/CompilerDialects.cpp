@@ -76,7 +76,7 @@ void configureDialects(mlir::DialectRegistry &registry) {
         populateONNXConstantFolders(ctx, lazycstDialect, onnxDalect);
       });
 
-  ConstantPrinter::hideDensifiableElementsAttrs(hideDensifiableElementsAttrs);
+  ConstantPrinter::hideDenseLikeElementsAttrs(hideDenseLikeElementsAttrs);
 }
 
 } // namespace onnx_mlir

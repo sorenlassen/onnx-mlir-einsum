@@ -5,7 +5,7 @@ add_onnx_mlir_interface(ShapeHelperOpInterface)
 add_onnx_mlir_interface(ResultTypeInferenceOpInterface)
 add_onnx_mlir_interface(HasOnnxSubgraphOpInterface)
 add_onnx_mlir_interface(SpecializedKernelOpInterface)
-add_onnx_mlir_attr_interface(DensifiableElementsAttrInterface)
+add_onnx_mlir_attr_interface(DenseLikeElementsAttrInterface)
 
 add_onnx_mlir_library(OMShapeInferenceOpInterface
   ShapeInferenceOpInterface.cpp
@@ -63,11 +63,11 @@ add_onnx_mlir_library(OMSpecializedKernelOpInterface
   LLVMSupport
   )
 
-add_onnx_mlir_library(OMDensifiableElementsAttrInterface
-  DensifiableElementsAttrInterface.cpp
+add_onnx_mlir_library(OMDenseLikeElementsAttrInterface
+  DenseLikeElementsAttrInterface.cpp
 
   DEPENDS
-  OMDensifiableElementsAttrInterfaceIncGen
+  OMDenseLikeElementsAttrInterfaceIncGen
 
   LINK_LIBS PUBLIC
   MLIRIR

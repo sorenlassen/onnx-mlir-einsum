@@ -1,4 +1,4 @@
-// RUN: onnx-mlir-opt --constantfoldable-propagation-pass --constantfoldable-analysis-pass --hideDensifiableElementsAttrs=false %s -split-input-file | FileCheck %s
+// RUN: onnx-mlir-opt --constantfoldable-propagation-pass --constantfoldable-analysis-pass --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
 
 func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
   %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>

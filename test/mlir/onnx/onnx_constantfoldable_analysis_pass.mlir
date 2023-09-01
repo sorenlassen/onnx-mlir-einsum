@@ -1,4 +1,4 @@
-// RUN: onnx-mlir-opt --constantfoldable-analysis-pass --hideDensifiableElementsAttrs=false %s -split-input-file | FileCheck %s
+// RUN: onnx-mlir-opt --constantfoldable-analysis-pass --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
 
 func.func @test_add_scalars() -> tensor<f32> {
   %0 = onnx.Constant dense<1.0> : tensor<f32>

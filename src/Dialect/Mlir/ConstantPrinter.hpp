@@ -15,16 +15,16 @@ class AsmPrinter;
 namespace onnx_mlir {
 
 // Wraps OpAsmPrinter's printAttribute and printOptionalAttrDict methods
-// and prints any top level DensifiableElementsAttr as a DenseElementsAttr,
-// hiding the DensifiableElementsAttr as an internal representation,
-// unless hideDensifiableElementsAttrs(false) is called.
+// and prints any top level DenseLikeElementsAttr as a DenseElementsAttr,
+// hiding the DenseLikeElementsAttr as an internal representation,
+// unless hideDenseLikeElementsAttrs(false) is called.
 class ConstantPrinter {
 public:
   ConstantPrinter(mlir::AsmPrinter &asmPrinter) : asmPrinter(asmPrinter) {}
 
   // Intended to be called at startup if a command line flag disables hiding.
-  static void hideDensifiableElementsAttrs(bool hide) {
-    hidingDensifiableElementsAttrs = hide;
+  static void hideDenseLikeElementsAttrs(bool hide) {
+    hidingDenseLikeElementsAttrs = hide;
   }
 
   void printAttribute(mlir::Attribute attr);
@@ -36,7 +36,7 @@ private:
 
   mlir::AsmPrinter &asmPrinter;
 
-  static bool hidingDensifiableElementsAttrs;
+  static bool hidingDenseLikeElementsAttrs;
 };
 
 } // namespace onnx_mlir

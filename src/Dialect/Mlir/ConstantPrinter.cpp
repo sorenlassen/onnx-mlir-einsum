@@ -3,7 +3,7 @@
  */
 
 #include "src/Dialect/Mlir/ConstantPrinter.hpp"
-#include "src/Interface/DensifiableElementsAttrInterface.hpp"
+#include "src/Interface/DenseLikeElementsAttrInterface.hpp"
 
 #include "mlir/IR/OpImplementation.h"
 
@@ -18,7 +18,7 @@ namespace {
 //===----------------------------------------------------------------------===//
 
 void printAsDenseElementsAttr(
-    AsmPrinter &asmPrinter, DensifiableElementsAttrInterface elements) {
+    AsmPrinter &asmPrinter, DenseLikeElementsAttrInterface elements) {
   // It would be ideal if we could read the asmPrinter flags from asmPrinter
   // instead of constructing them here, because asmPrinter may have been
   // constructed with an override of elideLargeElementsAttrs which we cannot see
@@ -43,8 +43,8 @@ void printAsDenseElementsAttr(
 } // namespace
 
 void ConstantPrinter::printAttribute(Attribute attr) {
-  if (hidingDensifiableElementsAttrs) {
-    if (auto densifiable = attr.dyn_cast<DensifiableElementsAttrInterface>()) {
+  if (hidingDenseLikeElementsAttrs) {
+    if (auto densifiable = attr.dyn_cast<DenseLikeElementsAttrInterface>()) {
       printAsDenseElementsAttr(asmPrinter, densifiable);
       return;
     }
@@ -76,6 +76,6 @@ void ConstantPrinter::printNamedAttribute(NamedAttribute namedAttr) {
   printAttribute(namedAttr.getValue());
 }
 
-bool ConstantPrinter::hidingDensifiableElementsAttrs = true;
+bool ConstantPrinter::hidingDenseLikeElementsAttrs = true;
 
 } // namespace onnx_mlir
