@@ -83,8 +83,6 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     static constexpr bool isContiguousType = is_in<X, ContiguousIterableTypesT>;
     template <typename X>
     static constexpr bool isNonContiguousType = is_in<X, NonContiguousIterableTypesT>;
-    template <typename X>
-    static constexpr bool isIterableType = isContiguousType<X> || isNonContiguousType<X>;
 
   public:
     template <typename X>

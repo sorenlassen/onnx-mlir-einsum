@@ -196,7 +196,6 @@ std::function<X(size_t)> getLookupFunction(
 template <typename X>
 inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
     -> mlir::FailureOr<iterator<X>> {
-  static_assert(isIterableType<X>, "unsupported cpp type");
   if constexpr (isContiguousType<X>) {
     return reinterpret_cast<const X *>(getRawBytes().data());
   } else if constexpr (isNonContiguousType<X>) {
