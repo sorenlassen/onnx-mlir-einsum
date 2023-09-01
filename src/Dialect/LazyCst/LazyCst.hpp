@@ -52,6 +52,13 @@ std::string escapeIdentifier(llvm::StringRef unescapedIdentifier);
 
 std::string unescapeIdentifier(llvm::StringRef escapedIdentifier);
 
+template <typename X, typename... Ts>
+constexpr bool isOneOfTuplePtrTypes(std::tuple<Ts...> *p) {
+  return llvm::is_one_of<X, Ts...>::value;
+}
+template <typename X, typename Tuple>
+constexpr bool isOneOfTupleTypes = isOneOfTuplePtrTypes<X>((Tuple *)nullptr);
+
 } // namespace lazycst
 
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"
@@ -196,9 +203,9 @@ std::function<X(size_t)> getLookupFunction(
 template <typename X>
 inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
     -> mlir::FailureOr<iterator<X>> {
-  if constexpr (isContiguousType<X>) {
+  if constexpr (isOneOfTupleTypes<X, ContiguousIterableTypesT>) {
     return reinterpret_cast<const X *>(getRawBytes().data());
-  } else if constexpr (isNonContiguousType<X>) {
+  } else if constexpr (isOneOfTupleTypes<X, NonContiguousIterableTypesT>) {
     if (auto lookupFn =
             detail::getLookupFunction<X>(getElementType(), getRawBytes())) {
       auto range = llvm::seq<size_t>(0, getNumElements());
