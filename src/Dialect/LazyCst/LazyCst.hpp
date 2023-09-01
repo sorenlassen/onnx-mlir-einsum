@@ -48,18 +48,16 @@ struct BufferElementsAttr : public mlir::Attribute {
   }
 };
 
-std::string escapeIdentifier(llvm::StringRef unescapedIdentifier);
+} // namespace lazycst
 
-std::string unescapeIdentifier(llvm::StringRef escapedIdentifier);
-
+namespace {
 template <typename X, typename... Ts>
 constexpr bool isOneOfTuplePtrTypes(std::tuple<Ts...> *p) {
   return llvm::is_one_of<X, Ts...>::value;
 }
 template <typename X, typename Tuple>
 constexpr bool isOneOfTupleTypes = isOneOfTuplePtrTypes<X>((Tuple *)nullptr);
-
-} // namespace lazycst
+} // namespace
 
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"
 
