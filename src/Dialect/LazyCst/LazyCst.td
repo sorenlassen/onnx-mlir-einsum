@@ -98,7 +98,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
 
     // DenseLikeElementsAttrInterface implementation.
     mlir::DenseElementsAttr toDenseElementsAttr() const {
-      return denseElementsFromRawBytes(getType(), getRawBytes());
+      return toDenseElementsAttrFromRawBytes(getType(), getRawBytes());
     }
   }];
   let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";

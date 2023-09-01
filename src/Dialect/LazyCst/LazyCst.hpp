@@ -23,7 +23,7 @@ namespace lazycst {
 using DenseLikeElementsAttrInterface = mlir::DenseLikeElementsAttrInterface;
 
 // Makes deep copy.
-mlir::DenseElementsAttr denseElementsFromRawBytes(
+mlir::DenseElementsAttr toDenseElementsAttrFromRawBytes(
     mlir::ShapedType, llvm::ArrayRef<char> bytes);
 
 class LazyFunctionManager {

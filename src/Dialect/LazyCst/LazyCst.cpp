@@ -56,7 +56,7 @@ ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
   return onnx_mlir::asArrayRef(buffer.substr(offset, size));
 }
 
-DenseElementsAttr denseElementsFromRawBytes(
+DenseElementsAttr toDenseElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes) {
   if (type.getElementType().isInteger(1))
     // don't use getFromRawBuffer which requires bit packing
