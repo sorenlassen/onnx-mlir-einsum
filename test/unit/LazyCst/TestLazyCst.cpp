@@ -63,8 +63,14 @@ public:
     std::cout << "f0.getRawBytes() size=" << rawBytes.size() << " [0]='"
               << rawBytes[0] << "'\n";
 
-    std::cout << "values: ";
+    std::cout << "f0 values: ";
     for (auto it = f0.value_begin<float>(); it != f0.value_end<float>(); ++it) {
+      std::cout << *it << " ";
+    }
+    std::cout << "\n";
+    ElementsAttr e0 = f0;
+    std::cout << "ElementsAttr(f0) values: ";
+    for (auto it = e0.value_begin<float>(); it != e0.value_end<float>(); ++it) {
       std::cout << *it << " ";
     }
     std::cout << "\n";
