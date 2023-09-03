@@ -89,8 +89,8 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     mlir::FailureOr<iterator<X>> try_value_begin_impl(OverloadToken<X>) const;
 
     template <typename X>
-    iterator<X> value_end() const {
-      return getValues<X>().end();
+    auto value_end() const {
+      return std::next(value_begin<X>(), size());
     }
 
     // BufferElementsAttr implementation.

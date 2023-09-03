@@ -63,6 +63,12 @@ public:
     std::cout << "f0.getRawBytes() size=" << rawBytes.size() << " [0]='"
               << rawBytes[0] << "'\n";
 
+    std::cout << "values: ";
+    for (auto it = f0.value_begin<float>(); it != f0.value_end<float>(); ++it) {
+      std::cout << *it << " ";
+    }
+    std::cout << "\n";
+
     auto m = ModuleOp::create(loc);
     m->setAttr("f0", f0);
     m->setAttr("f1", f1);
