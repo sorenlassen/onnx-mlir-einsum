@@ -47,6 +47,10 @@ ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
   return onnx_mlir::asArrayRef(buffer.substr(offset, size));
 }
 
+ArrayRef<char> LazyElementsAttr::getRawBytes() const {
+  llvm_unreachable("TODO: implement this");
+}
+
 DenseElementsAttr toDenseElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes) {
   if (type.getElementType().isInteger(1))

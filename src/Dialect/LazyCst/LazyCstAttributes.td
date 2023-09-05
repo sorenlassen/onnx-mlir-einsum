@@ -51,7 +51,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
 }
 
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
-    ElementsAttrInterface
+    DenseLikeElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
@@ -66,5 +66,25 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
       return $_get(type.getContext(), type, callee, index);
     }]>,
   ];
+  let extraClassDeclaration = [{
+    llvm::ArrayRef<char> getRawBytes() const;
+
+    // DenseLikeElementsAttrInterface implementation.
+    mlir::DenseElementsAttr toDenseElementsAttr() const {
+      return toDenseElementsAttrFromRawBytes(getType(), getRawBytes());
+    }
+
+    // ElementsAttrInterface implementation.
+    using ContiguousIterableTypesT = RawBytesContiguousIterTypes;
+    using NonContiguousIterableTypesT = RawBytesNonContiguousIterTypes;
+    template <typename X> using iterator = RawBytesIterator<X>;
+    template <typename X> using iterator_range = llvm::iterator_range<iterator<X>>;
+    template <typename T> auto try_value_begin_impl(OverloadToken<T>) const {
+      return try_value_begin_from_raw_bytes<T>(getElementType(), getRawBytes());
+    }
+    template <typename X> auto value_end() const {
+      return std::next(value_begin<X>(), size());
+    }
+  }];
   let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
 }

@@ -1,4 +1,4 @@
-// RUN: onnx-mlir-opt --lazy-constprop-onnx %s -split-input-file | FileCheck %s
+// RUN: onnx-mlir-opt --lazy-constprop-onnx --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
 
 // TODO: remove LazyConstPropONNXPass and this lit test
 
