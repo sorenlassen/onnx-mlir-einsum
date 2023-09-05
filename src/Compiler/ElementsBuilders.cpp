@@ -4,7 +4,7 @@
 
 #include "src/Compiler/ElementsBuilders.hpp"
 
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/ONNX/OnnxElementsAttrBuilder.hpp"
 #include "src/Support/Arrays.hpp"
 #include "src/Support/TypeUtilities.hpp"

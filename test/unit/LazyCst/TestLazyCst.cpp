@@ -3,6 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"

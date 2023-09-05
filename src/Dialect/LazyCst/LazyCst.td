@@ -25,6 +25,9 @@ def LazyCst_Dialect : Dialect {
   let cppNamespace = "::lazycst";
   let useDefaultAttributePrinterParser = 1;
   let extraClassDeclaration = [{
+  private:
+    void registerAttributes(); // Register the builtin Attributes.
+  public:
     FileDataManager fileDataManager;
     LazyFunctionManager lazyFunctionManager;
     ConstantFolders constantFolders;

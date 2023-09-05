@@ -5,6 +5,7 @@ add_onnx_mlir_dialect_doc(lazycst LazyCst.td)
 
 add_onnx_mlir_library(OMLazyCst
   LazyCst.cpp
+  LazyCstAttributes.cpp
   LazyCstOps.cpp
   BType.cpp
   ConstantFoldableAnalysis.cpp
