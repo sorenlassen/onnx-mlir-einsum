@@ -10,6 +10,7 @@ add_onnx_mlir_library(OMLazyCst
   ConstantFoldableAnalysis.cpp
   ConstantFolder.cpp
   FileDataManager.cpp
+  LazyFunctionManager.cpp
   WideNum.cpp
 
   DEPENDS

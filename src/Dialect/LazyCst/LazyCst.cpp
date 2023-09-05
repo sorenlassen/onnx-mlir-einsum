@@ -37,15 +37,6 @@ using namespace mlir;
 
 namespace lazycst {
 
-mlir::StringAttr LazyFunctionManager::nextName(mlir::ModuleOp module) {
-  unsigned subscript = counter++;
-  auto name = mlir::StringAttr::get(
-      module.getContext(), "lazycst." + llvm::Twine(subscript));
-  assert(!SymbolTable::lookupSymbolIn(module, name) &&
-         "next LazyFuncOp name was already taken");
-  return name;
-}
-
 ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
   LazyCstDialect *lazyElementsDialect =
       getContext()->getLoadedDialect<LazyCstDialect>();
