@@ -1,5 +1,7 @@
 // RUN: onnx-mlir-opt --lazy-constprop-onnx %s -split-input-file | FileCheck %s
 
+// TODO: remove LazyConstPropONNXPass and this lit test
+
 func.func @test_add_scalars() -> tensor<f32> {
   %0 = onnx.Constant dense<1.0> : tensor<f32>
   %1 = onnx.Constant dense<2.0> : tensor<f32>

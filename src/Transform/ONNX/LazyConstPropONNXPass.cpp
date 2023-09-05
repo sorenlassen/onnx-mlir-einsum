@@ -2,6 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// TODO: remove this pass
+
 #include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCst.hpp"
