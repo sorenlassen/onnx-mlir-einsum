@@ -6,6 +6,7 @@
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
+#include "src/Dialect/LazyCst/LazyFunctionManager.hpp"
 #include "src/Dialect/LazyCst/RawBytesIterator.hpp"
 
 #include "src/Dialect/LazyCst/WideNum.hpp"
@@ -13,7 +14,6 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/IR/Dialect.h"
 
@@ -29,15 +29,6 @@ using DenseLikeElementsAttrInterface = mlir::DenseLikeElementsAttrInterface;
 // Makes deep copy.
 mlir::DenseElementsAttr toDenseElementsAttrFromRawBytes(
     mlir::ShapedType, llvm::ArrayRef<char> bytes);
-
-class LazyFunctionManager {
-public:
-  LazyFunctionManager() : counter(0) {}
-  mlir::StringAttr nextName(mlir::ModuleOp module);
-
-private:
-  std::atomic<unsigned> counter;
-};
 
 } // namespace lazycst
 
