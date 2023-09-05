@@ -15,6 +15,8 @@
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/Dialect.h"
 
+#include "llvm/ADT/Sequence.h"
+
 #include <tuple>
 #include <type_traits>
 
@@ -34,37 +36,6 @@ public:
 private:
   std::atomic<unsigned> counter;
 };
-
-template <class C>
-struct BufferElementsAttr : public mlir::Attribute {
-  using Attribute::Attribute;
-
-  llvm::ArrayRef<char> getRawBytes() const {
-    return static_cast<const C *>(this)->getRawBytesImpl();
-  }
-
-  llvm::ArrayRef<char> getRawBytesImpl() const {
-    llvm_unreachable("derived class must implement getRawBytesImpl");
-  }
-};
-
-} // namespace lazycst
-
-namespace {
-template <typename X, typename... Ts>
-constexpr bool isOneOfTuplePtrTypes(std::tuple<Ts...> *p) {
-  return llvm::is_one_of<X, Ts...>::value;
-}
-template <typename X, typename Tuple>
-constexpr bool isOneOfTupleTypes = isOneOfTuplePtrTypes<X>((Tuple *)nullptr);
-} // namespace
-
-#include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"
-
-#define GET_ATTRDEF_CLASSES
-#include "src/Dialect/LazyCst/LazyCstAttributes.hpp.inc"
-
-namespace lazycst {
 
 namespace detail {
 
@@ -190,24 +161,59 @@ std::function<X(size_t)> getLookupFunction(
     if constexpr (!llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value)
       return getFPLookupFunction<X>(fpType, rawBytes);
   } else if (auto intType = llvm::dyn_cast<mlir::IntegerType>(elementType)) {
-    if constexpr (!llvm::is_one_of<X, llvm::APInt, mlir::IntegerAttr>::value)
+    if constexpr (!llvm::is_one_of<X, llvm::APFloat, mlir::FloatAttr>::value)
       return getIntLookupFunction<X>(intType, rawBytes);
   }
   return nullptr;
 }
 
-} // namespace detail
+template <typename X, typename... Ts>
+constexpr bool isOneOfTuplePtrTypes(std::tuple<Ts...> *p) {
+  return llvm::is_one_of<X, Ts...>::value;
+}
+template <typename X, typename Tuple>
+constexpr bool isOneOfTupleTypes = isOneOfTuplePtrTypes<X>((Tuple *)nullptr);
 
 template <typename X>
-inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
-    -> mlir::FailureOr<iterator<X>> {
-  if constexpr (isOneOfTupleTypes<X, ContiguousIterableTypesT>) {
-    return reinterpret_cast<const X *>(getRawBytes().data());
-  } else if constexpr (isOneOfTupleTypes<X, NonContiguousIterableTypesT>) {
-    if (auto lookupFn =
-            detail::getLookupFunction<X>(getElementType(), getRawBytes())) {
-      auto range = llvm::seq<size_t>(0, getNumElements());
-      return iterator<X>(range.begin(), lookupFn);
+bool isValidElementType(mlir::Type elementType) {
+  if constexpr (std::is_same_v<X, bool>) {
+    return elementType.isInteger(1);
+  } else {
+    return true; // TODO: check int/float, width, sign, etc
+  }
+}
+
+} // namespace detail
+
+using RawBytesContiguousIterTypes = std::tuple<int8_t, uint8_t, int16_t,
+    uint16_t, int32_t, uint32_t, int64_t, uint64_t, bool, double, float,
+    onnx_mlir::float_16, onnx_mlir::bfloat_16, onnx_mlir::float_8e4m3fn,
+    onnx_mlir::float_8e4m3fnuz, onnx_mlir::float_8e5m2,
+    onnx_mlir::float_8e5m2fnuz>;
+
+using RawBytesNonContiguousIterTypes = std::tuple<mlir::Attribute,
+    mlir::FloatAttr, mlir::IntegerAttr, llvm::APFloat, llvm::APInt, WideNum>;
+
+template <typename X>
+using RawBytesIterator = std::conditional_t<
+    detail::isOneOfTupleTypes<X, RawBytesContiguousIterTypes>, const X *,
+    llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
+        std::function<X(size_t)>>>;
+
+template <typename X>
+inline auto try_value_begin_from_raw_bytes(mlir::Type elementType,
+    llvm::ArrayRef<char> rawBytes) -> mlir::FailureOr<RawBytesIterator<X>> {
+  if constexpr (detail::isOneOfTupleTypes<X, RawBytesContiguousIterTypes>) {
+    if (detail::isValidElementType<X>(elementType)) {
+      return reinterpret_cast<const X *>(rawBytes.data());
+    } else {
+      return mlir::failure();
+    }
+  } else if constexpr (detail::isOneOfTupleTypes<X,
+                           RawBytesNonContiguousIterTypes>) {
+    if (auto lookupFn = detail::getLookupFunction<X>(elementType, rawBytes)) {
+      llvm::iota_range<size_t>::const_iterator begin(0);
+      return RawBytesIterator<X>(begin, std::move(lookupFn));
     } else {
       return mlir::failure();
     }
@@ -217,3 +223,8 @@ inline auto FileDataElementsAttr::try_value_begin_impl(OverloadToken<X>) const
 }
 
 } // namespace lazycst
+
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "src/Dialect/LazyCst/LazyCstAttributes.hpp.inc"

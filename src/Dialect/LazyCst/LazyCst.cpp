@@ -46,7 +46,7 @@ mlir::StringAttr LazyFunctionManager::nextName(mlir::ModuleOp module) {
   return name;
 }
 
-ArrayRef<char> FileDataElementsAttr::getRawBytesImpl() const {
+ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
   LazyCstDialect *lazyElementsDialect =
       getContext()->getLoadedDialect<LazyCstDialect>();
   StringRef buffer = lazyElementsDialect->fileDataManager.readFile(getPath());
