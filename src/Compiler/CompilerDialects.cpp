@@ -8,7 +8,7 @@
 
 #include "src/Compiler/CompilerOptions.hpp"
 #include "src/Dialect/Krnl/KrnlOps.hpp"
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Dialect/Mlir/ConstantPrinter.hpp"
 #include "src/Dialect/ONNX/ONNXConstantFolders.hpp"
 #include "src/Dialect/ONNX/ONNXDialect.hpp"

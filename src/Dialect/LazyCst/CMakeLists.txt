@@ -4,7 +4,7 @@ add_onnx_mlir_dialect(LazyCst lazycst)
 add_onnx_mlir_dialect_doc(lazycst LazyCst.td)
 
 add_onnx_mlir_library(OMLazyCst
-  LazyCst.cpp
+  LazyCstDialect.cpp
   LazyCstAttributes.cpp
   LazyCstOps.cpp
   BType.cpp

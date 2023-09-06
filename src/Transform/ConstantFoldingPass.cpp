@@ -3,7 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Pass/Passes.hpp"
 
 #include "mlir/Dialect/Func/IR/FuncOps.h"

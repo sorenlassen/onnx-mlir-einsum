@@ -4,7 +4,7 @@
 
 #include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
 
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 
 #include "mlir/IR/OpDefinition.h"
 

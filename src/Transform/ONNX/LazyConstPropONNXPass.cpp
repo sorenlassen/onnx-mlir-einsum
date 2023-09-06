@@ -6,8 +6,8 @@
 
 #include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
-#include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 #include "src/Dialect/ONNX/ONNXOps.hpp"
 #include "src/Pass/Passes.hpp"

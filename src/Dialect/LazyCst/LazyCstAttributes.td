@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
+include "mlir/IR/AttrTypeBase.td"
+include "mlir/IR/BuiltinAttributeInterfaces.td"
+include "src/Interface/DenseLikeElementsAttrInterface.td"
+
 class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = [],
                         string baseCppClass = "::mlir::Attribute">
     : AttrDef<LazyCst_Dialect, attrName, traits, baseCppClass> {

@@ -3,7 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 
 #include "src/Support/Arrays.hpp"
 #include "src/Support/TypeUtilities.hpp"
@@ -45,7 +45,7 @@ DenseElementsAttr toDenseElementsAttrFromRawBytes(
   return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
-// See explanation in LazyCstDialect::initialize() in LaztCst.cpp.
+// See explanation in LazyCstDialect::initialize() in LaztCstDialect.cpp.
 void LazyCstDialect::registerAttributes() {
   addAttributes<
 #define GET_ATTRDEF_LIST

@@ -2,8 +2,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/LazyCst.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"

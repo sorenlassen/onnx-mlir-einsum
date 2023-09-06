@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/FunctionInterfaces.h"

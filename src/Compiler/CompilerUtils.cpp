@@ -43,7 +43,7 @@
 #include "src/Compiler/CompilerPasses.hpp"
 #include "src/Compiler/ElementsBuilders.hpp"
 #include "src/Compiler/HeapReporter.hpp"
-#include "src/Dialect/LazyCst/LazyCst.hpp"
+#include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Version/Version.hpp"
 
 #include <fstream>
