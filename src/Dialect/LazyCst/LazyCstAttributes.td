@@ -10,10 +10,6 @@ class LazyCst_Attr<string attrName, string attrMnemonic, list<Trait> traits = []
   let mnemonic = attrMnemonic;
 }
 
-// def RawBytesElementsAttrTrait : NativeAttrTrait<"RawBytesElementsAttrTrait"> {
-//   let cppNamespace = "lazycst";
-// }
-
 def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DenseLikeElementsAttrInterface
   ]> {
