@@ -3,7 +3,6 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp"
-#include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 void lazycst::LazyCstDialect::initialize() {
