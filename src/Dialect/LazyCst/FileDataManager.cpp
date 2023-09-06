@@ -42,31 +42,32 @@ llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
   }
 }
 
-void FileDataManager::writeFile(size_t size,
+std::string FileDataManager::writeFile(size_t size,
     const std::function<void(llvm::MutableArrayRef<char>)> writer) {
   uint64_t fileNumber = nextFileNumber++;
-  std::filesystem::path filepath = config.writePathPrefix;
-  filepath += std::to_string(fileNumber) + config.writePathSuffix;
-  std::ofstream outFile(filepath, std::ofstream::app);
+  std::string filepath = config.writePathPrefix + std::to_string(fileNumber) +
+                         config.writePathSuffix;
+  std::filesystem::path fullpath = config.writeDirectoryPath;
+  fullpath /= filepath;
   {
-    std::ofstream create(filepath, std::ios::binary | std::ios::trunc);
+    std::ofstream create(fullpath, std::ios::binary | std::ios::trunc);
     assert(!create.fail() && "failed to create data file");
   }
   std::error_code ec;
-  std::filesystem::resize_file(filepath, size, ec);
+  std::filesystem::resize_file(fullpath, size, ec);
   assert(!ec && "failed to write data file");
   auto errorOrFilebuf =
-      llvm::WriteThroughMemoryBuffer::getFile(filepath.native(), size);
+      llvm::WriteThroughMemoryBuffer::getFile(fullpath.native(), size);
   assert(errorOrFilebuf && "failed to mmap data file");
   std::unique_ptr<llvm::WriteThroughMemoryBuffer> filebuf =
       std::move(errorOrFilebuf.get());
   writer(filebuf->getBuffer());
   {
     std::lock_guard<std::mutex> lock(filesMux);
-    auto [iter, inserted] =
-        files.try_emplace(filepath.native(), std::move(filebuf));
+    auto [iter, inserted] = files.try_emplace(filepath, std::move(filebuf));
     assert(inserted && "written data file cannot already exist");
   }
+  return filepath;
 }
 
 llvm::StringRef FileDataManager::File::getBuffer() {

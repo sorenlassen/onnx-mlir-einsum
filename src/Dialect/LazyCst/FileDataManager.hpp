@@ -20,15 +20,19 @@ class FileDataManager {
 public:
   struct Config {
     std::vector<std::filesystem::path> readDirectoryPaths;
-    std::filesystem::path writePathPrefix;
+    std::filesystem::path writeDirectoryPath;
+    std::string writePathPrefix;
     std::string writePathSuffix;
   };
 
-  void configure(const Config &config) { this->config = config; };
+  void configure(const Config &config) {
+    // TODO: decide if we should enforce that write path is in read paths
+    this->config = config;
+  };
 
   llvm::StringRef readFile(llvm::StringRef filepath);
 
-  void writeFile(size_t size,
+  std::string writeFile(size_t size,
       const std::function<void(llvm::MutableArrayRef<char>)> writer);
 
 private:

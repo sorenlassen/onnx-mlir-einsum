@@ -5,6 +5,7 @@
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
+#include "src/Support/Arrays.hpp"
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
@@ -25,6 +26,7 @@ class Test {
   Location loc;
   OpBuilder b;
   Type F32, I32, UI32;
+  lazycst::LazyCstDialect *lazyDialect;
 
   Attribute zero(Type t) {
     if (isa<FloatType>(t))
@@ -38,19 +40,22 @@ public:
     F32 = b.getF32Type();
     I32 = b.getI32Type();
     UI32 = b.getIntegerType(32, /*isSigned=*/false);
+    lazyDialect = ctx->getLoadedDialect<lazycst::LazyCstDialect>();
 
-    auto &lazyDialect = *ctx->getLoadedDialect<lazycst::LazyCstDialect>();
     lazycst::FileDataManager::Config config;
     config.readDirectoryPaths.push_back(".");
-    lazyDialect.fileDataManager.configure(config);
+    config.writeDirectoryPath = ".";
+    config.writePathPrefix = "prefix";
+    config.writePathSuffix = ".data";
+    lazyDialect->fileDataManager.configure(config);
   }
 
   llvm::raw_ostream &print_ea(const std::string &name, ElementsAttr ea) {
     return llvm::outs() << name << "=" << ea << ":" << ea.getShapedType();
   }
 
-  int test_file_data() {
-    llvm::outs() << "test_file_data():\n";
+  int test_read_file_data() {
+    llvm::outs() << "test_read_file_data():\n";
     auto type = RankedTensorType::get({5}, F32);
     // TODO: pre-populate foo.data
     auto path0 = b.getStringAttr("foo.data");
@@ -81,6 +86,28 @@ public:
     m->setAttr("f1", f1);
 
     llvm::outs() << m << "\n\n";
+    return 0;
+  }
+
+  int test_write_file_data() {
+    llvm::outs() << "test_write_file_data():\n";
+
+    std::string filepath = lazyDialect->fileDataManager.writeFile(
+        20, [](MutableArrayRef<char> dst) {
+          auto f32s = onnx_mlir::castMutableArrayRef<float>(dst);
+          for (int i = 0; i < 5; ++i)
+            f32s[i] = i * 1.1;
+        });
+    auto type = RankedTensorType::get({5}, F32);
+    auto f = FileDataElementsAttr::get(type, b.getStringAttr(filepath));
+    print_ea("f", f) << "\n";
+    std::cout << "f values: ";
+    for (auto it = f.value_begin<float>(); it != f.value_end<float>(); ++it) {
+      std::cout << *it << " ";
+    }
+    std::cout << "\n";
+
+    llvm::outs() << "\n";
     return 0;
   }
 
@@ -173,7 +200,8 @@ int main(int argc, char *argv[]) {
   context.loadDialect<LazyCstDialect>();
   Test test(&context);
   int failures = 0;
-  failures += test.test_file_data();
+  failures += test.test_read_file_data();
+  failures += test.test_write_file_data();
   failures += test.test_lazy_elms();
   failures += test.test_lazy_func();
   if (failures != 0) {
