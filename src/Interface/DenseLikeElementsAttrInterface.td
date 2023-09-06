@@ -7,6 +7,8 @@
 include "mlir/IR/OpBase.td"
 include "mlir/IR/BuiltinAttributeInterfaces.td"
 
+// TODO: consider not inheriting ElementsAttrInterface and instead the contract
+//       is just the toDenseElementsAttr() method
 def DenseLikeElementsAttrInterface : AttrInterface<"DenseLikeElementsAttrInterface", [ElementsAttrInterface]> {
   let description = [{
     Interface for elements attributes with a toDenseElementsAttr() method.
