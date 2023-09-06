@@ -39,9 +39,10 @@ ArrayRef<char> LazyElementsAttr::getRawBytes() const {
 
 DenseElementsAttr toDenseElementsAttrFromRawBytes(
     ShapedType type, ArrayRef<char> bytes) {
-  if (type.getElementType().isInteger(1))
+  if (type.getElementType().isInteger(1)) {
     // don't use getFromRawBuffer which requires bit packing
     return DenseElementsAttr::get(type, onnx_mlir::castArrayRef<bool>(bytes));
+  }
   return DenseElementsAttr::getFromRawBuffer(type, bytes);
 }
 
