@@ -47,7 +47,7 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
       return std::next(value_begin<X>(), size());
     }
   }];
-  let assemblyFormat = "`<` $path ( `,` struct($offset)^ )? `>`";
+  let assemblyFormat = "`<` $path ( `+` $offset^ )? `>`";
 }
 
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
