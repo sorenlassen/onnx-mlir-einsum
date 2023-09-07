@@ -6,6 +6,17 @@
 
 #include <fstream>
 
+#ifdef _WIN32
+#include <windows.h>
+#define MS_ASYNC 1
+static int msync(void *addr, size_t length, int flags) {
+  return FlushViewOfFile(addr, length) ? 0 : -1;
+}
+#else
+#include <sys/mman.h>
+#include <sys/types.h>
+#endif
+
 namespace lazycst {
 
 llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
@@ -61,7 +72,10 @@ std::string FileDataManager::writeFile(size_t size,
   assert(errorOrFilebuf && "failed to mmap data file");
   std::unique_ptr<llvm::WriteThroughMemoryBuffer> filebuf =
       std::move(errorOrFilebuf.get());
-  writer(filebuf->getBuffer());
+  llvm::MutableArrayRef<char> buffer = filebuf->getBuffer();
+  writer(buffer);
+  int ret = msync(buffer.data(), size, MS_ASYNC);
+  assert(ret == 0 && "msync failed");
   {
     std::lock_guard<std::mutex> lock(filesMux);
     auto [iter, inserted] = files.try_emplace(filepath, std::move(filebuf));
