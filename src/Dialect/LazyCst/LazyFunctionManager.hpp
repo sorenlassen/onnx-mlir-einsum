@@ -9,31 +9,47 @@
 #include "mlir/IR/BuiltinOps.h"
 
 #include "llvm/ADT/ArrayRef.h"
-#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/SmallVector.h"
 
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <unordered_map>
 #include <vector>
 
 namespace lazycst {
 
 class LazyFuncOp;
 
+struct LazyFuncOpHash {
+  std::size_t operator()(const LazyFuncOp &op) const noexcept;
+};
+
 class LazyFunctionManager {
 public:
-  LazyFunctionManager() : counter(0) {}
+  LazyFunctionManager();
+  ~LazyFunctionManager();
 
   mlir::StringAttr nextName(mlir::ModuleOp module);
 
-  llvm::ArrayRef<mlir::Attribute> getResults(const LazyFuncOp &lazyFunction);
+  mlir::Attribute getResult(const LazyFuncOp &op, unsigned index);
+
+  void fold(llvm::ArrayRef<LazyFuncOp> ops);
 
 private:
-  std::atomic<unsigned> counter;
+  struct Result;
+  struct Function;
 
-  std::mutex resultsMutex;
-  std::condition_variable resultsCondition;
-  llvm::StringMap<std::vector<mlir::Attribute>> results;
+  void getResults(
+      const LazyFuncOp &op, llvm::SmallVectorImpl<mlir::Attribute> &attrs);
+
+  void foldLocked(
+      std::unique_lock<std::mutex> &lock, llvm::ArrayRef<LazyFuncOp> ops);
+
+  std::atomic<unsigned> counter;
+  std::mutex functionsMutex;
+  std::condition_variable functionsCondition;
+  std::unordered_map<LazyFuncOp, Function, LazyFuncOpHash> functions;
 };
 
 } // namespace lazycst
