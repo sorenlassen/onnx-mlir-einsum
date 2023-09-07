@@ -23,7 +23,7 @@ llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
   File *file = nullptr;
   bool exists = false;
   {
-    std::lock_guard<std::mutex> lock(filesMux);
+    std::lock_guard<std::mutex> lock(filesMutex);
     auto [iter, inserted] = files.try_emplace(filepath, nullptr);
     exists = !inserted;
     file = &iter->second;
@@ -77,7 +77,7 @@ std::string FileDataManager::writeFile(size_t size,
   int ret = msync(buffer.data(), size, MS_ASYNC);
   assert(ret == 0 && "msync failed");
   {
-    std::lock_guard<std::mutex> lock(filesMux);
+    std::lock_guard<std::mutex> lock(filesMutex);
     auto [iter, inserted] = files.try_emplace(filepath, std::move(filebuf));
     assert(inserted && "written data file cannot already exist");
   }

@@ -57,7 +57,7 @@ private:
 
   std::atomic<uint64_t> nextFileNumber = 0;
 
-  std::mutex filesMux;
+  std::mutex filesMutex;
   llvm::StringMap<File> files;
 };
 
