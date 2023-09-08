@@ -12,26 +12,26 @@ GraphEvaluator::GraphEvaluator(llvm::ThreadPool *threadPool)
 GraphEvaluator::~GraphEvaluator() = default;
 
 // All predecessors must have been added beforehand.
-void GraphEvaluator::addNode(
-    NodeRef node, llvm::ArrayRef<NodeRef> predecessors, Eval eval) {
+void GraphEvaluator::addNode(mlir::Operation *node,
+    llvm::ArrayRef<mlir::Operation *> predecessors, Eval eval) {
   assert(eval != nullptr);
   auto [it, inserted] = nodes.try_emplace(node);
   assert(inserted);
-  NodeRecord &rec = it->second;
+  OpRecord &rec = it->second;
   rec.predecessors.reserve(predecessors.size());
-  for (NodeRef predecessor : predecessors)
+  for (mlir::Operation *predecessor : predecessors)
     rec.predecessors.push_back(lookup(predecessor));
   rec.eval = std::move(eval);
 }
 
-auto GraphEvaluator::lookup(NodeRef node) -> NodeEntryPtr {
+auto GraphEvaluator::lookup(mlir::Operation *node) -> OpEntry * {
   auto it = nodes.find(node);
   assert(it != nodes.end());
   return &*it;
 }
 
-void GraphEvaluator::enqueue(NodeEntryPtr entry) {
-  NodeRecord &rec = entry->second;
+void GraphEvaluator::enqueue(OpEntry *entry) {
+  OpRecord &rec = entry->second;
   if (threadPool) {
     auto f = [this, entry, eval = std::move(rec.eval)] {
       eval(entry->first);
@@ -48,9 +48,8 @@ void GraphEvaluator::enqueue(NodeEntryPtr entry) {
   }
 }
 
-bool GraphEvaluator::tryEvaluateNode(
-    NodeEntryPtr entry, int me, Set &awaiting) {
-  NodeRecord &rec = entry->second;
+bool GraphEvaluator::tryEvaluateNode(OpEntry *entry, int me, Set &awaiting) {
+  OpRecord &rec = entry->second;
   if (rec.isVisited()) {
     if (rec.isEvaluated())
       return true;
@@ -63,7 +62,7 @@ bool GraphEvaluator::tryEvaluateNode(
   }
   rec.who = me;
   bool queue = true;
-  for (NodeEntryPtr predecessor : rec.predecessors)
+  for (OpEntry *predecessor : rec.predecessors)
     queue &= tryEvaluateNode(predecessor, me, awaiting);
   if (queue) {
     enqueue(entry);
@@ -75,7 +74,7 @@ bool GraphEvaluator::tryEvaluateNode(
   return false;
 }
 
-void GraphEvaluator::evaluate(llvm::ArrayRef<NodeRef> nodes) {
+void GraphEvaluator::evaluate(llvm::ArrayRef<mlir::Operation *> nodes) {
   std::unique_lock<std::mutex> lock(mux);
   int me = ++whoCounter;
   assert(me != 0);
@@ -84,9 +83,9 @@ void GraphEvaluator::evaluate(llvm::ArrayRef<NodeRef> nodes) {
     tryEvaluateNode(lookup(node), me, awaiting);
   while (!awaiting.empty()) {
     condition.wait(lock);
-    llvm::SmallVector<NodeEntryPtr> evaluated;
-    for (NodeEntryPtr entry : awaiting) {
-      NodeRecord &rec = entry->second;
+    llvm::SmallVector<OpEntry *> evaluated;
+    for (OpEntry *entry : awaiting) {
+      OpRecord &rec = entry->second;
       if (rec.who == me && rec.eval != nullptr &&
           llvm::all_of(rec.predecessors, isEvaluated)) {
         enqueue(entry);
@@ -94,7 +93,7 @@ void GraphEvaluator::evaluate(llvm::ArrayRef<NodeRef> nodes) {
       if (rec.isEvaluated())
         evaluated.push_back(entry);
     }
-    for (NodeEntryPtr entry : evaluated)
+    for (OpEntry *entry : evaluated)
       awaiting.erase(entry);
   }
 }
