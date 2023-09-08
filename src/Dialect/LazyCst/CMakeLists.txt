@@ -12,6 +12,7 @@ add_onnx_mlir_library(OMLazyCst
   BType.cpp
   ConstantFoldableAnalysis.cpp
   ConstantFolder.cpp
+  GraphEvaluator.cpp
   FileDataManager.cpp
   LazyFunctionManager.cpp
   WideNum.cpp

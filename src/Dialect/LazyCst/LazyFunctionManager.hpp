@@ -55,7 +55,7 @@ private:
   std::condition_variable functionsCondition;
   std::unordered_map<LazyFuncOp, Function, LazyFuncOpHash> functions;
 
-  GraphEvaluator<mlir::Operation *> evaluator;
+  GraphEvaluator evaluator;
 };
 
 } // namespace lazycst
