@@ -98,19 +98,13 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   return lazyConstantOps;
 }
 
-void convertIntoLazyConstant(const std::vector<Operation *> &ops,
-    StringAttr lazyFuncName, SymbolTable &symbolTable) {
-  auto module = cast<ModuleOp>(symbolTable.getOp());
-  OpBuilder b(module.getBodyRegion());
-
+void convertIntoLazyConstant(
+    const std::vector<Operation *> &ops, lazycst::LazyFuncOp cstexpr) {
   assert(!ops.empty());
   Operation *resultOp = ops.front();
-  Location loc = resultOp->getLoc();
-  auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, lazyFuncName);
-  symbolTable.insert(cstexpr);
-
-  b.setInsertionPointToStart(cstexpr.addEntryBlock());
-  auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
+  auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
+  auto lazyReturn =
+      b.create<lazycst::LazyReturnOp>(cstexpr->getLoc(), ValueRange{});
   b.setInsertionPoint(lazyReturn);
 
   SmallPtrSet<Operation *, 1> opsSet(ops.begin(), ops.end());
@@ -159,7 +153,7 @@ void convertIntoLazyConstant(const std::vector<Operation *> &ops,
 
   SmallVector<Attribute> lazyResults;
   {
-    auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
+    auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
     unsigned numResults = resultOp->getNumResults();
     for (unsigned j = 0; j < numResults; ++j) {
       Value res = resultOp->getResult(j);
@@ -221,9 +215,10 @@ struct LazyConstantFoldingPass
     auto *lazyCstDialect =
         getContext().getLoadedDialect<lazycst::LazyCstDialect>();
     for (const auto &ops : llvm::reverse(resultOps)) {
-      StringAttr lazyFuncName =
-          lazyCstDialect->lazyFunctionManager.nextName(module);
-      convertIntoLazyConstant(ops, lazyFuncName, symbolTable);
+      Location loc = ops.front()->getLoc();
+      lazycst::LazyFuncOp cstexpr =
+          lazyCstDialect->lazyFunctionManager.create(symbolTable, loc);
+      convertIntoLazyConstant(ops, cstexpr);
     }
   }
 };

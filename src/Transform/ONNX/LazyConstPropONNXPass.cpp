@@ -65,7 +65,13 @@ Attribute getConstantAttribute(Operation *op) {
 struct LazyConstPropRegion {
   using Span = std::pair<size_t, size_t>;
 
-  void run(Region *region) {
+  LazyConstPropRegion(Region *region)
+      : region(region), symbolTable(region->getParentOfType<ModuleOp>()),
+        lazyCstDialect(
+            region->getContext()->getLoadedDialect<lazycst::LazyCstDialect>()) {
+  }
+
+  void run() {
     Operation *terminator = region->back().getTerminator();
     int numOperands = terminator->getNumOperands();
     for (int i = 0; i < numOperands; ++i) {
@@ -134,19 +140,11 @@ struct LazyConstPropRegion {
     assert(span.first < span.second);
     Operation *defop = v.getDefiningOp();
     assert(defop == opQueue[span.second - 1]);
-    ModuleOp module = defop->getParentOfType<ModuleOp>();
-    OpBuilder b(module.getBodyRegion());
-    MLIRContext *ctx = b.getContext();
-    auto *lazyCstDialect = ctx->getLoadedDialect<lazycst::LazyCstDialect>();
-    StringAttr lazyFuncName =
-        lazyCstDialect->lazyFunctionManager.nextName(module);
-    auto lazyFunc = FlatSymbolRefAttr::get(lazyFuncName);
-
-    Location loc = defop->getLoc();
-    auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, lazyFuncName);
-    SymbolTable(module).insert(cstexpr);
-    b.setInsertionPointToStart(cstexpr.addEntryBlock());
-    auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
+    lazycst::LazyFuncOp cstexpr = lazyCstDialect->lazyFunctionManager.create(
+        symbolTable, defop->getLoc());
+    auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
+    auto lazyReturn =
+        b.create<lazycst::LazyReturnOp>(cstexpr->getLoc(), ValueRange{});
     b.setInsertionPoint(lazyReturn);
 
     const auto opIsOutside = [&](Operation *op) {
@@ -207,6 +205,7 @@ struct LazyConstPropRegion {
       }
 
       {
+        auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
         OpBuilder::InsertionGuard guard(b);
         unsigned numResults = op->getNumResults();
         for (unsigned j = 0; j < numResults; ++j) {
@@ -256,6 +255,9 @@ struct LazyConstPropRegion {
     }
   }
 
+  Region *region;
+  SymbolTable symbolTable;
+  lazycst::LazyCstDialect *lazyCstDialect;
   SmallVector<Operation *> opQueue;
   DenseMap<Operation *, size_t> opMap;
 };
@@ -404,7 +406,7 @@ void lazyConstPropRegion(Region *region) {
   Ops &cfops = lcpa.LazyFoldableOps;
   group(region, cfops);
   bubble(region, cfops);
-  LazyConstPropRegion().run(region);
+  LazyConstPropRegion(region).run();
 }
 
 Operation *negate(Value v, PatternRewriter &rewriter) {

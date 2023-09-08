@@ -66,13 +66,12 @@ LazyFunctionManager::LazyFunctionManager() : counter(0) {}
 
 LazyFunctionManager::~LazyFunctionManager() = default;
 
-StringAttr LazyFunctionManager::nextName(ModuleOp module) {
-  unsigned subscript = counter++;
-  auto name =
-      StringAttr::get(module.getContext(), "lazycst." + Twine(subscript));
-  assert(!SymbolTable::lookupSymbolIn(module, name) &&
-         "next LazyFuncOp name was already taken");
-  return name;
+LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
+  auto module = cast<ModuleOp>(symbolTable.getOp());
+  OpBuilder b(module.getBodyRegion());
+  auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, nextName(symbolTable));
+  symbolTable.insert(cstexpr);
+  return cstexpr;
 }
 
 Attribute LazyFunctionManager::getResult(const LazyFuncOp &op, unsigned index) {
@@ -86,6 +85,14 @@ void LazyFunctionManager::fold(llvm::ArrayRef<LazyFuncOp> ops) {
     std::unique_lock<std::mutex> lock(functionsMutex);
     foldLocked(lock, ops);
   }
+}
+
+StringAttr LazyFunctionManager::nextName(SymbolTable &symbolTable) {
+  unsigned subscript = counter++;
+  auto name = StringAttr::get(
+      symbolTable.getOp()->getContext(), "lazycst." + Twine(subscript));
+  assert(!symbolTable.lookup(name) && "next LazyFuncOp name was already taken");
+  return name;
 }
 
 void LazyFunctionManager::getResults(

@@ -6,7 +6,7 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
-#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/SymbolTable.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
@@ -30,7 +30,7 @@ public:
   LazyFunctionManager();
   ~LazyFunctionManager();
 
-  mlir::StringAttr nextName(mlir::ModuleOp module);
+  LazyFuncOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
   mlir::Attribute getResult(const LazyFuncOp &op, unsigned index);
 
@@ -39,6 +39,8 @@ public:
 private:
   struct Result;
   struct Function;
+
+  mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
   void getResults(
       const LazyFuncOp &op, llvm::SmallVectorImpl<mlir::Attribute> &attrs);
