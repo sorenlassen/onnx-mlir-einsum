@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "src/Dialect/LazyCst/GraphEvaluator.hpp"
+
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
 #include "mlir/IR/SymbolTable.h"
@@ -52,6 +54,8 @@ private:
   std::mutex functionsMutex;
   std::condition_variable functionsCondition;
   std::unordered_map<LazyFuncOp, Function, LazyFuncOpHash> functions;
+
+  GraphEvaluator<mlir::Operation *> evaluator;
 };
 
 } // namespace lazycst

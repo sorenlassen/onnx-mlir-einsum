@@ -62,7 +62,7 @@ struct LazyFunctionManager::Function {
   }
 };
 
-LazyFunctionManager::LazyFunctionManager() : counter(0) {}
+LazyFunctionManager::LazyFunctionManager() : counter(0), evaluator(nullptr) {}
 
 LazyFunctionManager::~LazyFunctionManager() = default;
 
