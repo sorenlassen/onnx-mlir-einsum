@@ -8,24 +8,17 @@
 
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributes.h"
+#include "mlir/IR/Location.h"
 #include "mlir/IR/SymbolTable.h"
 
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <atomic>
-#include <condition_variable>
-#include <mutex>
-#include <unordered_map>
-#include <vector>
 
 namespace lazycst {
 
 class LazyFuncOp;
-
-struct LazyFuncOpHash {
-  std::size_t operator()(const LazyFuncOp &op) const noexcept;
-};
 
 class LazyFunctionManager {
 public:
@@ -37,27 +30,15 @@ public:
   void record(mlir::SymbolTable &symbolTable, LazyFuncOp cstexpr,
       bool onlyLazyFunctionUsers);
 
-  mlir::Attribute getResult(const LazyFuncOp &op, unsigned index);
+  mlir::Attribute getResult(LazyFuncOp cstexpr, unsigned index);
 
-  void fold(llvm::ArrayRef<LazyFuncOp> ops);
+  void evaluate(llvm::ArrayRef<LazyFuncOp> cstexprs,
+      llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
 
 private:
-  struct Result;
-  struct Function;
-
   mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
-  void getResults(
-      const LazyFuncOp &op, llvm::SmallVectorImpl<mlir::Attribute> &attrs);
-
-  void foldLocked(
-      std::unique_lock<std::mutex> &lock, llvm::ArrayRef<LazyFuncOp> ops);
-
   std::atomic<unsigned> counter;
-  std::mutex functionsMutex;
-  std::condition_variable functionsCondition;
-  std::unordered_map<LazyFuncOp, Function, LazyFuncOpHash> functions;
-
   GraphEvaluator evaluator;
 };
 
