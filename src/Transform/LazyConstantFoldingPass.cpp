@@ -72,8 +72,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root) {
         assert(!isConstant(user));
         if (analysis.isConstantFoldableOp(user)) {
           auto it = lazyConstantMap.find(user);
-          if (it == lazyConstantMap.end())
-            continue;
+          assert(it != lazyConstantMap.end());
           size_t userIdx = it->second;
           if (!idx.has_value() || idx.value() == userIdx) {
             idx = userIdx;
