@@ -28,7 +28,7 @@ namespace lazycst {
 class GraphEvaluator {
 public:
   using NodeOperand = std::pair<mlir::Operation *, unsigned>;
-  using Eval =
+  using Fold =
       std::function<void(mlir::Operation *, llvm::ArrayRef<mlir::Attribute>,
           llvm::SmallVectorImpl<mlir::Attribute> &results)>;
 
@@ -38,7 +38,7 @@ public:
 
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
-      Eval eval, bool usedOutsideGraph = false);
+      Fold fold, bool usedOutsideGraph = false);
 
   void evaluate(llvm::ArrayRef<mlir::Operation *> ops,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
@@ -56,29 +56,29 @@ private:
     // Add nullptr to users to represent any out-of-graph users.
     // TODO: consider attaching users to each result instead  of while OpRecord
     llvm::SmallPtrSet<OpEntry *, 1> users;
-    // Function to evaluate.
-    // Set to nullptr after it has been queued for evaluation.
-    Eval eval;
-    // Who is assigned to evaluate. Cleared after completion.
+    // Function to fold.
+    // Set to nullptr after it has been queued for folding.
+    Fold fold;
+    // Who is assigned to fold. Cleared after completion.
     // TODO: consider removing atomic and access under mutex, see: t.ly/DdLO3
     std::atomic<int> who = 0;
 
-    bool isVisited() const { return eval == nullptr || who != 0; }
-    bool isQueued() const { return eval == nullptr && who != 0; }
-    bool isEvaluated() const { return eval == nullptr && who == 0; }
+    bool isVisited() const { return fold == nullptr || who != 0; }
+    bool isQueued() const { return fold == nullptr && who != 0; }
+    bool isFolded() const { return fold == nullptr && who == 0; }
   };
 
   using Set = llvm::SmallPtrSet<OpEntry *, 1>;
 
-  static bool isOperandEvaluated(OpEntryOperand operand) {
-    return operand.first->second.isEvaluated();
+  static bool isOperandFolded(OpEntryOperand operand) {
+    return operand.first->second.isFolded();
   }
 
   OpEntry *lookup(mlir::Operation *op);
 
   void enqueue(OpEntry *entry);
 
-  bool tryEvaluateNode(OpEntry *entry, int me, Set &awaiting);
+  bool tryFoldNode(OpEntry *entry, int me, Set &awaiting);
 
   llvm::ThreadPool *threadPool;
   std::mutex mux;

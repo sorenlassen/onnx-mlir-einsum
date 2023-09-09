@@ -13,15 +13,15 @@ GraphEvaluator::~GraphEvaluator() = default;
 
 // All predecessors must have been added beforehand.
 void GraphEvaluator::addNode(mlir::Operation *op,
-    llvm::ArrayRef<NodeOperand> operands, Eval eval, bool usedOutsideGraph) {
-  assert(eval != nullptr);
+    llvm::ArrayRef<NodeOperand> operands, Fold fold, bool usedOutsideGraph) {
+  assert(fold != nullptr);
   auto [it, inserted] = nodes.try_emplace(op);
   assert(inserted);
   OpRecord &rec = it->second;
   rec.operands.reserve(operands.size());
   for (auto [op, index] : operands)
     rec.operands.emplace_back(lookup(op), index);
-  rec.eval = std::move(eval);
+  rec.fold = std::move(fold);
 }
 
 auto GraphEvaluator::lookup(mlir::Operation *op) -> OpEntry * {
@@ -31,27 +31,27 @@ auto GraphEvaluator::lookup(mlir::Operation *op) -> OpEntry * {
 }
 
 void GraphEvaluator::enqueue(OpEntry *entry) {
-  auto doEval = [this, entry, eval = std::move(entry->second.eval)] {
+  auto doFold = [this, entry, fold = std::move(entry->second.fold)] {
     OpRecord &rec = entry->second;
     llvm::SmallVector<mlir::Attribute> operands;
     for (auto [node, index] : rec.operands)
       operands.push_back(node->second.results[index]);
-    eval(entry->first, operands, rec.results);
+    fold(entry->first, operands, rec.results);
     entry->second.who = 0;
     condition.notify_all();
   };
-  assert(entry->second.eval == nullptr);
+  assert(entry->second.fold == nullptr);
   if (threadPool) {
-    llvm_unreachable("TODO: enqueue doEval in thread pool");
+    llvm_unreachable("TODO: enqueue doFold in thread pool");
   } else {
-    doEval();
+    doFold();
   }
 }
 
-bool GraphEvaluator::tryEvaluateNode(OpEntry *entry, int me, Set &awaiting) {
+bool GraphEvaluator::tryFoldNode(OpEntry *entry, int me, Set &awaiting) {
   OpRecord &rec = entry->second;
   if (rec.isVisited()) {
-    if (rec.isEvaluated())
+    if (rec.isFolded())
       return true;
     assert(rec.who != 0);
     if (rec.who != me)
@@ -63,10 +63,10 @@ bool GraphEvaluator::tryEvaluateNode(OpEntry *entry, int me, Set &awaiting) {
   rec.who = me;
   bool queue = true;
   for (auto [node, _] : rec.operands)
-    queue &= tryEvaluateNode(node, me, awaiting);
+    queue &= tryFoldNode(node, me, awaiting);
   if (queue) {
     enqueue(entry);
-    if (rec.isEvaluated())
+    if (rec.isFolded())
       return true;
   }
   auto [_, inserted] = awaiting.insert(entry);
@@ -83,20 +83,20 @@ void GraphEvaluator::evaluate(llvm::ArrayRef<mlir::Operation *> ops,
   llvm::SmallVector<OpEntry *> nodes(
       llvm::map_range(ops, [this](mlir::Operation *op) { return lookup(op); }));
   for (auto *node : nodes)
-    tryEvaluateNode(node, me, awaiting);
+    tryFoldNode(node, me, awaiting);
   while (!awaiting.empty()) {
     condition.wait(lock);
-    llvm::SmallVector<OpEntry *> evaluated;
+    llvm::SmallVector<OpEntry *> folded;
     for (OpEntry *entry : awaiting) {
       OpRecord &rec = entry->second;
-      if (rec.who == me && rec.eval != nullptr &&
-          llvm::all_of(rec.operands, isOperandEvaluated)) {
+      if (rec.who == me && rec.fold != nullptr &&
+          llvm::all_of(rec.operands, isOperandFolded)) {
         enqueue(entry);
       }
-      if (rec.isEvaluated())
-        evaluated.push_back(entry);
+      if (rec.isFolded())
+        folded.push_back(entry);
     }
-    for (OpEntry *entry : evaluated)
+    for (OpEntry *entry : folded)
       awaiting.erase(entry);
   }
   for (auto *node : nodes)
