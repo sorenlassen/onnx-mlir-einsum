@@ -75,6 +75,7 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     }
 
     // ElementsAttrInterface implementation.
+    // TODO: consider instead forwarding to another ElementsAttr
     using ContiguousIterableTypesT = RawBytesContiguousIterTypes;
     using NonContiguousIterableTypesT = RawBytesNonContiguousIterTypes;
     template <typename X> using iterator = RawBytesIterator<X>;

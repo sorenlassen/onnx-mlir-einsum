@@ -126,6 +126,7 @@ void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
         auto [it, inserted] = cloneConstants.try_emplace(attr, nullptr);
         Value &cst = it->second;
         if (inserted) {
+          // TODO: consider including non-lazy cst attrs in args
           if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
                   attr)) {
             Region &body = cstexpr.getBody();
