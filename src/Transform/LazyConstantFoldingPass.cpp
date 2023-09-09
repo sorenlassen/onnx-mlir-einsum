@@ -9,7 +9,6 @@
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 #include "src/Pass/Passes.hpp"
 
-#include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/IR/IRMapping.h"
 #include "mlir/IR/Verifier.h"
 #include "mlir/Pass/Pass.h"
@@ -51,10 +50,9 @@ Attribute getConstantAttribute(Operation *op) {
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
 // Outer and inner vectors are in reverse topological order: successors before
 // predecessors.
-std::vector<std::vector<Operation *>> lazyConstantResultOps(
-    func::FuncOp function) {
+std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
-  lazycst::ConstantFoldableAnalysis analysis(function);
+  lazycst::ConstantFoldableAnalysis analysis(root);
   // Maps every used, non-constant, lazy foldable op to a lazy constant's
   // index in lazyConstantOps.
   DenseMap<Operation *, size_t> lazyConstantMap;
@@ -62,7 +60,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   // visit them in reverse topological order. This deals correctly with ops
   // like onnx.If whose sub-regions can use values from the parent region
   // while each sub-region's results have no uses outside the sub-region.
-  function->walk([&](Region *region) {
+  root->walk([&](Region *region) {
     SmallVector<std::reference_wrapper<Operation>> ops(region->getOps());
     for (Operation &op : llvm::reverse(ops)) {
       if (isConstant(&op))
@@ -195,8 +193,9 @@ void convertIntoLazyConstant(
   }
 }
 
+// ModuleOp pass: adds LazyFuncOps to the module region and symbol table.
 struct LazyConstantFoldingPass
-    : public PassWrapper<LazyConstantFoldingPass, OperationPass<func::FuncOp>> {
+    : public PassWrapper<LazyConstantFoldingPass, OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstantFoldingPass);
 
   StringRef getArgument() const override {
@@ -208,9 +207,8 @@ struct LazyConstantFoldingPass
   }
 
   void runOnOperation() final {
-    func::FuncOp function = getOperation();
-    auto resultOps = lazyConstantResultOps(function);
-    auto module = function->getParentOfType<ModuleOp>();
+    ModuleOp module = getOperation();
+    auto resultOps = lazyConstantResultOps(module);
     SymbolTable symbolTable(module);
     auto *lazyCstDialect =
         getContext().getLoadedDialect<lazycst::LazyCstDialect>();
