@@ -44,7 +44,7 @@ void GraphEvaluator::enqueue(OpEntry *entry) {
   };
   assert(entry->second.fold == nullptr);
   if (threadPool) {
-    llvm_unreachable("TODO: enqueue doFold in thread pool");
+    threadPool->async(doFold);
   } else {
     doFold();
   }
