@@ -50,7 +50,8 @@ Attribute getConstantAttribute(Operation *op) {
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
 // Outer and inner vectors are in reverse topological order: successors before
 // predecessors.
-std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root) {
+std::vector<std::vector<Operation *>> lazyConstantResultOps(
+    Operation *root, std::vector<Operation *> &constants) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
   lazycst::ConstantFoldableAnalysis analysis(root);
   // Maps every used, non-constant, lazy foldable op to a lazy constant's
@@ -63,8 +64,10 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root) {
   root->walk([&](Region *region) {
     SmallVector<std::reference_wrapper<Operation>> ops(region->getOps());
     for (Operation &op : llvm::reverse(ops)) {
-      if (isConstant(&op))
+      if (isConstant(&op)) {
+        constants.push_back(&op);
         continue;
+      }
       if (!analysis.isConstantFoldableOp(&op))
         continue;
       std::optional<size_t> idx;
@@ -110,8 +113,6 @@ void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
   const auto inOps = [&](Operation *op) { return opsSet.contains(op); };
   assert(!llvm::any_of(resultOp->getUsers(), inOps));
 
-  // TODO: consider making it a vector set to ensure determinism
-  SmallPtrSet<Operation *, 4> unreachableConstants;
   llvm::SmallDenseMap<Attribute, Value> cloneConstants;
   SmallVector<Attribute> lazyArguments;
   IRMapping mapping;
@@ -138,8 +139,6 @@ void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
           }
         }
         cstOperands[i] = cst;
-        if (llvm::all_of(operandOp->getUsers(), inOps))
-          unreachableConstants.insert(operandOp);
       }
     }
 
@@ -189,10 +188,6 @@ void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
     assert(op->use_empty());
     op->erase();
   }
-  for (Operation *op : unreachableConstants) {
-    assert(op->use_empty());
-    op->erase();
-  }
 }
 
 // ModuleOp pass: adds LazyFuncOps to the module region and symbol table.
@@ -213,9 +208,14 @@ struct LazyConstantFoldingPass
         getContext().getLoadedDialect<lazycst::LazyCstDialect>();
     ModuleOp module = getOperation();
     SymbolTable symbolTable(module);
-    auto resultOps = lazyConstantResultOps(module);
+    std::vector<Operation *> constants;
+    auto resultOps = lazyConstantResultOps(module, constants);
     for (const auto &ops : llvm::reverse(resultOps))
       convertIntoLazyConstant(lazyCstDialect, symbolTable, ops);
+    for (auto cst : constants) {
+      if (cst->use_empty())
+        cst->erase();
+    }
   }
 };
 
