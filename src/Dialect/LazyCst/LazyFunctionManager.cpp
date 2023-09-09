@@ -74,6 +74,26 @@ LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
   return cstexpr;
 }
 
+namespace {
+void foldLazyFunction(Operation *op, ArrayRef<Attribute> operands,
+    SmallVectorImpl<Attribute> &results) {
+  LazyFuncOp cstexpr = cast<LazyFuncOp>(op);
+  llvm_unreachable("TODO: implement this");
+}
+} // namespace
+
+void LazyFunctionManager::record(
+    SymbolTable &symbolTable, LazyFuncOp cstexpr, bool onlyLazyFunctionUsers) {
+  SmallVector<GraphEvaluator::NodeOperand> operands;
+  for (Attribute cstAttr : cstexpr.getArgConstantsAttr()) {
+    if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
+      Operation *callee = symbolTable.lookup(lazyElms.getCallee().getAttr());
+      operands.emplace_back(callee, lazyElms.getIndex());
+    }
+  }
+  evaluator.addNode(cstexpr, operands, foldLazyFunction, onlyLazyFunctionUsers);
+}
+
 Attribute LazyFunctionManager::getResult(const LazyFuncOp &op, unsigned index) {
   SmallVector<Attribute> attrs;
   getResults(op, attrs);

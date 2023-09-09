@@ -34,6 +34,9 @@ public:
 
   LazyFuncOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
+  void record(mlir::SymbolTable &symbolTable, LazyFuncOp cstexpr,
+      bool onlyLazyFunctionUsers);
+
   mlir::Attribute getResult(const LazyFuncOp &op, unsigned index);
 
   void fold(llvm::ArrayRef<LazyFuncOp> ops);

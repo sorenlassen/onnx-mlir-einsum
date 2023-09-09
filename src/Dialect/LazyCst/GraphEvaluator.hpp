@@ -30,7 +30,7 @@ public:
   using NodeOperand = std::pair<mlir::Operation *, unsigned>;
   using Fold =
       std::function<void(mlir::Operation *, llvm::ArrayRef<mlir::Attribute>,
-          llvm::SmallVectorImpl<mlir::Attribute> &results)>;
+          llvm::SmallVectorImpl<mlir::Attribute> &)>;
 
   GraphEvaluator(llvm::ThreadPool *threadPool);
 
@@ -38,7 +38,7 @@ public:
 
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
-      Fold fold, bool usedOutsideGraph = false);
+      Fold fold, bool onlyUsedWithinGraph);
 
   void evaluate(llvm::ArrayRef<mlir::Operation *> ops,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);

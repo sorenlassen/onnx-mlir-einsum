@@ -50,10 +50,10 @@ Attribute getConstantAttribute(Operation *op) {
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
 // Outer and inner vectors are in reverse topological order: successors before
 // predecessors.
-std::vector<std::vector<Operation *>> lazyConstantResultOps(
-    Operation *root, std::vector<Operation *> &constants) {
+std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root,
+    lazycst::ConstantFoldableAnalysis &analysis,
+    std::vector<Operation *> &constants) {
   std::vector<std::vector<Operation *>> lazyConstantOps;
-  lazycst::ConstantFoldableAnalysis analysis(root);
   // Maps every used, non-constant, lazy foldable op to a lazy constant's
   // index in lazyConstantOps.
   DenseMap<Operation *, size_t> lazyConstantMap;
@@ -98,13 +98,15 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(
   return lazyConstantOps;
 }
 
-void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
-    SymbolTable &symbolTable, const std::vector<Operation *> &ops) {
+void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
+    SymbolTable &symbolTable, lazycst::ConstantFoldableAnalysis &analysis,
+    const std::vector<Operation *> &ops) {
   assert(!ops.empty());
   Operation *resultOp = ops.front();
+  bool onlyConstantFoldableUsers = llvm::all_of(resultOp->getUsers(),
+      [&analysis](Operation *op) { return analysis.isConstantFoldableOp(op); });
   Location loc = resultOp->getLoc();
-  lazycst::LazyFuncOp cstexpr =
-      lazyCstDialect->lazyFunctionManager.create(symbolTable, loc);
+  lazycst::LazyFuncOp cstexpr = lazyFunctionManager.create(symbolTable, loc);
   auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
   auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
   b.setInsertionPoint(lazyReturn);
@@ -184,6 +186,8 @@ void convertIntoLazyConstant(lazycst::LazyCstDialect *lazyCstDialect,
   LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
   assert(succeeded(verify(cstexpr)));
 
+  lazyFunctionManager.record(symbolTable, cstexpr, onlyConstantFoldableUsers);
+
   for (Operation *op : ops) {
     assert(op->use_empty());
     op->erase();
@@ -204,14 +208,16 @@ struct LazyConstantFoldingPass
   }
 
   void runOnOperation() final {
-    auto *lazyCstDialect =
-        getContext().getLoadedDialect<lazycst::LazyCstDialect>();
+    auto &lazyFunctionManager = getContext()
+                                    .getLoadedDialect<lazycst::LazyCstDialect>()
+                                    ->lazyFunctionManager;
     ModuleOp module = getOperation();
     SymbolTable symbolTable(module);
+    lazycst::ConstantFoldableAnalysis analysis(module);
     std::vector<Operation *> constants;
-    auto resultOps = lazyConstantResultOps(module, constants);
+    auto resultOps = lazyConstantResultOps(module, analysis, constants);
     for (const auto &ops : llvm::reverse(resultOps))
-      convertIntoLazyConstant(lazyCstDialect, symbolTable, ops);
+      convertIntoLazyConstant(lazyFunctionManager, symbolTable, analysis, ops);
     for (auto cst : constants) {
       if (cst->use_empty())
         cst->erase();

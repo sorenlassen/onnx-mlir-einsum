@@ -13,7 +13,7 @@ GraphEvaluator::~GraphEvaluator() = default;
 
 // All predecessors must have been added beforehand.
 void GraphEvaluator::addNode(mlir::Operation *op,
-    llvm::ArrayRef<NodeOperand> operands, Fold fold, bool usedOutsideGraph) {
+    llvm::ArrayRef<NodeOperand> operands, Fold fold, bool onlyUsedWithinGraph) {
   assert(fold != nullptr);
   auto [it, inserted] = nodes.try_emplace(op);
   assert(inserted);
@@ -22,6 +22,8 @@ void GraphEvaluator::addNode(mlir::Operation *op,
   for (auto [op, index] : operands)
     rec.operands.emplace_back(lookup(op), index);
   rec.fold = std::move(fold);
+  if (!onlyUsedWithinGraph)
+    rec.users.insert(nullptr);
 }
 
 auto GraphEvaluator::lookup(mlir::Operation *op) -> OpEntry * {
