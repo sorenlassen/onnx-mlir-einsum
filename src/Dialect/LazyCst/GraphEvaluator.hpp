@@ -55,10 +55,9 @@ private:
     llvm::SmallVector<mlir::Attribute, 1> results;
     llvm::SmallVector<OpEntryOperand> operands;
     // Add nullptr to users to represent any out-of-graph users.
-    // TODO: consider attaching users to each result instead  of while OpRecord
+    // TODO: consider attaching users to each result instead of whole OpRecord
     llvm::SmallPtrSet<OpEntry *, 1> users;
-    // Function to fold.
-    // Set to nullptr after it has been queued for folding.
+    // Is set to nullptr after it has been queued for folding.
     const ConstantFolder *folder;
     // Who is assigned to fold. Cleared after completion.
     // TODO: consider removing atomic and access under mutex, see: t.ly/DdLO3
