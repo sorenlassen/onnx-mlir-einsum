@@ -31,9 +31,11 @@ class GraphEvaluator {
 public:
   using NodeOperand = std::pair<mlir::Operation *, unsigned>;
 
-  GraphEvaluator(llvm::ThreadPool *threadPool);
+  GraphEvaluator(mlir::MLIRContext *ctx = nullptr);
 
   ~GraphEvaluator();
+
+  void initialize(mlir::MLIRContext *ctx);
 
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,

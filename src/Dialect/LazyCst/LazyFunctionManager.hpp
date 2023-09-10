@@ -23,7 +23,10 @@ class LazyFuncOp;
 class LazyFunctionManager {
 public:
   LazyFunctionManager();
+
   ~LazyFunctionManager();
+
+  void initialize(mlir::MLIRContext *ctx);
 
   LazyFuncOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 

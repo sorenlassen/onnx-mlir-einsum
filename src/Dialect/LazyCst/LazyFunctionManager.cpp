@@ -15,9 +15,13 @@ using namespace mlir;
 
 namespace lazycst {
 
-LazyFunctionManager::LazyFunctionManager() : counter(0), evaluator(nullptr) {}
+LazyFunctionManager::LazyFunctionManager() : counter(0) {}
 
 LazyFunctionManager::~LazyFunctionManager() = default;
+
+void LazyFunctionManager::initialize(mlir::MLIRContext *ctx) {
+  evaluator.initialize(ctx);
+}
 
 LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
@@ -51,7 +55,7 @@ public:
     MLIRContext *ctx = cstexpr.getContext();
     const ConstantFolders &constantFolders =
         ctx->getLoadedDialect<lazycst::LazyCstDialect>()->constantFolders;
-    GraphEvaluator cstexprEvaluator(&ctx->getThreadPool());
+    GraphEvaluator cstexprEvaluator(ctx);
     // cstexprOp is used as a pseudo-op that folds with the args as results.
     cstexprEvaluator.addNode(cstexprOp, {}, &argsFolder);
     Operation *terminator = cstexpr.getBody().back().getTerminator();
