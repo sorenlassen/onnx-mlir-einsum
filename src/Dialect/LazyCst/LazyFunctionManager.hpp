@@ -12,6 +12,7 @@
 #include "mlir/IR/SymbolTable.h"
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 
 #include <atomic>
@@ -33,7 +34,11 @@ public:
   void record(mlir::SymbolTable &symbolTable, LazyFuncOp cstexpr,
       bool onlyLazyFunctionUsers);
 
+  LazyFuncOp lookup(mlir::StringAttr symName) const;
+
   mlir::Attribute getResult(LazyFuncOp cstexpr, unsigned index);
+
+  mlir::Attribute getResult(mlir::StringAttr symName, unsigned index);
 
   void evaluate(llvm::ArrayRef<LazyFuncOp> cstexprs,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
@@ -42,6 +47,7 @@ private:
   mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
   std::atomic<unsigned> counter;
+  llvm::DenseMap<mlir::StringAttr, LazyFuncOp> table;
   GraphEvaluator evaluator;
 };
 

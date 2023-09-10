@@ -24,9 +24,9 @@ using namespace mlir;
 namespace lazycst {
 
 ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
-  LazyCstDialect *lazyElementsDialect =
+  LazyCstDialect *lazyCstDialect =
       getContext()->getLoadedDialect<LazyCstDialect>();
-  StringRef buffer = lazyElementsDialect->fileDataManager.readFile(getPath());
+  StringRef buffer = lazyCstDialect->fileDataManager.readFile(getPath());
   uint64_t offset = getOffset();
   uint64_t size = onnx_mlir::getSizeInBytes(getType());
   assert(offset + size <= buffer.size());
@@ -34,7 +34,11 @@ ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
 }
 
 ElementsAttr LazyElementsAttr::getElementsAttr() const {
-  llvm_unreachable("TODO: implement this");
+  auto &lazyFunctionManager =
+      llvm::cast<LazyCstDialect>(getDialect()).lazyFunctionManager;
+  Attribute attr =
+      lazyFunctionManager.getResult(getCallee().getAttr(), getIndex());
+  return llvm::cast<ElementsAttr>(attr);
 }
 
 DenseElementsAttr toDenseElementsAttrFromRawBytes(

@@ -26,8 +26,10 @@ void LazyFunctionManager::initialize(mlir::MLIRContext *ctx) {
 LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
   OpBuilder b(module.getBodyRegion());
-  auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, nextName(symbolTable));
+  StringAttr name = nextName(symbolTable);
+  auto cstexpr = b.create<lazycst::LazyFuncOp>(loc, name);
   symbolTable.insert(cstexpr);
+  table.try_emplace(name, cstexpr);
   return cstexpr;
 }
 
@@ -91,10 +93,18 @@ void LazyFunctionManager::record(
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyFunctionUsers);
 }
 
+LazyFuncOp LazyFunctionManager::lookup(StringAttr symName) const {
+  return table.lookup(symName);
+}
+
 Attribute LazyFunctionManager::getResult(LazyFuncOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
+}
+
+Attribute LazyFunctionManager::getResult(StringAttr symName, unsigned index) {
+  return getResult(lookup(symName), index);
 }
 
 void LazyFunctionManager::evaluate(llvm::ArrayRef<LazyFuncOp> cstexprs,
