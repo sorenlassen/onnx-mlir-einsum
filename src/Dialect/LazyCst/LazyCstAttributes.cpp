@@ -52,7 +52,9 @@ DenseElementsAttr toDenseElementsAttrFromRawBytes(
 
 DenseElementsAttr toDenseElementsAttrFromElementsAttr(
     ElementsAttr elementsAttr) {
-  llvm_unreachable("TODO: implement this");
+  // TODO: make the implementation more time and space efficient
+  SmallVector<Attribute> elements(elementsAttr.getValues<Attribute>());
+  return DenseElementsAttr::get(elementsAttr.getShapedType(), elements);
 }
 
 // See explanation in LazyCstDialect::initialize() in LaztCstDialect.cpp.
