@@ -38,7 +38,7 @@ public:
 
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
-      Fold fold, bool onlyUsedWithinGraph);
+      Fold fold, bool onlyUsedWithinGraph = true);
 
   void evaluate(llvm::ArrayRef<mlir::Operation *> ops,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);

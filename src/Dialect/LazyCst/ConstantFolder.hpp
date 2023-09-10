@@ -29,12 +29,23 @@ class ConstantFoldableAnalysis;
 // 'match' without 'fold'.
 class ConstantFolder {
 public:
+  using Fn =
+      std::function<void(mlir::Operation *, llvm::ArrayRef<mlir::Attribute>,
+          llvm::SmallVectorImpl<mlir::Attribute> &)>;
+
   virtual ~ConstantFolder() = default;
 
   virtual mlir::LogicalResult match(mlir::Operation *op) const = 0;
   virtual void fold(mlir::Operation *op,
       llvm::ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const = 0;
+
+  Fn fn() const {
+    return [this](mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> operands,
+               llvm::SmallVectorImpl<mlir::Attribute> &results) {
+      fold(op, operands, results);
+    };
+  }
 
   mlir::LogicalResult matchAndFold(mlir::Operation *op,
       llvm::ArrayRef<mlir::Attribute> operands,
