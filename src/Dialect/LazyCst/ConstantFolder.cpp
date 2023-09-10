@@ -104,6 +104,28 @@ struct BinaryACCFOpPattern
 
 } // namespace
 
+bool isConstant(Operation *op) {
+  // TODO: consider using mlir::matchPattern(op, m_Constant())
+  return op->hasTrait<OpTrait::ConstantLike>();
+}
+
+bool isConstantResult(Value v) {
+  if (Operation *defop = v.getDefiningOp())
+    return isConstant(defop);
+  return false;
+}
+
+Attribute getConstantAttribute(Operation *op) {
+  if (!isConstant(op))
+    return nullptr;
+  SmallVector<OpFoldResult, 1> folded;
+  auto ok = op->fold(folded);
+  assert(succeeded(ok));
+  assert(folded.size() == 1);
+  assert(folded.front().is<Attribute>());
+  return folded.front().get<Attribute>();
+}
+
 void ConstantFolders::getPatterns(ConstantFoldableAnalysis &analysis,
     mlir::RewritePatternSet &results) const {
   results.insert<BinaryACCFOpPattern>(analysis, results.getContext());

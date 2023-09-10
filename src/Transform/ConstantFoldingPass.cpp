@@ -16,33 +16,12 @@ namespace {
 
 using namespace mlir;
 
-bool isConstant(Operation *op) {
-  // TODO: consider using mlir::matchPattern(op, m_Constant())
-  return op->hasTrait<OpTrait::ConstantLike>();
-}
-
-bool isConstantResult(Value v) {
-  if (Operation *defop = v.getDefiningOp())
-    return isConstant(defop);
-  return false;
-}
-
-// Precondition: isConstant(op)
-Attribute getConstantAttribute(Operation *op) {
-  SmallVector<OpFoldResult, 1> folded;
-  auto ok = op->fold(folded);
-  assert(succeeded(ok));
-  assert(folded.size() == 1);
-  assert(folded.front().is<Attribute>());
-  return folded.front().get<Attribute>();
-}
-
 bool tryConstantFold(Operation *op,
     const lazycst::ConstantFolders &constantFolders,
     SmallVectorImpl<Operation *> &uselessOps) {
-  if (isConstant(op))
+  if (lazycst::isConstant(op))
     return false;
-  if (!llvm::all_of(op->getOperands(), isConstantResult))
+  if (!llvm::all_of(op->getOperands(), lazycst::isConstantResult))
     return false;
   OperationName name = op->getName();
   auto *constantFolder = constantFolders.lookup(name);
@@ -53,7 +32,7 @@ bool tryConstantFold(Operation *op,
   SmallVector<Attribute> operandsAttrs;
   for (Value operand : op->getOperands()) {
     Operation *defop = operand.getDefiningOp();
-    operandsAttrs.push_back(getConstantAttribute(defop));
+    operandsAttrs.push_back(lazycst::getConstantAttribute(defop));
     // operand's defop will become useless if op is its only user
     if (llvm::equal(defop->getUsers(), ArrayRef(op)))
       uselessOps.push_back(defop);

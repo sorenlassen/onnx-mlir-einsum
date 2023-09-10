@@ -22,6 +22,13 @@ namespace lazycst {
 
 class ConstantFoldableAnalysis;
 
+bool isConstant(mlir::Operation *op);
+
+bool isConstantResult(mlir::Value v);
+
+// Returns nullptr if op is not a constant.
+mlir::Attribute getConstantAttribute(mlir::Operation *op);
+
 // Similar to ConversionPattern and Operation::fold().
 // Every instance needs to implement both 'match' and 'fold'.
 // Unlike ConversionPattern it's not enough to implement a combined

@@ -2,8 +2,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/ConstantFolder.hpp"
-
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
 #include "mlir/IR/ValueRange.h"
@@ -12,6 +10,8 @@
 #include "llvm/ADT/SmallVector.h"
 
 namespace lazycst {
+
+class ConstantFolders;
 
 // Given that ONNX If/Loop/Scan regions can refer to values from parent regions,
 // the CFAnalysis needs to be done as a "Preorder" region traversal.

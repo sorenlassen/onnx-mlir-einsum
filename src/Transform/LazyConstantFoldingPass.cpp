@@ -30,23 +30,6 @@ namespace {
 
 using namespace mlir;
 
-bool isConstant(Operation *op) {
-  // TODO: consider using mlir::matchPattern(op, m_Constant())
-  return op->hasTrait<OpTrait::ConstantLike>();
-}
-
-// Returns nullptr if v is not a constant result.
-Attribute getConstantAttribute(Operation *op) {
-  if (!isConstant(op))
-    return nullptr;
-  SmallVector<OpFoldResult, 1> folded;
-  auto ok = op->fold(folded);
-  assert(succeeded(ok));
-  assert(folded.size() == 1);
-  assert(folded.front().is<Attribute>());
-  return folded.front().get<Attribute>();
-}
-
 // Return a vector of non-constant lazy foldable ops for every lazy constant.
 // Outer and inner vectors are in reverse topological order: successors before
 // predecessors.
@@ -64,7 +47,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root,
   root->walk([&](Region *region) {
     SmallVector<std::reference_wrapper<Operation>> ops(region->getOps());
     for (Operation &op : llvm::reverse(ops)) {
-      if (isConstant(&op)) {
+      if (lazycst::isConstant(&op)) {
         constants.push_back(&op);
         continue;
       }
@@ -72,7 +55,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root,
         continue;
       std::optional<size_t> idx;
       for (Operation *user : op.getUsers()) {
-        assert(!isConstant(user));
+        assert(!lazycst::isConstant(user));
         if (analysis.isConstantFoldableOp(user)) {
           auto it = lazyConstantMap.find(user);
           assert(it != lazyConstantMap.end());
@@ -125,7 +108,7 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
     for (unsigned i = 0; i < numOperands; ++i) {
       Value operand = op->getOperand(i);
       Operation *operandOp = operand.getDefiningOp();
-      if (Attribute attr = getConstantAttribute(operandOp)) {
+      if (Attribute attr = lazycst::getConstantAttribute(operandOp)) {
         auto [it, inserted] = cloneConstants.try_emplace(attr, nullptr);
         Value &cst = it->second;
         if (inserted) {

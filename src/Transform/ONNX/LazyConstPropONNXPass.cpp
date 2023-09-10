@@ -43,25 +43,6 @@ bool isConstantFoldable(Operation *op) {
                        ->constantFolders.match(op));
 }
 
-bool isConstant(Operation *op) {
-  // TODO: consider using mlir::matchPattern(op, m_Constant())
-  return op && op->hasTrait<OpTrait::ConstantLike>();
-}
-
-bool isConstantResult(Value v) { return isConstant(v.getDefiningOp()); }
-
-// Returns nullptr if v is not a constant result.
-Attribute getConstantAttribute(Operation *op) {
-  if (!isConstant(op))
-    return nullptr;
-  SmallVector<OpFoldResult, 1> folded;
-  auto ok = op->fold(folded);
-  assert(succeeded(ok));
-  assert(folded.size() == 1);
-  assert(folded.front().is<Attribute>());
-  return folded.front().get<Attribute>();
-}
-
 struct LazyConstPropRegion {
   using Span = std::pair<size_t, size_t>;
 
@@ -94,7 +75,7 @@ struct LazyConstPropRegion {
       return std::nullopt;
 
     auto begin = opQueue.size();
-    if (isConstant(defop) || opMap.contains(defop))
+    if (lazycst::isConstant(defop) || opMap.contains(defop))
       return Span(begin, begin);
 
     // Ignore defop's regions as they were walked separately
@@ -130,7 +111,7 @@ struct LazyConstPropRegion {
     assert(!v.use_empty());
 
     if (span.first == span.second) {
-      assert(isConstantResult(v));
+      assert(lazycst::isConstantResult(v));
       return;
     }
 
@@ -177,7 +158,7 @@ struct LazyConstPropRegion {
       for (unsigned i = 0; i < numOperands; ++i) {
         Value operand = op->getOperand(i);
         Operation *operandOp = operand.getDefiningOp();
-        if (Attribute attr = getConstantAttribute(operandOp)) {
+        if (Attribute attr = lazycst::getConstantAttribute(operandOp)) {
           Value cst = cloneConstants.lookup(attr);
           if (!cst) {
             if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
@@ -288,7 +269,7 @@ private:
     // Ignore defop's regions as they were walked separately
     // in LazyConstPropONNXPass::runOnOperation().
 
-    if (isConstant(defop)) {
+    if (lazycst::isConstant(defop)) {
       assert(defop->getNumOperands() == 0);
     } else {
       bool allOperandsAreLazyFoldable = runOnOperands(defop);

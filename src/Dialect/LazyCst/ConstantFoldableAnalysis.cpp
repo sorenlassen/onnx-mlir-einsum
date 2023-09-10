@@ -4,6 +4,7 @@
 
 #include "src/Dialect/LazyCst/ConstantFoldableAnalysis.hpp"
 
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 
 #include "mlir/IR/OpDefinition.h"
@@ -11,15 +12,6 @@
 using namespace mlir;
 
 namespace lazycst {
-
-namespace {
-
-bool isConstant(Operation *op) {
-  // TODO: consider using mlir::matchPattern(op, m_Constant())
-  return op->hasTrait<OpTrait::ConstantLike>();
-}
-
-} // namespace
 
 ConstantFoldableAnalysis::ConstantFoldableAnalysis(Operation *root, bool label)
     : label(label), constantFolders(root->getContext()

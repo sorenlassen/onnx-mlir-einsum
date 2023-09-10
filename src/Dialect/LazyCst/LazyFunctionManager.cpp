@@ -33,23 +33,6 @@ LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
 
 namespace {
 
-bool isConstant(Operation *op) {
-  // TODO: consider using mlir::matchPattern(op, m_Constant())
-  return op->hasTrait<OpTrait::ConstantLike>();
-}
-
-// Returns nullptr if v is not a constant result.
-Attribute getConstantAttribute(Operation *op) {
-  if (!isConstant(op))
-    return nullptr;
-  SmallVector<OpFoldResult, 1> folded;
-  auto ok = op->fold(folded);
-  assert(succeeded(ok));
-  assert(folded.size() == 1);
-  assert(folded.front().is<Attribute>());
-  return folded.front().get<Attribute>();
-}
-
 class CstExprConstantFolder : public ConstantFolder {
 public:
   void fold(mlir::Operation *cstexprOp,
