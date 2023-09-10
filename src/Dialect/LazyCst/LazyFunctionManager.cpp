@@ -69,7 +69,7 @@ public:
         cstexprEvaluator.addNode(op, operands, constantFolder);
       }
     }
-    Operation *resultOp = terminator->getResult(0).getDefiningOp();
+    Operation *resultOp = terminator->getOperand(0).getDefiningOp();
     assert(resultOp != nullptr);
     SmallVector<ArrayRef<Attribute>, 1> attrs;
     cstexprEvaluator.evaluate({resultOp}, attrs);
