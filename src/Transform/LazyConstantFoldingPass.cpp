@@ -116,7 +116,7 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
   assert(!llvm::any_of(resultOp->getUsers(), inOps));
 
   llvm::SmallDenseMap<Attribute, Value> cloneConstants;
-  SmallVector<Attribute> lazyArguments;
+  SmallVector<Attribute> argsAttrs;
   IRMapping mapping;
   Operation *clone;
   for (Operation *op : llvm::reverse(ops)) {
@@ -133,9 +133,9 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
           if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
                   attr)) {
             Region &body = cstexpr.getBody();
-            assert(body.getNumArguments() == lazyArguments.size());
+            assert(body.getNumArguments() == argsAttrs.size());
             cst = body.addArgument(operand.getType(), operand.getLoc());
-            lazyArguments.push_back(attr);
+            argsAttrs.push_back(attr);
           } else {
             cst = b.clone(*operandOp)->getResult(0);
           }
@@ -152,18 +152,17 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
   }
   // clone is now the clone of resultOp which was the op in the last iteration.
 
-  SmallVector<Attribute> lazyResults;
+  SmallVector<Attribute> resultsAttrs;
   {
     auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
-    unsigned numResults = resultOp->getNumResults();
-    for (unsigned j = 0; j < numResults; ++j) {
+    for (unsigned j = 0; j < resultOp->getNumResults(); ++j) {
       Value res = resultOp->getResult(j);
       if (res.use_empty())
         continue;
       auto type = cast<ShapedType>(res.getType());
-      unsigned index = lazyResults.size();
+      unsigned index = resultsAttrs.size();
       auto lazyElms = lazycst::LazyElementsAttr::get(type, lazyFunc, index);
-      lazyResults.push_back(lazyElms);
+      resultsAttrs.push_back(lazyElms);
       lazyReturn.getOperandsMutable().append({clone->getResult(j)});
       b.setInsertionPointAfter(resultOp);
       Dialect *dialect = resultOp->getName().getDialect();
@@ -172,16 +171,16 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
       res.replaceAllUsesWith(cstOp->getResult(0));
     }
   }
-  assert(!lazyResults.empty());
+  assert(!resultsAttrs.empty());
 
   const auto getAttrType = [](Attribute ta) {
     return cast<TypedAttr>(ta).getType();
   };
-  SmallVector<Type> argTypes(llvm::map_range(lazyArguments, getAttrType));
-  SmallVector<Type> resTypes(llvm::map_range(lazyResults, getAttrType));
+  SmallVector<Type> argTypes(llvm::map_range(argsAttrs, getAttrType));
+  SmallVector<Type> resTypes(llvm::map_range(resultsAttrs, getAttrType));
   cstexpr.setFunctionType(b.getFunctionType(argTypes, resTypes));
-  cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(lazyArguments)));
-  cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(lazyResults)));
+  cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(argsAttrs)));
+  cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(resultsAttrs)));
 
   LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
   assert(succeeded(verify(cstexpr)));
