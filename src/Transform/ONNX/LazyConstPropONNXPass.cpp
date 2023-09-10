@@ -223,6 +223,11 @@ struct LazyConstPropRegion {
     LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
     assert(succeeded(verify(cstexpr)));
 
+    // TODO: calculate onlyConstantFoldableUsers properly
+    bool onlyConstantFoldableUsers = false;
+    lazyCstDialect->lazyFunctionManager.record(
+        symbolTable, cstexpr, onlyConstantFoldableUsers);
+
     for (auto [begin, pos] = span; pos > begin; --pos) {
       Operation *op = opQueue[pos - 1];
       assert(op->use_empty());
