@@ -50,8 +50,12 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
   let assemblyFormat = "`<` $path ( `+` $offset^ )? `>`";
 }
 
+def ForwardingElementsAttrTrait : NativeAttrTrait<"ForwardingElementsAttrTrait"> {
+  let cppNamespace = "lazycst";
+}
+
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
-    DenseLikeElementsAttrInterface
+    ForwardingElementsAttrTrait, ElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
@@ -67,25 +71,20 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     }]>,
   ];
   let extraClassDeclaration = [{
-    llvm::ArrayRef<char> getRawBytes() const;
+    // ForwardingElementsAttrTrait implementation.
+    mlir::ElementsAttr getElementsAttr() const;
 
     // DenseLikeElementsAttrInterface implementation.
     mlir::DenseElementsAttr toDenseElementsAttr() const {
-      return toDenseElementsAttrFromRawBytes(getType(), getRawBytes());
+      return toDenseElementsAttrFromElementsAttr(getElementsAttr());
     }
 
     // ElementsAttrInterface implementation.
-    // TODO: consider instead forwarding to another ElementsAttr
-    using ContiguousIterableTypesT = RawBytesContiguousIterTypes;
-    using NonContiguousIterableTypesT = RawBytesNonContiguousIterTypes;
-    template <typename X> using iterator = RawBytesIterator<X>;
-    template <typename X> using iterator_range = llvm::iterator_range<iterator<X>>;
-    template <typename T> auto try_value_begin_impl(OverloadToken<T>) const {
-      return try_value_begin_from_raw_bytes<T>(getElementType(), getRawBytes());
+    template <typename T>
+    auto try_value_begin_impl(OverloadToken<T>) const {
+      return getElementsAttr().try_value_begin<T>();
     }
-    template <typename X> auto value_end() const {
-      return std::next(value_begin<X>(), size());
-    }
+    using ForwardingElementsAttrTrait::getValuesImpl;
   }];
   let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
 }

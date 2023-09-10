@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "src/Dialect/LazyCst/ForwardingElementsAttrTrait.hpp"
 #include "src/Dialect/LazyCst/RawBytesIterator.hpp"
 #include "src/Interface/DenseLikeElementsAttrInterface.hpp"
 
@@ -19,6 +20,9 @@ using DenseLikeElementsAttrInterface = mlir::DenseLikeElementsAttrInterface;
 // Makes deep copy.
 mlir::DenseElementsAttr toDenseElementsAttrFromRawBytes(
     mlir::ShapedType, llvm::ArrayRef<char> bytes);
+
+mlir::DenseElementsAttr toDenseElementsAttrFromElementsAttr(
+    mlir::ElementsAttr elementsAttr);
 
 } // namespace lazycst
 

@@ -33,7 +33,7 @@ ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
   return onnx_mlir::asArrayRef(buffer.substr(offset, size));
 }
 
-ArrayRef<char> LazyElementsAttr::getRawBytes() const {
+ElementsAttr LazyElementsAttr::getElementsAttr() const {
   llvm_unreachable("TODO: implement this");
 }
 
@@ -44,6 +44,11 @@ DenseElementsAttr toDenseElementsAttrFromRawBytes(
     return DenseElementsAttr::get(type, onnx_mlir::castArrayRef<bool>(bytes));
   }
   return DenseElementsAttr::getFromRawBuffer(type, bytes);
+}
+
+DenseElementsAttr toDenseElementsAttrFromElementsAttr(
+    ElementsAttr elementsAttr) {
+  llvm_unreachable("TODO: implement this");
 }
 
 // See explanation in LazyCstDialect::initialize() in LaztCstDialect.cpp.
