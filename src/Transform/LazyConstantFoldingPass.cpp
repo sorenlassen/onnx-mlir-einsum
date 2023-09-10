@@ -130,8 +130,7 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
         Value &cst = it->second;
         if (inserted) {
           // TODO: consider including non-lazy cst attrs in args
-          if (isa<lazycst::LazyElementsAttr, lazycst::FileDataElementsAttr>(
-                  attr)) {
+          if (isa<lazycst::LazyElementsAttr>(attr)) {
             Region &body = cstexpr.getBody();
             assert(body.getNumArguments() == argsAttrs.size());
             cst = body.addArgument(operand.getType(), operand.getLoc());
