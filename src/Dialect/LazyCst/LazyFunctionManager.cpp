@@ -33,23 +33,28 @@ LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
 
 namespace {
 
-class LazyArgsConstantFolder : public ConstantFolder {
-public:
-  void fold(mlir::Operation *cstexprOp,
-      llvm::ArrayRef<mlir::Attribute> operands,
-      llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
-    assert(operands.empty());
-    LazyFuncOp cstexpr = cast<LazyFuncOp>(cstexprOp);
-    llvm::copy(cstexpr.getArgConstantsAttr(), std::back_inserter(results));
-  }
-};
+bool isConstant(Operation *op) {
+  // TODO: consider using mlir::matchPattern(op, m_Constant())
+  return op->hasTrait<OpTrait::ConstantLike>();
+}
+
+// Returns nullptr if v is not a constant result.
+Attribute getConstantAttribute(Operation *op) {
+  if (!isConstant(op))
+    return nullptr;
+  SmallVector<OpFoldResult, 1> folded;
+  auto ok = op->fold(folded);
+  assert(succeeded(ok));
+  assert(folded.size() == 1);
+  assert(folded.front().is<Attribute>());
+  return folded.front().get<Attribute>();
+}
 
 class CstExprConstantFolder : public ConstantFolder {
 public:
   void fold(mlir::Operation *cstexprOp,
       llvm::ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
-    static LazyArgsConstantFolder argsFolder;
     LazyFuncOp cstexpr = cast<LazyFuncOp>(cstexprOp);
     // TODO: check that all lazy elms args constants are evaluated
     MLIRContext *ctx = cstexpr.getContext();
@@ -57,14 +62,18 @@ public:
         ctx->getLoadedDialect<lazycst::LazyCstDialect>()->constantFolders;
     GraphEvaluator cstexprEvaluator(ctx);
     // cstexprOp is used as a pseudo-op that folds with the args as results.
-    cstexprEvaluator.addNode(cstexprOp, {}, &argsFolder);
+    cstexprEvaluator.addEvaluatedNode(
+        cstexprOp, cstexpr.getArgConstantsAttr().getValue());
     Operation *terminator = cstexpr.getBody().back().getTerminator();
-    for (Operation &op : cstexpr.getBody().getOps()) {
-      if (&op != terminator) {
+    for (auto it = cstexpr.getBody().op_begin(); &*it != terminator; ++it) {
+      Operation *op = &*it;
+      if (Attribute attr = getConstantAttribute(op)) {
+        cstexprEvaluator.addEvaluatedNode(op, {attr});
+      } else {
         const ConstantFolder *constantFolder =
-            constantFolders.lookup(op.getName());
+            constantFolders.lookup(op->getName());
         SmallVector<GraphEvaluator::NodeOperand> operands;
-        for (Value v : op.getOperands()) {
+        for (Value v : op->getOperands()) {
           if (auto r = dyn_cast<OpResult>(v))
             operands.emplace_back(r.getOwner(), r.getResultNumber());
           else if (auto a = dyn_cast<BlockArgument>(v))
@@ -72,7 +81,7 @@ public:
           else
             llvm_unreachable("Value is OpResult or BlockArgument");
         }
-        cstexprEvaluator.addNode(&op, operands, constantFolder);
+        cstexprEvaluator.addNode(op, operands, constantFolder);
       }
     }
     Operation *resultOp = terminator->getResult(0).getDefiningOp();

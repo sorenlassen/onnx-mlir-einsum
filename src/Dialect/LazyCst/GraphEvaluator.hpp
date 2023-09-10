@@ -41,6 +41,9 @@ public:
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
       const ConstantFolder *folder, bool onlyUsedWithinGraph = true);
 
+  void addEvaluatedNode(
+      mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> results);
+
   void evaluate(llvm::ArrayRef<mlir::Operation *> ops,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
 
@@ -58,7 +61,7 @@ private:
     // TODO: consider attaching users to each result instead of whole OpRecord
     llvm::SmallPtrSet<OpEntry *, 1> users;
     // Is set to nullptr after it has been queued for folding.
-    const ConstantFolder *folder;
+    const ConstantFolder *folder = nullptr;
     // Who is assigned to fold. Cleared after completion.
     // TODO: consider removing atomic and access under mutex, see: t.ly/DdLO3
     std::atomic<int> who = 0;

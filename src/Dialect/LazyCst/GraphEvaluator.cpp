@@ -39,6 +39,15 @@ void GraphEvaluator::addNode(mlir::Operation *op,
     rec.users.insert(nullptr);
 }
 
+void GraphEvaluator::addEvaluatedNode(
+    mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> results) {
+  auto [it, inserted] = nodes.try_emplace(op);
+  assert(inserted);
+  OpRecord &rec = it->second;
+  rec.results.resize_for_overwrite(results.size());
+  llvm::copy(results, rec.results.begin());
+}
+
 auto GraphEvaluator::lookup(mlir::Operation *op) -> OpEntry * {
   auto it = nodes.find(op);
   assert(it != nodes.end());
