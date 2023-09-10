@@ -25,12 +25,11 @@ class Operation;
 
 namespace lazycst {
 
+class ConstantFolder;
+
 class GraphEvaluator {
 public:
   using NodeOperand = std::pair<mlir::Operation *, unsigned>;
-  using Fold =
-      std::function<void(mlir::Operation *, llvm::ArrayRef<mlir::Attribute>,
-          llvm::SmallVectorImpl<mlir::Attribute> &)>;
 
   GraphEvaluator(llvm::ThreadPool *threadPool);
 
@@ -38,7 +37,7 @@ public:
 
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
-      Fold fold, bool onlyUsedWithinGraph = true);
+      const ConstantFolder *folder, bool onlyUsedWithinGraph = true);
 
   void evaluate(llvm::ArrayRef<mlir::Operation *> ops,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
@@ -58,14 +57,14 @@ private:
     llvm::SmallPtrSet<OpEntry *, 1> users;
     // Function to fold.
     // Set to nullptr after it has been queued for folding.
-    Fold fold;
+    const ConstantFolder *folder;
     // Who is assigned to fold. Cleared after completion.
     // TODO: consider removing atomic and access under mutex, see: t.ly/DdLO3
     std::atomic<int> who = 0;
 
-    bool isVisited() const { return fold == nullptr || who != 0; }
-    bool isQueued() const { return fold == nullptr && who != 0; }
-    bool isFolded() const { return fold == nullptr && who == 0; }
+    bool isVisited() const { return folder == nullptr || who != 0; }
+    bool isQueued() const { return folder == nullptr && who != 0; }
+    bool isFolded() const { return folder == nullptr && who == 0; }
   };
 
   using Set = llvm::SmallPtrSet<OpEntry *, 1>;

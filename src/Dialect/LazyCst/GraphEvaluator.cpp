@@ -4,6 +4,8 @@
 
 #include "src/Dialect/LazyCst/GraphEvaluator.hpp"
 
+#include "src/Dialect/LazyCst/ConstantFolder.hpp"
+
 namespace lazycst {
 
 GraphEvaluator::GraphEvaluator(llvm::ThreadPool *threadPool)
@@ -13,15 +15,16 @@ GraphEvaluator::~GraphEvaluator() = default;
 
 // All predecessors must have been added beforehand.
 void GraphEvaluator::addNode(mlir::Operation *op,
-    llvm::ArrayRef<NodeOperand> operands, Fold fold, bool onlyUsedWithinGraph) {
-  assert(fold != nullptr);
+    llvm::ArrayRef<NodeOperand> operands, const ConstantFolder *folder,
+    bool onlyUsedWithinGraph) {
+  assert(folder != nullptr);
   auto [it, inserted] = nodes.try_emplace(op);
   assert(inserted);
   OpRecord &rec = it->second;
   rec.operands.reserve(operands.size());
   for (auto [op, index] : operands)
     rec.operands.emplace_back(lookup(op), index);
-  rec.fold = std::move(fold);
+  rec.folder = folder;
   if (!onlyUsedWithinGraph)
     rec.users.insert(nullptr);
 }
@@ -33,20 +36,21 @@ auto GraphEvaluator::lookup(mlir::Operation *op) -> OpEntry * {
 }
 
 void GraphEvaluator::enqueue(OpEntry *entry) {
-  auto doFold = [this, entry, fold = std::move(entry->second.fold)] {
+  const ConstantFolder *folder = entry->second.folder;
+  entry->second.folder = nullptr;
+  auto fold = [this, entry, folder] {
     OpRecord &rec = entry->second;
     llvm::SmallVector<mlir::Attribute> operands;
     for (auto [node, index] : rec.operands)
       operands.push_back(node->second.results[index]);
-    fold(entry->first, operands, rec.results);
+    folder->fold(entry->first, operands, rec.results);
     entry->second.who = 0;
     condition.notify_all();
   };
-  assert(entry->second.fold == nullptr);
   if (threadPool) {
-    threadPool->async(doFold);
+    threadPool->async(fold);
   } else {
-    doFold();
+    fold();
   }
 }
 
@@ -91,7 +95,7 @@ void GraphEvaluator::evaluate(llvm::ArrayRef<mlir::Operation *> ops,
     llvm::SmallVector<OpEntry *> folded;
     for (OpEntry *entry : awaiting) {
       OpRecord &rec = entry->second;
-      if (rec.who == me && rec.fold != nullptr &&
+      if (rec.who == me && rec.folder != nullptr &&
           llvm::all_of(rec.operands, isOperandFolded)) {
         enqueue(entry);
       }

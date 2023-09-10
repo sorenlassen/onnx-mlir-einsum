@@ -25,36 +25,43 @@ LazyFuncOp LazyFunctionManager::create(SymbolTable &symbolTable, Location loc) {
 }
 
 namespace {
-void foldLazyFunction(Operation *cstexprOp, ArrayRef<Attribute> operands,
-    SmallVectorImpl<Attribute> &results) {
-  LazyFuncOp cstexpr = cast<LazyFuncOp>(cstexprOp);
-  ConstantFolders &constantFolders =
-      cstexpr.getContext()
-          ->getLoadedDialect<lazycst::LazyCstDialect>()
-          ->constantFolders;
-  // TODO: use LazyFunctionManager thread pool
-  GraphEvaluator cstexprEvaluator(nullptr);
-  Operation *terminator = cstexpr.getBody().back().getTerminator();
-  assert(terminator->hasOneUse());
-  Operation *resultOp = *terminator->user_begin();
-  for (Operation &op : cstexpr.getBody().getOps()) {
-    if (&op != terminator) {
-      const ConstantFolder *constantFolder =
-          constantFolders.lookup(op.getName());
-      llvm::SmallVector<mlir::Attribute> results;
-      SmallVector<GraphEvaluator::NodeOperand> operands; // TODO: populate
-      cstexprEvaluator.addNode(&op, operands, constantFolder->fn());
+
+class CstExprConstantFolder : public ConstantFolder {
+public:
+  void fold(mlir::Operation *cstexprOp,
+      llvm::ArrayRef<mlir::Attribute> operands,
+      llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
+    LazyFuncOp cstexpr = cast<LazyFuncOp>(cstexprOp);
+    const ConstantFolders &constantFolders =
+        cstexpr.getContext()
+            ->getLoadedDialect<lazycst::LazyCstDialect>()
+            ->constantFolders;
+    // TODO: use LazyFunctionManager thread pool
+    GraphEvaluator cstexprEvaluator(nullptr);
+    Operation *terminator = cstexpr.getBody().back().getTerminator();
+    assert(terminator->hasOneUse());
+    Operation *resultOp = *terminator->user_begin();
+    for (Operation &op : cstexpr.getBody().getOps()) {
+      if (&op != terminator) {
+        const ConstantFolder *constantFolder =
+            constantFolders.lookup(op.getName());
+        llvm::SmallVector<mlir::Attribute> results;
+        SmallVector<GraphEvaluator::NodeOperand> operands; // TODO: populate
+        cstexprEvaluator.addNode(&op, operands, constantFolder);
+      }
     }
+    SmallVector<ArrayRef<Attribute>, 1> attrs;
+    cstexprEvaluator.evaluate({resultOp}, attrs);
+    ArrayRef<Attribute> resultAttrs = attrs.front();
+    results.assign(resultAttrs.begin(), resultAttrs.end());
   }
-  SmallVector<ArrayRef<Attribute>, 1> attrs;
-  cstexprEvaluator.evaluate({resultOp}, attrs);
-  ArrayRef<Attribute> resultAttrs = attrs.front();
-  results.assign(resultAttrs.begin(), resultAttrs.end());
-}
+};
+
 } // namespace
 
 void LazyFunctionManager::record(
     SymbolTable &symbolTable, LazyFuncOp cstexpr, bool onlyLazyFunctionUsers) {
+  static CstExprConstantFolder folder;
   SmallVector<GraphEvaluator::NodeOperand> operands;
   for (Attribute cstAttr : cstexpr.getArgConstantsAttr()) {
     if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
@@ -62,7 +69,8 @@ void LazyFunctionManager::record(
       operands.emplace_back(callee, lazyElms.getIndex());
     }
   }
-  evaluator.addNode(cstexpr, operands, foldLazyFunction, onlyLazyFunctionUsers);
+  evaluator.addNode(
+      cstexpr, operands, &folder, onlyLazyFunctionUsers);
 }
 
 Attribute LazyFunctionManager::getResult(LazyFuncOp cstexpr, unsigned index) {

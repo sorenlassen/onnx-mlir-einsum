@@ -29,23 +29,14 @@ class ConstantFoldableAnalysis;
 // 'match' without 'fold'.
 class ConstantFolder {
 public:
-  using Fn =
-      std::function<void(mlir::Operation *, llvm::ArrayRef<mlir::Attribute>,
-          llvm::SmallVectorImpl<mlir::Attribute> &)>;
-
   virtual ~ConstantFolder() = default;
 
-  virtual mlir::LogicalResult match(mlir::Operation *op) const = 0;
+  virtual mlir::LogicalResult match(mlir::Operation *op) const {
+    return mlir::success();
+  }
   virtual void fold(mlir::Operation *op,
       llvm::ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const = 0;
-
-  Fn fn() const {
-    return [this](mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> operands,
-               llvm::SmallVectorImpl<mlir::Attribute> &results) {
-      fold(op, operands, results);
-    };
-  }
 
   mlir::LogicalResult matchAndFold(mlir::Operation *op,
       llvm::ArrayRef<mlir::Attribute> operands,
@@ -77,8 +68,7 @@ public:
       llvm::SmallVectorImpl<mlir::Attribute> &results) const {
     results.emplace_back(fold(op, adaptor));
   }
-  virtual void fold(mlir::Operation *op,
-      llvm::ArrayRef<mlir::Attribute> operands,
+  void fold(mlir::Operation *op, llvm::ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
     return fold(llvm::cast<OP>(op),
         FoldAdaptor(operands, op->getAttrDictionary(),
