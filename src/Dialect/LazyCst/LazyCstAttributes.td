@@ -55,7 +55,7 @@ def ForwardingElementsAttrTrait : NativeAttrTrait<"ForwardingElementsAttrTrait">
 }
 
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
-    ForwardingElementsAttrTrait, ElementsAttrInterface
+    ForwardingElementsAttrTrait, DenseLikeElementsAttrInterface
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
