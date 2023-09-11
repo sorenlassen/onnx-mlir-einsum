@@ -1,6 +1,5 @@
-// RUN: python3 -c "import numpy; numpy.save('arange5xf32.npy', numpy.arange(5, dtype=numpy.float32))"
-// COM: arange5xf32.npy has 128 bytes header and 20 bytes payload
-// RUN: test $(wc -c < arange5xf32.npy) -eq 148
+// Create arange5xf32.npy with 128 bytes header and 20 bytes payload:
+// RUN: python3 -c "import numpy; numpy.save('arange5xf32.npy', numpy.arange(5, dtype=numpy.float32)); import os; assert os.path.getsize('arange5xf32.npy') == 128+20"
 
 // RUN: onnx-mlir-opt --external-data-dir=. %s -split-input-file | FileCheck --check-prefix=DENSE %s
 // RUN: onnx-mlir-opt --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck --check-prefix=FILEDATA %s

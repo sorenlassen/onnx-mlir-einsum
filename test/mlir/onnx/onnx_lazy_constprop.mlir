@@ -1,4 +1,8 @@
-// RUN: onnx-mlir-opt --lazy-constprop-onnx --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
+// Create arange5xf32.npy with 128 bytes header and 20 bytes payload:
+// RUN: python3 -c "import numpy; numpy.save('arange5xf32.npy', numpy.arange(5, dtype=numpy.float32)); import os; assert os.path.getsize('arange5xf32.npy') == 128+20"
+
+// RUN: onnx-mlir-opt --lazy-constprop-onnx --external-data-dir=. --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
+// COM: onnx-mlir-opt --lazy-constprop-onnx --external-data-dir=. %s -split-input-file | FileCheck %s
 
 // TODO: remove LazyConstPropONNXPass and this lit test
 
@@ -23,7 +27,7 @@ func.func @test_add_scalars() -> tensor<f32> {
 // -----
 
 func.func @test_add_file() -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy"> : tensor<5xf32>
   %1 = onnx.Constant dense<2.0> : tensor<f32>
   %2 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
   onnx.Return %2 : tensor<5xf32>
@@ -32,7 +36,7 @@ func.func @test_add_file() -> tensor<5xf32> {
 // -----
 
 func.func @test_add_add() -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy"> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = onnx.Constant dense<2.0> : tensor<f32>
   %3 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -43,7 +47,7 @@ func.func @test_add_add() -> tensor<5xf32> {
 // -----
 
 func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy"> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = onnx.Constant dense<2.0> : tensor<f32>
   %3 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -55,7 +59,7 @@ func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 // -----
 
 func.func @test_add_sum_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy"> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = onnx.Constant dense<2.0> : tensor<f32>
   %3 = onnx.Constant dense<3.0> : tensor<f32>

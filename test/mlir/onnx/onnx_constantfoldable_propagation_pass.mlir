@@ -1,7 +1,11 @@
-// RUN: onnx-mlir-opt --constantfoldable-propagation-pass --constantfoldable-analysis-pass --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
+// Create arange5xf32.npy with 128 bytes header and 20 bytes payload:
+// RUN: python3 -c "import numpy; numpy.save('arange5xf32.npy', numpy.arange(5, dtype=numpy.float32)); import os; assert os.path.getsize('arange5xf32.npy') == 128+20"
+
+// RUN: onnx-mlir-opt --constantfoldable-propagation-pass --constantfoldable-analysis-pass --external-data-dir=. --hideDenseLikeElementsAttrs=false %s -split-input-file | FileCheck %s
+// COM: onnx-mlir-opt --constantfoldable-propagation-pass --constantfoldable-analysis-pass --external-data-dir=. %s -split-input-file | FileCheck %s
 
 func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = onnx.Constant dense<2.0> : tensor<f32>
   %3 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -11,7 +15,7 @@ func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 }
 // CHECK-LABEL:  func.func @test_add_arg
 // CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<5xf32>) -> tensor<5xf32> {
-// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK-DAG:       [[VAR_2_:%.+]] = onnx.Constant dense<2.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_3_:%.+]] = "onnx.Add"([[VAR_0_]], [[VAR_1_]]) {constantfoldable} : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -23,7 +27,7 @@ func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 // -----
 
 func.func @test_add_arg_2(%arg0: tensor<5xf32>) -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = onnx.Constant dense<2.0> : tensor<f32>
   %3 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -33,7 +37,7 @@ func.func @test_add_arg_2(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 }
 // CHECK-LABEL:  func.func @test_add_arg_2
 // CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<5xf32>) -> tensor<5xf32> {
-// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK-DAG:       [[VAR_2_:%.+]] = onnx.Constant dense<2.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_3_:%.+]] = "onnx.Add"([[VAR_0_]], [[VAR_1_]]) {constantfoldable} : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -60,7 +64,7 @@ func.func @test_sub_const(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 // -----
 
 func.func @test_sub_constantfoldable(%arg0: tensor<5xf32>) -> tensor<5xf32> {
-  %0 = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+  %0 = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
   %1 = onnx.Constant dense<1.0> : tensor<f32>
   %2 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
   %3 = "onnx.Sub"(%arg0, %2) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
@@ -69,7 +73,7 @@ func.func @test_sub_constantfoldable(%arg0: tensor<5xf32>) -> tensor<5xf32> {
 }
 // CHECK-LABEL:  func.func @test_sub_constantfoldable
 // CHECK-SAME:   ([[PARAM_0_:%.+]]: tensor<5xf32>) -> tensor<5xf32> {
-// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"/tmp/foo.data"> : tensor<5xf32>
+// CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[VAR_0_]], [[VAR_1_]]) {constantfoldable} : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
 // CHECK:           [[VAR_3_:%.+]] = "onnx.Neg"([[VAR_2_]]) {constantfoldable} : (tensor<5xf32>) -> tensor<5xf32>
