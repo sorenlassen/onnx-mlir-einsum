@@ -18,6 +18,7 @@
 #include "src/Dialect/ONNX/ElementsAttr/ElementsAttrHelper.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/Strides.hpp"
 #include "src/Dialect/ONNX/ElementsAttr/StridesRange.hpp"
+#include "src/Interface/DenseLikeElementsAttrInterface.hpp"
 #include "src/Support/TypeUtilities.hpp"
 
 #include <algorithm>
@@ -28,22 +29,28 @@ using namespace mlir;
 namespace onnx_mlir {
 
 namespace {
-std::unique_ptr<llvm::MemoryBuffer> getMemoryBuffer(DenseElementsAttr dense) {
-  if (dense.getElementType().isInteger(1)) {
-    // Don't use dense.rawData() which is bit packed, whereas
+std::unique_ptr<llvm::MemoryBuffer> getMemoryBuffer(ElementsAttr elements) {
+  assert((elements.isa<DenseElementsAttr, DenseLikeElementsAttrInterface>()));
+  if (elements.getElementType().isInteger(1)) {
+    // Don't use elements.rawData() which is bit packed, whereas
     // DisposableElementsAttr represents bools with one byte per bool value.
-    if (dense.isSplat()) {
-      char b = dense.getSplatValue<bool>();
+    if (elements.isSplat()) {
+      char b = elements.getSplatValue<bool>();
       StringRef s(&b, 1);
       return llvm::MemoryBuffer::getMemBufferCopy(s);
     } else {
       std::unique_ptr<llvm::WritableMemoryBuffer> writeBuffer =
-          llvm::WritableMemoryBuffer::getNewUninitMemBuffer(dense.size());
-      std::copy_n(dense.value_begin<bool>(), dense.size(),
+          llvm::WritableMemoryBuffer::getNewUninitMemBuffer(elements.size());
+      std::copy_n(elements.value_begin<bool>(), elements.size(),
           writeBuffer->getBuffer().begin());
       return std::move(writeBuffer);
     }
   } else {
+    DenseElementsAttr dense;
+    if (auto denseLike = dyn_cast<DenseLikeElementsAttrInterface>(elements))
+      dense = denseLike.toDenseElementsAttr();
+    else
+      dense = cast<DenseElementsAttr>(elements);
     ArrayRef<char> bytes = dense.getRawData();
     int64_t size = bytes.size();
     if (dense.isSplat())
@@ -1082,17 +1089,18 @@ auto ElementsAttrBuilder::getElementsProperties(ElementsAttr elements)
         /*.strides=*/{strides.begin(), strides.end()},
         /*.buffer=*/disposable.getBuffer(),
         /*.transformer=*/disposable.getTransformer()};
-  } else if (auto dense = elements.dyn_cast<DenseElementsAttr>()) {
-    ShapedType type = dense.getType();
+  } else if (elements
+                 .isa<DenseElementsAttr, DenseLikeElementsAttrInterface>()) {
+    ShapedType type = elements.getShapedType();
     SmallVector<int64_t, 4> strides;
-    if (dense.isSplat()) {
+    if (elements.isSplat()) {
       strides = getSplatStrides(type.getShape());
     } else {
       strides = getDefaultStrides(type.getShape());
     }
     return {/*.bufferBType=*/btypeOfMlirType(type.getElementType()),
         /*.strides=*/{strides.begin(), strides.end()},
-        /*.buffer=*/getMemoryBuffer(dense),
+        /*.buffer=*/getMemoryBuffer(elements),
         /*.transformer=*/nullTransformer};
   }
   // TODO: consider supporting more ElementsAttr types
