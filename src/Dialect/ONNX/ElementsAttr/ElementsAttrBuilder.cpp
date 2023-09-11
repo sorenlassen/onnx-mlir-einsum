@@ -46,6 +46,7 @@ std::unique_ptr<llvm::MemoryBuffer> getMemoryBuffer(ElementsAttr elements) {
       return std::move(writeBuffer);
     }
   } else {
+    // TODO: access dense-like buffers more efficiently
     DenseElementsAttr dense;
     if (auto denseLike = dyn_cast<DenseLikeElementsAttrInterface>(elements))
       dense = denseLike.toDenseElementsAttr();
