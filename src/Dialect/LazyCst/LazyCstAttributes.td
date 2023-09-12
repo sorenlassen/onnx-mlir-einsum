@@ -54,8 +54,11 @@ def ForwardingElementsAttrTrait : NativeAttrTrait<"ForwardingElementsAttrTrait">
   let cppNamespace = "lazycst";
 }
 
+// Currently doesn't implement DenseLikeElementsAttrInterface so that, by
+// default, it (de)serializes efficiently without materializing.
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
-    ForwardingElementsAttrTrait, DenseLikeElementsAttrInterface
+    ForwardingElementsAttrTrait,
+    ElementsAttrInterface // TODO: consider DenseLikeElementsAttrInterface instead
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let parameters = (ins
