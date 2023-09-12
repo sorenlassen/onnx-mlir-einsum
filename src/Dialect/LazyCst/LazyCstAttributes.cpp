@@ -52,7 +52,12 @@ DenseElementsAttr toDenseElementsAttrFromRawBytes(
 
 DenseElementsAttr toDenseElementsAttrFromElementsAttr(
     ElementsAttr elementsAttr) {
-  // TODO: make the implementation more time and space efficient
+  if (auto dense = dyn_cast<DenseElementsAttr>(elementsAttr))
+    return dense;
+  if (auto denseLike = dyn_cast<DenseLikeElementsAttrInterface>(elementsAttr))
+    return denseLike.toDenseElementsAttr();
+  // TODO: try to make this implementation more time and space efficient
+  //       if it's ever used
   SmallVector<Attribute> elements(elementsAttr.getValues<Attribute>());
   return DenseElementsAttr::get(elementsAttr.getShapedType(), elements);
 }
