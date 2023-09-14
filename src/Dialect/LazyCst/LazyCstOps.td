@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 include "mlir/Interfaces/CallInterfaces.td"
-include "mlir/IR/FunctionInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
+include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
 
