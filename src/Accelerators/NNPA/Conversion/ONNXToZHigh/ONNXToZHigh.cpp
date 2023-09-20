@@ -136,8 +136,8 @@ Value getLSTMGRUGetYh(Location loc, PatternRewriter &rewriter, Value val,
     Type sliceType = RankedTensorType::get({1, D, B, H}, elementType);
     ONNXSliceOp sliceOp = rewriter.create<ONNXSliceOp>(
         loc, sliceType, val, start, end, axis, step);
-    return rewriter.create<ONNXSqueezeV11Op>(
-        loc, resYh.getType(), sliceOp.getResult(), rewriter.getI64ArrayAttr(0));
+    return rewriter.create<ONNXSqueezeOp>(loc, resYh.getType(),
+        sliceOp.getResult(), create.onnx.constantInt64({0}));
   } else if (directionStr.equals_insensitive("bidirectional")) {
     Type splitType = RankedTensorType::get({T, 1, B, H}, elementType);
     SmallVector<Type> splitTypes = {splitType, splitType};
@@ -152,8 +152,8 @@ Value getLSTMGRUGetYh(Location loc, PatternRewriter &rewriter, Value val,
     Value concatOp = rewriter.create<ONNXConcatOp>(loc, concatType,
         ValueRange({fwdLastSlice, bkwFirstSlice}), /*concatAxis=*/1);
     Type squeezeType = RankedTensorType::get({D, B, H}, elementType);
-    return rewriter.create<ONNXSqueezeV11Op>(
-        loc, squeezeType, concatOp, rewriter.getI64ArrayAttr(0));
+    return rewriter.create<ONNXSqueezeOp>(
+        loc, squeezeType, concatOp, create.onnx.constantInt64({0}));
   } else {
     llvm_unreachable("Invalid direction.");
   }
@@ -166,10 +166,11 @@ Value getLSTMGRUGetYc(
   if (isNoneValue(resYc))
     return noneValue;
 
+  MultiDialectBuilder<OnnxBuilder> create(rewriter, loc);
   zhigh::ZHighUnstickOp unstickOp =
       rewriter.create<zhigh::ZHighUnstickOp>(loc, val.getType(), val);
-  return rewriter.create<ONNXSqueezeV11Op>(
-      loc, resYc.getType(), unstickOp.getResult(), rewriter.getI64ArrayAttr(0));
+  return rewriter.create<ONNXSqueezeOp>(loc, resYc.getType(),
+      unstickOp.getResult(), create.onnx.constantInt64({0}));
 }
 
 SmallVector<Value, 4> emitONNXSplitOp(Location loc, PatternRewriter &rewriter,

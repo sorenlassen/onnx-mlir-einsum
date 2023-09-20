@@ -87,6 +87,9 @@ def GetI64ZeroAttr :
 class GetI64ArrayAttr<int n> :
         NativeCodeCall<"$_builder.getI64ArrayAttr(" # n # ")">;
 
+class GetI64TensorAttr<int n> :
+        NativeCodeCall<"$_builder.getI64TensorAttr(" # n # ")">;
+
 def GetUnrankedTensorTypeOf : NativeCodeCall<
   "UnrankedTensorType::get($0.getType().cast<ShapedType>().getElementType())"
 >;
@@ -263,18 +266,18 @@ def replaceONNXSoftmax2DPattern : Pattern<
    (ZHighUnstickOp:$unstick
        (ZHighSoftmaxOp
            (ZHighStickOp:$s_x
-               (EmitOp3<"ONNXUnsqueezeV11Op">
+               (EmitOp3<"ONNXUnsqueezeOp">
                    (GetUnrankedTensorTypeOf $x),
                    $x,
-                   (GetI64ArrayAttr<0>)),
+                   (ONNXConstantOpFromDenseAttr (GetI64TensorAttr<0>))),
                (_3DSLayoutAttr)),
            (GetStringAttr<"ACT_NONE">),
            (returnType $s_x))),
 
-   (EmitOp3<"ONNXSqueezeV11Op">
+   (EmitOp3<"ONNXSqueezeOp">
        (GetTypeOf $res),
        $unstick,
-       (GetI64ArrayAttr<0>))
+       (ONNXConstantOpFromDenseAttr (GetI64TensorAttr<0>)))
   ],
   [(HasRankOf<2> $x)]
 >;
@@ -311,18 +314,18 @@ def replaceONNXLogSoftmaxPattern : Pattern<
    (ZHighUnstickOp:$unstick
        (ZHighSoftmaxOp
            (ZHighStickOp:$s_x
-               (EmitOp3<"ONNXUnsqueezeV11Op">
+               (EmitOp3<"ONNXUnsqueezeOp">
                    (GetUnrankedTensorTypeOf $x),
                    $x,
-                   (GetI64ArrayAttr<0>)),
+                   (ONNXConstantOpFromDenseAttr (GetI64TensorAttr<0>))),
                (_3DSLayoutAttr)),
            (GetStringAttr<"ACT_LOG">),
            (returnType $s_x))),
 
-   (EmitOp3<"ONNXSqueezeV11Op">
+   (EmitOp3<"ONNXSqueezeOp">
        (GetTypeOf $res),
        $unstick,
-       (GetI64ArrayAttr<0>))
+       (ONNXConstantOpFromDenseAttr (GetI64TensorAttr<0>)))
   ],
   [(IsSoftmaxLegalForZDNN $s)]
 >;
