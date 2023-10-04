@@ -161,3 +161,12 @@ uint16_t om_f32_to_bf16(float f32) {
     return u16 - 1; // NAN
   return u16;
 }
+
+uint16_t om_f8e5m2_to_f16(uint8_t u8) {
+  uint16_t u16 = u8;
+  return u16 << 8;
+}
+
+uint8_t om_f16_to_f8e5m2(uint16_t u16) {
+  return u16 >> 8;
+}
