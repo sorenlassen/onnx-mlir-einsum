@@ -144,41 +144,51 @@ public:
   }
 };
 
-template <typename FP16>
-void BM_F32_TO_FP16(benchmark::State &state) {
-  constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
-  float f32s[u16max + 1];
-  for (uint32_t u = 0; u <= u16max; ++u) {
-    f32s[u] = FP16::bitcastFromUInt(u).toFloat();
+template <typename FP>
+void BM_F32_TO_SMALLFP(benchmark::State &state) {
+  using bitcasttype = typename FP::bitcasttype;
+  constexpr uint32_t uMax = std::numeric_limits<bitcasttype>::max();
+  float f32s[uMax + 1];
+  for (uint32_t u = 0; u <= uMax; ++u) {
+    f32s[u] = FP::bitcastFromUInt(u).toFloat();
   }
   for (auto _ : state) {
     // This code gets timed
-    uint16_t u16 = 0;
-    for (uint32_t u = 0; u <= u16max; ++u) {
-      benchmark::DoNotOptimize(u16 += FP16::fromFloat(f32s[u]).bitcastToUInt());
+    bitcasttype v = 0;
+    for (uint32_t u = 0; u <= uMax; ++u) {
+      benchmark::DoNotOptimize(v += FP::fromFloat(f32s[u]).bitcastToUInt());
     }
   }
 }
-BENCHMARK(BM_F32_TO_FP16<float_16>);
-BENCHMARK(BM_F32_TO_FP16<bfloat_16>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_16>);
+BENCHMARK(BM_F32_TO_SMALLFP<bfloat_16>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fn>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fnuz>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2fnuz>);
 
-template <typename FP16>
-void BM_FP16_TO_F32(benchmark::State &state) {
-  constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
-  FP16 fp16s[u16max + 1];
-  for (uint32_t u = 0; u <= u16max; ++u) {
-    fp16s[u] = FP16::bitcastFromUInt(u);
+template <typename FP>
+void BM_SMALLFP_TO_F32(benchmark::State &state) {
+  using bitcasttype = typename FP::bitcasttype;
+  constexpr uint32_t uMax = std::numeric_limits<bitcasttype>::max();
+  FP small[uMax + 1];
+  for (uint32_t u = 0; u <= uMax; ++u) {
+    small[u] = FP::bitcastFromUInt(u);
   }
   for (auto _ : state) {
     // This code gets timed
     float f32 = 0.0;
-    for (uint32_t u = 0; u <= u16max; ++u) {
-      benchmark::DoNotOptimize(f32 += fp16s[u].toFloat());
+    for (uint32_t u = 0; u <= uMax; ++u) {
+      benchmark::DoNotOptimize(f32 += small[u].toFloat());
     }
   }
 }
-BENCHMARK(BM_FP16_TO_F32<float_16>);
-BENCHMARK(BM_FP16_TO_F32<bfloat_16>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_16>);
+BENCHMARK(BM_SMALLFP_TO_F32<bfloat_16>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_8e4m3fn>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_8e4m3fnuz>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_8e5m2>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_8e5m2fnuz>);
 
 // Low tech command line args parsing.
 // Removes the flag to hide it from benchmark::ReportUnrecognizedArguments().
