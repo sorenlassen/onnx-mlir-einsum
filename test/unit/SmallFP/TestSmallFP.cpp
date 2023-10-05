@@ -24,6 +24,13 @@ using namespace onnx_mlir;
 
 namespace {
 
+llvm::APFloat apFromF32(const llvm::fltSemantics &semantics, float f32) {
+  llvm::APFloat ap(f32);
+  bool ignored;
+  ap.convert(semantics, llvm::APFloat::rmNearestTiesToEven, &ignored);
+  return ap;
+};
+
 class Test {
 
 public:
@@ -52,22 +59,14 @@ public:
   int test_to_fp16(const char *fp_name, uint32_t step) {
     std::cout << "test_to_fp16 " << fp_name << ":" << std::endl;
 
-    auto apFromF32 = [](float f32) {
-      llvm::APFloat ap(f32);
-      bool ignored;
-      ap.convert(
-          FP16::semantics(), llvm::APFloat::rmNearestTiesToEven, &ignored);
-      return ap;
-    };
-
-    assert(apFromF32(NAN).isNaN());
+    assert(apFromF32(FP16::semantics(), NAN).isNaN());
     assert(FP16::fromFloat(NAN).isNaN());
     constexpr uint32_t u32max = std::numeric_limits<uint32_t>::max();
     uint32_t u32 = 0;
     while (true) { // slow if step32 is small
       float f32;
       memcpy(&f32, &u32, sizeof(u32));
-      llvm::APFloat ap = apFromF32(f32);
+      llvm::APFloat ap = apFromF32(FP16::semantics(), f32);
       uint16_t apu16 = ap.bitcastToAPInt().getZExtValue();
       FP16 fp16 = FP16::fromFloat(f32);
       uint16_t u16 = fp16.bitcastToUInt();
