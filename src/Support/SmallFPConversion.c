@@ -168,5 +168,9 @@ uint16_t om_f8e5m2_to_f16(uint8_t u8) {
 }
 
 uint8_t om_f16_to_f8e5m2(uint16_t u16) {
-  return u16 >> 8;
+  uint8_t u8 = u16 >> 8;
+  // emulate llvm::RoundingMode::NearestTiesToEven
+  u8 += ((u16 & 0x80) == 0x80 && (u16 & 0x1ff) != 0x80 &&
+         (u16 & 0x7c80) != 0x7c80);
+  return u8;
 }
