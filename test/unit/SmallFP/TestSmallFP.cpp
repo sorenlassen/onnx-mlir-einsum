@@ -105,35 +105,43 @@ public:
   }
 
   template <typename FP8>
-  int test_to_fp8(const char *fp_name) {
+  int test_to_fp8(const char *fp_name, uint32_t step) {
     std::cout << "test_to_fp8 " << fp_name << ":" << std::endl;
 
     // Run through the f32s corresponding to all the float_16 values.
     constexpr uint16_t u16max = std::numeric_limits<uint16_t>::max();
     uint16_t u16 = 0;
     do {
-      float_16 f16 = float_16::bitcastFromUInt(u16);
       float f32 = float_16::bitcastFromUInt(u16).toFloat();
       llvm::APFloat ap = apFromF32(FP8::semantics(), f32);
       uint16_t apu8 = ap.bitcastToAPInt().getZExtValue();
       FP8 fp8 = FP8::fromFloat(f32);
       uint8_t u8 = fp8.bitcastToUInt();
-      if (apu8 != u8) {
-        if (!std::isnan(f32)) {
-          llvm::errs() << "apu8=" << apu8 << ", u8=" << (uint16_t)u8 << "\n";
-          llvm::errs() << "ap16=";
-          f16.toAPFloat().print(llvm::errs());
-          llvm::errs() << "\n";
-          llvm::errs() << "ap=";
-          ap.print(llvm::errs());
-          llvm::errs() << "\n";
-          llvm::errs() << "f32=" << f32 << "\n";
-        }
-        assert(std::isnan(f32));
-        assert(ap.isNaN());
-        assert(fp8.isNaN());
-      }
+      assert(u8 == apu8);
     } while (u16++ < u16max);
+
+    assert(apFromF32(FP8::semantics(), NAN).isNaN());
+    assert(FP8::fromFloat(NAN).isNaN());
+    constexpr uint32_t u32max = std::numeric_limits<uint32_t>::max();
+    uint32_t u32 = 0;
+    while (true) { // slow if step32 is small
+      float f32;
+      memcpy(&f32, &u32, sizeof(u32));
+      llvm::APFloat ap = apFromF32(FP8::semantics(), f32);
+      uint8_t apu8 = ap.bitcastToAPInt().getZExtValue();
+      FP8 fp8 = FP8::fromFloat(f32);
+      uint8_t u8 = fp8.bitcastToUInt();
+#if 0
+      assert(apu8 == u8);
+#else
+      if (apu8 != u8)
+        llvm::errs() << "f32=" << f32 << " u8=" << (int)u8
+                     << " apu8=" << (int)apu8 << "\n";
+#endif
+      if (u32 > u32max - step)
+        break;
+      u32 += step;
+    }
 
     return 0;
   }
@@ -275,11 +283,10 @@ int main(int argc, char *argv[]) {
   uint32_t step = exhaustive ? 1 : 257;
   failures += test.test_to_fp16<float_16>("float_16", step);
   failures += test.test_to_fp16<bfloat_16>("bfloat_16", step);
+  failures += test.test_to_fp8<float_8e5m2>("float_8e5m2", step);
 
   failures += test.test_from_fp16<float_16>("float_16");
   failures += test.test_from_fp16<bfloat_16>("bfloat_16");
-
-  failures += test.test_to_fp8<float_8e5m2>("float_8e5m2");
   failures += test.test_from_fp8<float_8e5m2>("float_8e5m2");
 
   const bool noNegZero = false;
