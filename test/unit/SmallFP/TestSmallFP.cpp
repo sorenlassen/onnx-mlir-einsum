@@ -146,6 +146,35 @@ public:
     return 0;
   }
 
+  int test_om_f16_to_f8e5m2() {
+    std::cout << "test_om_f16_to_f8e5m2:" << std::endl;
+
+    constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
+    for (uint32_t u = 0; u <= u16max; ++u) {
+      uint8_t u8 = om_f16_to_f8e5m2(u);
+
+      float_16 f16 = float_16::bitcastFromUInt(u);
+      float_8e5m2 f8 = float_8e5m2::bitcastFromUInt(u8);
+
+      assert(f8.isNaN() == f16.isNaN());
+      if (!f8.isNaN())
+        assert(f8.toAPFloat().bitcastToAPInt().getZExtValue() == f8.bitcastToUInt());
+    }
+
+    return 0;
+  }
+
+  int test_om_f8e5m2_to_f16() {
+    std::cout << "test_om_f8e5m2_to_f16:" << std::endl;
+
+    constexpr uint32_t u8max = std::numeric_limits<uint8_t>::max();
+    for (uint32_t u = 0; u <= u8max; ++u) {
+      assert(u == om_f16_to_f8e5m2(om_f8e5m2_to_f16(u)));
+    }
+
+    return 0;
+  }
+
   template <typename FP>
   int test_fp_cast(const char *fp_name, float fpmin, float fpmax) {
     std::cout << "test_fp_cast " << fp_name << ":" << std::endl;
@@ -288,6 +317,9 @@ int main(int argc, char *argv[]) {
   failures += test.test_from_fp16<float_16>("float_16");
   failures += test.test_from_fp16<bfloat_16>("bfloat_16");
   failures += test.test_from_fp8<float_8e5m2>("float_8e5m2");
+
+  failures += test.test_om_f16_to_f8e5m2();
+  failures += test.test_om_f8e5m2_to_f16();
 
   const bool noNegZero = false;
   const float fp8min = 0.005f;
