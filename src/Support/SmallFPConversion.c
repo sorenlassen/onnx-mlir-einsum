@@ -169,8 +169,13 @@ uint16_t om_f8e5m2_to_f16(uint8_t u8) {
 
 uint8_t om_f16_to_f8e5m2(uint16_t u16) {
   uint8_t u8 = u16 >> 8;
-  // emulate llvm::RoundingMode::NearestTiesToEven
-  u8 += ((u16 & 0x80) == 0x80 && (u16 & 0x1ff) != 0x80 &&
-         (u16 & 0x7c80) != 0x7c80);
+  if ((u16 & 0x7C00) == 0x7C00) {
+    // u16 is NaN or infinity,
+    // add 1 if u8 is infinity but u16 isn't
+    u8 += (u8 & 0x7F) == 0x7C && (u16 & 0x7FFF) != 0x7C00;
+  } else {
+    // emulate llvm::RoundingMode::NearestTiesToEven
+    u8 += (u16 & 0x80) == 0x80 && (u16 & 0x1ff) != 0x80;
+  }
   return u8;
 }
