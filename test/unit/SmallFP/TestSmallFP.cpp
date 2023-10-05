@@ -191,6 +191,7 @@ void BM_F32_TO_SMALLFP(benchmark::State &state) {
 }
 BENCHMARK(BM_F32_TO_SMALLFP<float_16>);
 BENCHMARK(BM_F32_TO_SMALLFP<bfloat_16>);
+BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fn>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2>);
 
 template <typename FP>
@@ -211,6 +212,7 @@ void BM_SMALLFP_TO_F32(benchmark::State &state) {
 }
 BENCHMARK(BM_SMALLFP_TO_F32<float_16>);
 BENCHMARK(BM_SMALLFP_TO_F32<bfloat_16>);
+BENCHMARK(BM_SMALLFP_TO_F32<float_8e4m3fn>);
 BENCHMARK(BM_SMALLFP_TO_F32<float_8e5m2>);
 
 // Low tech command line args parsing.
