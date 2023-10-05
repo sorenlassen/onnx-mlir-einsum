@@ -83,69 +83,6 @@ public:
     return 0;
   }
 
-  template <typename FP8>
-  int test_from_fp8(const char *fp_name) {
-    std::cout << "test_from_fp8 " << fp_name << ":" << std::endl;
-
-    constexpr uint16_t u8max = std::numeric_limits<uint8_t>::max();
-    uint8_t u8 = 0;
-    do {
-      FP8 fp8 = FP8::bitcastFromUInt(u8);
-      llvm::APFloat ap = fp8.toAPFloat();
-      assert(fp8.isNaN() == ap.isNaN());
-      float apf32 = ap.convertToFloat();
-      float f32 = fp8.toFloat();
-      if (apf32 != f32) {
-        assert(std::isnan(apf32));
-        assert(std::isnan(f32));
-      }
-    } while (u8++ < u8max);
-
-    return 0;
-  }
-
-  template <typename FP8>
-  int test_to_fp8(const char *fp_name, uint32_t step) {
-    std::cout << "test_to_fp8 " << fp_name << ":" << std::endl;
-
-    // Run through the f32s corresponding to all the float_16 values.
-    constexpr uint16_t u16max = std::numeric_limits<uint16_t>::max();
-    uint16_t u16 = 0;
-    do {
-      float f32 = float_16::bitcastFromUInt(u16).toFloat();
-      llvm::APFloat ap = apFromF32(FP8::semantics(), f32);
-      uint16_t apu8 = ap.bitcastToAPInt().getZExtValue();
-      FP8 fp8 = FP8::fromFloat(f32);
-      uint8_t u8 = fp8.bitcastToUInt();
-      assert(u8 == apu8);
-    } while (u16++ < u16max);
-
-    assert(apFromF32(FP8::semantics(), NAN).isNaN());
-    assert(FP8::fromFloat(NAN).isNaN());
-    constexpr uint32_t u32max = std::numeric_limits<uint32_t>::max();
-    uint32_t u32 = 0;
-    while (true) { // slow if step32 is small
-      float f32;
-      memcpy(&f32, &u32, sizeof(u32));
-      llvm::APFloat ap = apFromF32(FP8::semantics(), f32);
-      uint8_t apu8 = ap.bitcastToAPInt().getZExtValue();
-      FP8 fp8 = FP8::fromFloat(f32);
-      uint8_t u8 = fp8.bitcastToUInt();
-#if 0
-      assert(apu8 == u8);
-#else
-      if (apu8 != u8)
-        llvm::errs() << "f32=" << f32 << " u8=" << (int)u8
-                     << " apu8=" << (int)apu8 << "\n";
-#endif
-      if (u32 > u32max - step)
-        break;
-      u32 += step;
-    }
-
-    return 0;
-  }
-
   int test_om_f16_to_f8e5m2() {
     std::cout << "test_om_f16_to_f8e5m2:" << std::endl;
 
@@ -158,7 +95,8 @@ public:
 
       assert(f8.isNaN() == f16.isNaN());
       if (!f8.isNaN())
-        assert(f8.toAPFloat().bitcastToAPInt().getZExtValue() == f8.bitcastToUInt());
+        assert(f8.toAPFloat().bitcastToAPInt().getZExtValue() ==
+               f8.bitcastToUInt());
     }
 
     return 0;
@@ -253,10 +191,7 @@ void BM_F32_TO_SMALLFP(benchmark::State &state) {
 }
 BENCHMARK(BM_F32_TO_SMALLFP<float_16>);
 BENCHMARK(BM_F32_TO_SMALLFP<bfloat_16>);
-BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fn>);
-BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fnuz>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2>);
-BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2fnuz>);
 
 template <typename FP>
 void BM_SMALLFP_TO_F32(benchmark::State &state) {
@@ -276,10 +211,7 @@ void BM_SMALLFP_TO_F32(benchmark::State &state) {
 }
 BENCHMARK(BM_SMALLFP_TO_F32<float_16>);
 BENCHMARK(BM_SMALLFP_TO_F32<bfloat_16>);
-BENCHMARK(BM_SMALLFP_TO_F32<float_8e4m3fn>);
-BENCHMARK(BM_SMALLFP_TO_F32<float_8e4m3fnuz>);
 BENCHMARK(BM_SMALLFP_TO_F32<float_8e5m2>);
-BENCHMARK(BM_SMALLFP_TO_F32<float_8e5m2fnuz>);
 
 // Low tech command line args parsing.
 // Removes the flag to hide it from benchmark::ReportUnrecognizedArguments().
@@ -312,11 +244,9 @@ int main(int argc, char *argv[]) {
   uint32_t step = exhaustive ? 1 : 257;
   failures += test.test_to_fp16<float_16>("float_16", step);
   failures += test.test_to_fp16<bfloat_16>("bfloat_16", step);
-  failures += test.test_to_fp8<float_8e5m2>("float_8e5m2", step);
 
   failures += test.test_from_fp16<float_16>("float_16");
   failures += test.test_from_fp16<bfloat_16>("bfloat_16");
-  failures += test.test_from_fp8<float_8e5m2>("float_8e5m2");
 
   failures += test.test_om_f16_to_f8e5m2();
   failures += test.test_om_f8e5m2_to_f16();

@@ -204,15 +204,6 @@ public:
     return llvm::APFloat::Float8E5M2();
   }
   static constexpr float max = 57344.0f;
-
-protected:
-  friend class detail::SmallFPBase<float_8e5m2, 8>;
-  float toFloatImpl() const {
-    return om_f16_to_f32(om_f8e5m2_to_f16(bitcastToUInt()));
-  }
-  static float_8e5m2 fromFloatImpl(float f) {
-    return bitcastFromUInt(om_f16_to_f8e5m2(om_f32_to_f16(f)));
-  }
 };
 static_assert(
     sizeof(float_8e5m2) * CHAR_BIT == 8, "float_8e5m2 is 8 bits wide");
