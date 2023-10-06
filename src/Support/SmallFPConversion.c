@@ -168,14 +168,16 @@ uint16_t om_f8e5m2_to_f16(uint8_t u8) {
 }
 
 uint8_t om_f16_to_f8e5m2(uint16_t u16) {
-  uint8_t u8 = u16 >> 8;
-  if ((u16 & 0x7C00) == 0x7C00) {
-    // u16 is NaN or infinity,
-    // add 1 if u8 is infinity but u16 isn't
-    u8 += (u8 & 0x7F) == 0x7C && (u16 & 0x7FFF) != 0x7C00;
+  if ((u16 & 0x7C00) == 0x7C00) { // NaN of INF
+    if ((u16 & 0x7CFF) != 0x7C00) {
+      // need to fix u if it's 0x7C and u16 is not INF,
+      // so let's just use same NaN value in all cases:
+      // 0x7F if positive, 0xFF if negative
+      u16 |= 0x7F00;
+    }
   } else {
     // emulate llvm::RoundingMode::NearestTiesToEven
-    u8 += (u16 & 0x80) == 0x80 && (u16 & 0x1ff) != 0x80;
+    u16 += 0x80 - ((u16 & 0x1ff) == 0x80);
   }
-  return u8;
+  return u16 >> 8;
 }
