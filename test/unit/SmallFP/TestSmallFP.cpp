@@ -194,6 +194,18 @@ BENCHMARK(BM_F32_TO_SMALLFP<bfloat_16>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fn>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2>);
 
+void BM_F16_TO_F8E5M2(benchmark::State &state) {
+  constexpr uint32_t uMax = std::numeric_limits<uint16_t>::max();
+  for (auto _ : state) {
+    // This code gets timed
+    uint8_t v = 0;
+    for (uint32_t u = 0; u <= uMax; ++u) {
+      benchmark::DoNotOptimize(v += om_f16_to_f8e5m2(u));
+    }
+  }
+}
+BENCHMARK(BM_F16_TO_F8E5M2);
+
 template <typename FP>
 void BM_SMALLFP_TO_F32(benchmark::State &state) {
   using bitcasttype = typename FP::bitcasttype;
