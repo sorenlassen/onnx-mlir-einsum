@@ -183,3 +183,22 @@ uint8_t om_f16_to_f8e5m2(uint16_t u16) {
   }
   return u16 >> 8;
 }
+
+uint8_t om_f16_to_f8e5m2_saturate(uint16_t u16) {
+  // 0x7FFF masks out the sign bit,
+  // 0x7B80-7BFF are large numbers that would round to INF,
+  // 0x7C00 is INF, 0x7C01-0x7FFF are NaNs
+  if ((u16 & 0x7FFF) >= 0x7B80) { // u16 is large or INF or NaN
+    // Subtract 1 to change INF (0x7C00) to have high bits 0x7B (plus sign bit),
+    // same as large values 0x7B80-7BFF (now 0x7B7F-7BFE),
+    // while NaNs (go from 0x7C01-0x7FFF t0 0x7C00-0x7FFF) still
+    // have high byte in the range 0x7C-7F (plus sign bit).
+    u16 -= 1;
+    // Changes all NaNs to have high byte 0x7F (plus sign bit).
+    u16 |= 0x300;
+  } else {
+    // emulate llvm::RoundingMode::NearestTiesToEven
+    u16 += 0x80 - ((u16 & 0x1ff) == 0x80);
+  }
+  return u16 >> 8;
+}

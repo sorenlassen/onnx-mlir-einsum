@@ -29,6 +29,8 @@ uint16_t om_f8e5m2_to_f16(uint8_t u8);
 
 uint8_t om_f16_to_f8e5m2(uint16_t u16);
 
+uint8_t om_f16_to_f8e5m2_saturate(uint16_t u16);
+
 #ifdef __cplusplus
 }
 #endif

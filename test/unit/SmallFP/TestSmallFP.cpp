@@ -83,31 +83,67 @@ public:
     return 0;
   }
 
-  int test_om_f16_to_f8e5m2() {
-    std::cout << "test_om_f16_to_f8e5m2:" << std::endl;
-
-    constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
-    for (uint32_t u = 0; u <= u16max; ++u) {
-      uint8_t u8 = om_f16_to_f8e5m2(u);
-
-      float_16 f16 = float_16::bitcastFromUInt(u);
-      float_8e5m2 f8 = float_8e5m2::bitcastFromUInt(u8);
-
-      assert(f8.isNaN() == f16.isNaN());
-      if (!f8.isNaN())
-        assert(f8.toAPFloat().bitcastToAPInt().getZExtValue() ==
-               f8.bitcastToUInt());
-    }
-
-    return 0;
-  }
-
   int test_om_f8e5m2_to_f16() {
     std::cout << "test_om_f8e5m2_to_f16:" << std::endl;
 
     constexpr uint32_t u8max = std::numeric_limits<uint8_t>::max();
     for (uint32_t u = 0; u <= u8max; ++u) {
       assert(u == om_f16_to_f8e5m2(om_f8e5m2_to_f16(u)));
+    }
+
+    return 0;
+  }
+
+  int test_om_f16_to_f8e5m2() {
+    std::cout << "test_om_f16_to_f8e5m2:" << std::endl;
+
+    constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
+    for (uint32_t u = 0; u <= u16max; ++u) {
+      uint8_t u8 = om_f16_to_f8e5m2(u);
+      float_8e5m2 f8 = float_8e5m2::bitcastFromUInt(u8);
+
+      float_16 f16 = float_16::bitcastFromUInt(u);
+      assert(f8.isNaN() == f16.isNaN());
+
+      if (!f8.isNaN()) {
+        llvm::APFloat ap = f16.toAPFloat();
+        bool ignored;
+        ap.convert(float_8e5m2::semantics(), llvm::APFloat::rmNearestTiesToEven,
+            &ignored);
+        assert(u8 == ap.bitcastToAPInt().getZExtValue());
+      }
+    }
+
+    return 0;
+  }
+
+  int test_om_f16_to_f8e5m2_saturate() {
+    std::cout << "test_om_f16_to_f8e5m2_saturate:" << std::endl;
+
+    constexpr uint32_t u16max = std::numeric_limits<uint16_t>::max();
+    for (uint32_t u = 0; u <= u16max; ++u) {
+      uint8_t u8 = om_f16_to_f8e5m2_saturate(u);
+
+      assert((u8 & 0x7F) != 0x7C); // not INF or -INF
+
+      float_8e5m2 f8 = float_8e5m2::bitcastFromUInt(u8);
+
+      float_16 f16 = float_16::bitcastFromUInt(u);
+      assert(f8.isNaN() == f16.isNaN());
+
+      if (!f8.isNaN()) {
+        if (f16.toFloat() > float_8e5m2::max) {
+          assert(u8 == 0x7B);
+        } else if (f16.toFloat() < -float_8e5m2::max) {
+          assert(u8 == 0xFB);
+        } else {
+          llvm::APFloat ap = f16.toAPFloat();
+          bool ignored;
+          ap.convert(float_8e5m2::semantics(),
+              llvm::APFloat::rmNearestTiesToEven, &ignored);
+          assert(u8 == ap.bitcastToAPInt().getZExtValue());
+        }
+      }
     }
 
     return 0;
@@ -194,17 +230,20 @@ BENCHMARK(BM_F32_TO_SMALLFP<bfloat_16>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e4m3fn>);
 BENCHMARK(BM_F32_TO_SMALLFP<float_8e5m2>);
 
+template <bool SATURATE>
 void BM_F16_TO_F8E5M2(benchmark::State &state) {
   constexpr uint32_t uMax = std::numeric_limits<uint16_t>::max();
   for (auto _ : state) {
     // This code gets timed
     uint8_t v = 0;
     for (uint32_t u = 0; u <= uMax; ++u) {
-      benchmark::DoNotOptimize(v += om_f16_to_f8e5m2(u));
+      benchmark::DoNotOptimize(
+          v += SATURATE ? om_f16_to_f8e5m2_saturate(u) : om_f16_to_f8e5m2(u));
     }
   }
 }
-BENCHMARK(BM_F16_TO_F8E5M2);
+BENCHMARK(BM_F16_TO_F8E5M2<false>);
+BENCHMARK(BM_F16_TO_F8E5M2<true>);
 
 template <typename FP>
 void BM_SMALLFP_TO_F32(benchmark::State &state) {
@@ -262,8 +301,9 @@ int main(int argc, char *argv[]) {
   failures += test.test_from_fp16<float_16>("float_16");
   failures += test.test_from_fp16<bfloat_16>("bfloat_16");
 
-  failures += test.test_om_f16_to_f8e5m2();
   failures += test.test_om_f8e5m2_to_f16();
+  failures += test.test_om_f16_to_f8e5m2();
+  failures += test.test_om_f16_to_f8e5m2_saturate();
 
   const bool noNegZero = false;
   const float fp8min = 0.005f;
