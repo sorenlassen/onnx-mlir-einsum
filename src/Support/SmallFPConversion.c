@@ -170,13 +170,15 @@ uint16_t om_f8e5m2_to_f16(uint8_t u8) {
 uint8_t om_f16_to_f8e5m2(uint16_t u16) {
   if ((u16 & 0x7C00) == 0x7C00) { // NaN or INF
     if ((u16 & 0x7CFF) != 0x7C00) {
-      // need to fix u if it's 0x7C and u16 is not INF,
+      // need to fix u16 if it's 0x7C and u16 is not INF,
       // so let's just use same NaN value in all cases:
       // 0x7F if positive, 0xFF if negative
       u16 |= 0x7F00;
     }
   } else {
-    // emulate llvm::RoundingMode::NearestTiesToEven
+    // emulate llvm::RoundingMode::NearestTiesToEven,
+    // note that this rounds large values 0x7B80-7BFF to INF,
+    // and the same for large negative values to -INF
     u16 += 0x80 - ((u16 & 0x1ff) == 0x80);
   }
   return u16 >> 8;
