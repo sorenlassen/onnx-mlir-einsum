@@ -24,8 +24,7 @@ using namespace onnx_mlir;
 
 namespace {
 
-llvm::APFloat apFromF32(const llvm::fltSemantics &semantics, float f32) {
-  llvm::APFloat ap(f32);
+llvm::APFloat apConvert(llvm::APFloat ap, const llvm::fltSemantics &semantics) {
   bool ignored;
   ap.convert(semantics, llvm::APFloat::rmNearestTiesToEven, &ignored);
   return ap;
@@ -59,14 +58,13 @@ public:
   int test_to_fp16(const char *fp_name, uint32_t step) {
     std::cout << "test_to_fp16 " << fp_name << ":" << std::endl;
 
-    assert(apFromF32(FP16::semantics(), NAN).isNaN());
     assert(FP16::fromFloat(NAN).isNaN());
     constexpr uint32_t u32max = std::numeric_limits<uint32_t>::max();
     uint32_t u32 = 0;
     while (true) { // slow if step32 is small
       float f32;
       memcpy(&f32, &u32, sizeof(u32));
-      llvm::APFloat ap = apFromF32(FP16::semantics(), f32);
+      llvm::APFloat ap = apConvert(llvm::APFloat(f32), FP16::semantics());
       uint16_t apu16 = ap.bitcastToAPInt().getZExtValue();
       FP16 fp16 = FP16::fromFloat(f32);
       uint16_t u16 = fp16.bitcastToUInt();
@@ -106,10 +104,7 @@ public:
       assert(f8.isNaN() == f16.isNaN());
 
       if (!f8.isNaN()) {
-        llvm::APFloat ap = f16.toAPFloat();
-        bool ignored;
-        ap.convert(float_8e5m2::semantics(), llvm::APFloat::rmNearestTiesToEven,
-            &ignored);
+        llvm::APFloat ap = apConvert(f16.toAPFloat(), float_8e5m2::semantics());
         assert(u8 == ap.bitcastToAPInt().getZExtValue());
       }
     }
@@ -137,10 +132,8 @@ public:
         } else if (f16.toFloat() < -float_8e5m2::max) {
           assert(u8 == 0xFB);
         } else {
-          llvm::APFloat ap = f16.toAPFloat();
-          bool ignored;
-          ap.convert(float_8e5m2::semantics(),
-              llvm::APFloat::rmNearestTiesToEven, &ignored);
+          llvm::APFloat ap =
+              apConvert(f16.toAPFloat(), float_8e5m2::semantics());
           assert(u8 == ap.bitcastToAPInt().getZExtValue());
         }
       }
