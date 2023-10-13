@@ -4,6 +4,8 @@
 
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
 
+#include "llvm/Support/raw_ostream.h"
+
 #include <fstream>
 
 #ifdef _WIN32
@@ -36,13 +38,18 @@ llvm::StringRef FileDataManager::readFile(llvm::StringRef filepath) {
       fullpath = dir / std::filesystem::path(filepath.begin(), filepath.end());
       std::error_code ec;
       bool exists = std::filesystem::exists(fullpath, ec);
-      assert(!ec && "failed to test read file status");
+      if (ec) {
+        llvm::errs() << "file '" << fullpath << "', " << ec.message() << "\n";
+        llvm_unreachable("failed to test read file status");
+      }
       if (exists)
         break;
       fullpath.clear();
     }
-    assert(!fullpath.empty() && "failed to find file to read");
-
+    if (fullpath.empty()) {
+      llvm::errs() << "readfile '" << filepath << "'\n";
+      llvm_unreachable("failed to find file to read");
+    }
     auto errorOrFilebuf = llvm::MemoryBuffer::getFile(
         fullpath.string(), /*IsText=*/false, /*RequiresNullTerminator=*/false);
     assert(errorOrFilebuf && "failed to read data file");
