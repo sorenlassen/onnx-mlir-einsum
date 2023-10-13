@@ -2,6 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "src/Dialect/LazyCst/FileDataManager.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
@@ -14,12 +15,31 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Verifier.h"
 
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/raw_ostream.h"
+
+#include <cmath>
 #include <iostream>
 
 using namespace mlir;
 using namespace lazycst;
 
 namespace {
+
+template <typename T>
+llvm::sys::fs::TempFile makeTempFile(
+    const std::string &prefix, ArrayRef<T> data) {
+  // auto ok = sys::fs::createUniqueFile()
+  auto tmp = llvm::sys::fs::TempFile::create(prefix + "_%%%.data");
+  if (auto err = tmp.takeError()) {
+    llvm::errs() << toString(std::move(err)) << "\n";
+    llvm_unreachable("failed to create file");
+  }
+  llvm::raw_fd_ostream os(tmp->FD, /*shouldClose=*/false);
+  ArrayRef<char> bytes = onnx_mlir::castArrayRef<char>(data);
+  os.write(bytes.data(), bytes.size());
+  return std::move(*tmp);
+}
 
 class Test {
   MLIRContext *ctx [[maybe_unused]];
@@ -43,8 +63,9 @@ public:
     lazyDialect = ctx->getLoadedDialect<lazycst::LazyCstDialect>();
 
     lazycst::FileDataManager::Config config;
-    config.readDirectoryPaths.push_back(".");
-    config.writeDirectoryPath = ".";
+    std::filesystem::path wd(".");
+    config.readDirectoryPaths.push_back(wd);
+    config.writeDirectoryPath = wd;
     config.writePathPrefix = "prefix";
     config.writePathSuffix = ".data";
     lazyDialect->fileDataManager.configure(config);
@@ -56,9 +77,12 @@ public:
 
   int test_read_file_data() {
     llvm::outs() << "test_read_file_data():\n";
-    auto type = RankedTensorType::get({5}, F32);
+    auto type = RankedTensorType::get({7}, F32);
     // TODO: pre-populate foo.data
-    auto path0 = b.getStringAttr("foo.data");
+    SmallVector<float> foo = {
+        -INFINITY, -1.1e-11, -0.0, 0.0, 2.2e22, INFINITY, NAN};
+    auto fooFile = makeTempFile("foo", ArrayRef(foo));
+    auto path0 = b.getStringAttr(fooFile.TmpName);
     auto f0 = FileDataElementsAttr::get(type, path0);
     auto path1 = b.getStringAttr("bar.data");
     auto f1 = FileDataElementsAttr::get(type, path1, 1);
@@ -86,6 +110,8 @@ public:
     m->setAttr("f1", f1);
 
     llvm::outs() << m << "\n\n";
+    auto fooErr = fooFile.discard();
+    assert(!fooErr && "failed to discard temp file");
     return 0;
   }
 
