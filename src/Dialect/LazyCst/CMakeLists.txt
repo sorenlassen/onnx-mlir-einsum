@@ -9,13 +9,11 @@ add_onnx_mlir_library(OMLazyCst
   LazyCstDialect.cpp
   LazyCstAttributes.cpp
   LazyCstOps.cpp
-  BType.cpp
   ConstantFoldableAnalysis.cpp
   ConstantFolder.cpp
   GraphEvaluator.cpp
   FileDataManager.cpp
   LazyFunctionManager.cpp
-  WideNum.cpp
 
   DEPENDS
   OMACConstantFoldableOpInterfaceIncGen

@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "src/Dialect/LazyCst/WideNum.hpp"
 #include "src/Support/SmallFP.hpp"
 
 #include "mlir/IR/Attributes.h"
@@ -24,11 +23,6 @@
 namespace lazycst {
 
 namespace detail {
-
-template <typename CppType>
-inline WideNum lookupWideNum(const CppType *data, size_t idx) {
-  return WideNum::from<CppType>(data[idx]);
-}
 
 template <typename CppType>
 inline llvm::APFloat lookupAPFloat(const CppType *data, size_t idx) {
@@ -57,9 +51,7 @@ template <typename X, typename CppType>
 std::function<X(size_t)> getFPLookupFnHelper(
     mlir::Type elementType, llvm::ArrayRef<char> rawBytes) {
   const CppType *data = reinterpret_cast<const CppType *>(rawBytes.data());
-  if constexpr (std::is_same_v<X, WideNum>) {
-    return [data](size_t flatIndex) { return lookupWideNum(data, flatIndex); };
-  } else if constexpr (std::is_same_v<X, llvm::APFloat>) {
+  if constexpr (std::is_same_v<X, llvm::APFloat>) {
     return [data](size_t flatIndex) { return lookupAPFloat(data, flatIndex); };
   } else if constexpr (std::is_base_of_v<X, mlir::FloatAttr>) {
     return [elementType, data](size_t flatIndex) {
@@ -100,9 +92,7 @@ template <typename X, typename CppType>
 std::function<X(size_t)> getIntLookupFnHelper(
     mlir::IntegerType elementType, llvm::ArrayRef<char> rawBytes) {
   const CppType *data = reinterpret_cast<const CppType *>(rawBytes.data());
-  if constexpr (std::is_same_v<X, WideNum>) {
-    return [data](size_t flatIndex) { return lookupWideNum(data, flatIndex); };
-  } else if constexpr (std::is_same_v<X, llvm::APInt>) {
+  if constexpr (std::is_same_v<X, llvm::APInt>) {
     return [data](size_t flatIndex) { return lookupAPInt(data, flatIndex); };
   } else if constexpr (std::is_base_of_v<X, mlir::IntegerAttr>) {
     return [elementType, data](size_t flatIndex) {
@@ -179,7 +169,7 @@ using RawBytesContiguousIterTypes = std::tuple<int8_t, uint8_t, int16_t,
     onnx_mlir::float_8e5m2fnuz>;
 
 using RawBytesNonContiguousIterTypes = std::tuple<mlir::Attribute,
-    mlir::FloatAttr, mlir::IntegerAttr, llvm::APFloat, llvm::APInt, WideNum>;
+    mlir::FloatAttr, mlir::IntegerAttr, llvm::APFloat, llvm::APInt>;
 
 template <typename X>
 using RawBytesIterator = std::conditional_t<
