@@ -1085,7 +1085,7 @@ void removeUnrelatedOptions(
 }
 
 static std::string dirname(const std::string &filename) {
-  llvm::SmallString<64> path(inputFilename);
+  llvm::SmallString<64> path(filename);
   llvm::sys::path::remove_filename(path);
   return std::string(path);
 }
