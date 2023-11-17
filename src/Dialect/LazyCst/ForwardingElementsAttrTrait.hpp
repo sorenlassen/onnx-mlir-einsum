@@ -13,9 +13,13 @@
 
 namespace lazycst {
 
-// Contract: Attr must have a getElementsAttr() instance method which returns
-// an ElementsAttr which ForwardingElementsAttrTrait forwards to.
-// And Attr must implement ElementsAttrInterface and the method:
+// An attribute can implement this trait together with ElementsAttrInterface
+// to forward all ElementsAttr methods to another ElementsAttr.
+//
+// Contract:
+// 1. Attr must have a getElementsAttr() instance method which returns
+//    an ElementsAttr which ForwardingElementsAttrTrait forwards to.
+// 2. Attr must implement ElementsAttrInterface and the method:
 //    template <typename T> auto try_value_begin_impl(OverloadToken<T>) const {
 //      return getElementsAttr().try_value_begin<T>();
 //    }
