@@ -4,11 +4,8 @@
 
 #pragma once
 
-#include <cstdint>
-
 #include "mlir/IR/Attributes.h"
 #include "mlir/IR/BuiltinAttributeInterfaces.h"
-#include "mlir/IR/BuiltinTypeInterfaces.h"
 #include "mlir/Support/TypeID.h"
 
 namespace lazycst {
