@@ -4,7 +4,6 @@
 
 #pragma once
 
-#include "src/Dialect/LazyCst/ForwardingElementsAttrTrait.hpp"
 #include "src/Dialect/LazyCst/RawBytesIterator.hpp"
 #include "src/Interface/DenseLikeElementsAttrInterface.hpp"
 

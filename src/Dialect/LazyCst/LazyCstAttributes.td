@@ -50,14 +50,9 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
   let assemblyFormat = "`<` $path ( `+` $offset^ )? `>`";
 }
 
-def ForwardingElementsAttrTrait : NativeAttrTrait<"ForwardingElementsAttrTrait"> {
-  let cppNamespace = "lazycst";
-}
-
 // Currently doesn't implement DenseLikeElementsAttrInterface so that, by
-// default, it (de)serializes efficiently without materializing.
+// default, it serializes efficiently without materializing.
 def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
-    ForwardingElementsAttrTrait,
     ElementsAttrInterface // TODO: consider DenseLikeElementsAttrInterface instead
   ]> {
   let summary = "Lazily evaluated elements attribute.";
@@ -74,7 +69,8 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     }]>,
   ];
   let extraClassDeclaration = [{
-    // ForwardingElementsAttrTrait implementation.
+    // Returns materialized (evaluated) elements. Forces the evaluation if
+    // the materialization wasn't already evaluated and cached.
     mlir::ElementsAttr getElementsAttr() const;
 
     // DenseLikeElementsAttrInterface implementation.
@@ -82,12 +78,20 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
       return toDenseElementsAttrFromElementsAttr(getElementsAttr());
     }
 
-    // ElementsAttrInterface implementation.
+    // Implement ElementsAttrInterface by forwarding to getElementsAttr().
+    // We must implement try_value_begin_impl<T>(OverloadToken<T>).
+    // We choose to override getValuesImpl(TypeId), isSplat().
     template <typename T>
     auto try_value_begin_impl(OverloadToken<T>) const {
       return getElementsAttr().try_value_begin<T>();
     }
-    using ForwardingElementsAttrTrait::getValuesImpl;
+    // Forward getValuesImpl(TypeId) to short-circuit ElementsAttr's default
+    // (Non)ContiguousIterableTypesT logic. We don't know the contiguous types.
+    auto getValuesImpl(mlir::TypeID elementID) const {
+      return getElementsAttr().getValuesImpl(elementID);
+    }
+    // Forward isSplat(). The default implementation is not always accurate.
+    bool isSplat() const { return getElementsAttr().isSplat(); }
   }];
   let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
 }
