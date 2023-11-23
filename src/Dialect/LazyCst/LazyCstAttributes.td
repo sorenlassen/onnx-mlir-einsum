@@ -14,6 +14,14 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     DenseLikeElementsAttrInterface
   ]> {
   let summary = "Attribute for external data: file with raw bytes.";
+  let description = [{
+    Parameter type must be a RankedTensorType or VectorType.
+    Parameter path is relative to FileDataManager::Config::readDirectoryPaths.
+    Parameter offset is the file offset where the data will be read from.
+    The data length is inferred from type.
+    The data is assumed to be in row-major order, like NumPy .npy files,
+    with elements byte aligned, in particular booleans are not bit packed.
+  }];
   let parameters = (ins
     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
     "mlir::StringAttr":$path,
@@ -56,9 +64,14 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     ElementsAttrInterface // TODO: consider DenseLikeElementsAttrInterface instead
   ]> {
   let summary = "Lazily evaluated elements attribute.";
+  let description = [{
+    Parameter callee must refer to a LazyFuncOp. Parameter index specifies
+    one of callee's results and defaults to 0, the first result.
+  }];
   let parameters = (ins
     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,
-    "mlir::FlatSymbolRefAttr":$callee, OptionalParameter<"unsigned">:$index
+    "mlir::FlatSymbolRefAttr":$callee,
+    OptionalParameter<"unsigned">:$index
   );
   let builders = [
     AttrBuilderWithInferredContext<(ins
