@@ -18,26 +18,26 @@ namespace {
 //===----------------------------------------------------------------------===//
 
 void printAsDenseElementsAttr(
-    AsmPrinter &asmPrinter, DenseLikeElementsAttrInterface elements) {
+    AsmPrinter &asmPrinter, DenseLikeElementsAttrInterface densifiable) {
   // It would be ideal if we could read the asmPrinter flags from asmPrinter
-  // instead of constructing them here, because asmPrinter may have been
-  // constructed with an override of elideLargeElementsAttrs which we cannot see
-  // here. Oh well, at least
-  // OpPrintingFlags().shouldElideElementsAttr(ElementsAttr) lets us respect the
-  // --mlir-elide-elementsattrs-if-larger command line flag.
+  // instead of constructing them here, as asmPrinter may have been constructed
+  // with an override of elideLargeElementsAttrs which we cannot see here.
+  // Oh well, at least OpPrintingFlags().shouldElideElementsAttr(ElementsAttr)
+  // lets us respect the --mlir-elide-elementsattrs-if-larger command line flag.
   static OpPrintingFlags printerFlags{};
-  if (elements.isSplat() || !printerFlags.shouldElideElementsAttr(elements)) {
-    // Take shortcut by first converting to DenseElementsAttr.
-    // NOTE: This creates a copy which is never garbage collected. This is not
-    // only slow but also defeats the garbage collection benefits of
-    // DisposableElementsAttr at al, depending on when the printing
-    // takes place (the print at the end of onnx-mlir-opt in lit tests is ok).
-    asmPrinter.printAttribute(elements.toDenseElementsAttr());
-    // TODO: Do the work to print without constructing DenseElementsAttr.
-  } else {
+  if (!densifiable.isSplat() &&
+      printerFlags.shouldElideElementsAttr(densifiable)) {
     // In this special case it's easy to avoid conversion to DenseElementsAttr.
-    asmPrinter << "dense<__elided__> : " << elements.getType();
+    asmPrinter << "dense<__elided__> : " << densifiable.getType();
+    return;
   }
+  // Take shortcut by first converting to DenseElementsAttr.
+  // NOTE: This creates a copy which is never garbage collected. This is not
+  // only slow but also defeats the garbage collection benefits of
+  // DisposableElementsAttr at al, depending on when the printing takes place.
+  // (The print at the end of onnx-mlir-opt in lit tests is ok.)
+  asmPrinter.printAttribute(densifiable.toDenseElementsAttr());
+  // TODO: Do the work to print without constructing DenseElementsAttr.
 }
 
 } // namespace
