@@ -92,14 +92,9 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     }
 
     // Implement ElementsAttrInterface by forwarding to getElementsAttr().
-    // We must implement try_value_begin_impl<T>(OverloadToken<T>).
-    // We choose to override getValuesImpl(TypeId), isSplat().
-    template <typename T>
-    auto try_value_begin_impl(OverloadToken<T>) const {
-      return getElementsAttr().try_value_begin<T>();
-    }
     // Forward getValuesImpl(TypeId) to short-circuit ElementsAttr's default
-    // (Non)ContiguousIterableTypesT logic. We don't know the contiguous types.
+    // (Non)ContiguousIterableTypesT logic (we don't know the contiguous types)
+    // and then we can skip try_value_begin_impl<T>(OverloadToken<T>).
     auto getValuesImpl(mlir::TypeID elementID) const {
       return getElementsAttr().getValuesImpl(elementID);
     }
