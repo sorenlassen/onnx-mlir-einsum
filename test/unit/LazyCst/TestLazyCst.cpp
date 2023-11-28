@@ -75,6 +75,29 @@ public:
     return llvm::outs() << name << "=" << ea << ":" << ea.getShapedType();
   }
 
+  int test_extern_elms() {
+    llvm::outs() << "test_extern_elms()\n";
+
+    auto type = RankedTensorType::get({5}, F32);
+    auto first = b.getStringAttr("first");
+    auto externElms = ExternalElementsAttr::get(type, first);
+
+    // unreachable: invalid `T` for ElementsAttr::getValues
+    if (false)
+      cast<ElementsAttr>(externElms).getValues<Attribute>();
+
+    // unreachable: invalid ExternalElementsAttr access
+    if (false)
+      externElms.getValues<Attribute>();
+
+    // unreachable: unimplemented for ExternalElementsAttr
+    if (false)
+      externElms.isSplat();
+
+    llvm::outs() << "extern:" << externElms << "\n\n";
+    return 0;
+  }
+
   int test_read_file_data() {
     llvm::outs() << "test_read_file_data():\n";
     auto type = RankedTensorType::get({7}, F32);
@@ -226,6 +249,7 @@ int main(int argc, char *argv[]) {
   context.loadDialect<LazyCstDialect>();
   Test test(&context);
   int failures = 0;
+  failures += test.test_extern_elms();
   failures += test.test_read_file_data();
   failures += test.test_write_file_data();
   failures += test.test_lazy_elms();
