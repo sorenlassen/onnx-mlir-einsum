@@ -29,22 +29,13 @@ def ExternalElementsAttr : LazyCst_Attr<"ExternalElements", "extern_elms", [
       return $_get(type.getContext(), type, name);
     }]>,
   ];
-  let extraClassDeclaration = [{
-    // ElementsAttrInterface implementation.
-    // using NonContiguousIterableTypesT = std::tuple<mlir::Attribute>;
-    // // Dummy iterator, makes try_value_begin_impl return type well defined.
-    template <typename X> using iterator =
-        llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
-            std::function<X(size_t)>>;
-    template <typename T>
-    mlir::FailureOr<iterator<T>> try_value_begin_impl(OverloadToken<T>) const {
-      llvm_unreachable("invalid ExternalElementsAttr access");
-    }
-    // Forward isSplat(). The default implementation is not always accurate.
-    bool isSplat() const {
-      llvm_unreachable("unimplemented for ExternalElementsAttr");
-    }
-  }];
+  // NOTE: We don't override (Non)ContiguousIterableTypesT, so getValuesImpl()
+  //       always fails with "invalid `T` for ElementsAttr::getValues" and
+  //       therefore any call to getValues() or value_begin() via the
+  //       ElementsAttr interface always fails that way.
+  //       We don't implement try_value_begin_impl() and therefore any call to
+  //       ExternalElementsAttr::getValues() or value_begin() directly (not via
+  //       the ElementsAttr interface) fails with a compile time error.
   let assemblyFormat = "`<` $name `>`";
 }
 

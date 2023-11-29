@@ -82,17 +82,21 @@ public:
     auto first = b.getStringAttr("first");
     auto externElms = ExternalElementsAttr::get(type, first);
 
-    // unreachable: invalid `T` for ElementsAttr::getValues
-    if (false)
+    if (false) {
+      // unreachable: invalid `T` for ElementsAttr::getValues
       cast<ElementsAttr>(externElms).getValues<Attribute>();
+      cast<ElementsAttr>(externElms).value_begin<Attribute>();
+    }
 
-    // unreachable: invalid ExternalElementsAttr access
-    if (false)
-      externElms.getValues<Attribute>();
+    // compile error: try_value_begin_impl() is unimplemented
+    // externElms.getValues<Attribute>();
+    // externElms.value_begin<Attribute>();
 
-    // unreachable: unimplemented for ExternalElementsAttr
-    if (false)
-      externElms.isSplat();
+    assert(!externElms.empty());
+    assert(externElms.getNumElements() == 5);
+    // isSplat() just returns true when getNumElements() == 1, which is
+    // dubious but shouldn't really matter in practice
+    assert(!externElms.isSplat());
 
     llvm::outs() << "extern:" << externElms << "\n\n";
     return 0;
