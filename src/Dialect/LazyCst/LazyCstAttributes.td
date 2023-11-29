@@ -31,11 +31,11 @@ def ExternalElementsAttr : LazyCst_Attr<"ExternalElements", "extern_elms", [
   ];
   // NOTE: We don't override (Non)ContiguousIterableTypesT, so getValuesImpl()
   //       always fails with "invalid `T` for ElementsAttr::getValues" and
-  //       therefore any call to getValues() or value_begin() via the
-  //       ElementsAttr interface always fails that way.
+  //       therefore any call to getValues<T>() or value_begin<T>() for any T
+  //       via the ElementsAttr interface always fails that way.
   //       We don't implement try_value_begin_impl() and therefore any call to
-  //       ExternalElementsAttr::getValues() or value_begin() directly (not via
-  //       the ElementsAttr interface) fails with a compile time error.
+  //       ExternalElementsAttr::getValues<T>() or value_begin<T>() for any T
+  //       directly (not via the ElementsAttr interface) fails to compile.
   let assemblyFormat = "`<` $name `>`";
 }
 
