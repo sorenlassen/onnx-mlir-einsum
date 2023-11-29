@@ -75,13 +75,16 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
     // ElementsAttrInterface implementation.
     using ContiguousIterableTypesT = RawBytesContiguousIterTypes;
     using NonContiguousIterableTypesT = RawBytesNonContiguousIterTypes;
-    template <typename X> using iterator = RawBytesIterator<X>;
-    template <typename X> using iterator_range = llvm::iterator_range<iterator<X>>;
+    template <typename T> using iterator = RawBytesIterator<T>;
+    template <typename T> using iterator_range = llvm::iterator_range<iterator<T>>;
     template <typename T> auto try_value_begin_impl(OverloadToken<T>) const {
       return try_value_begin_from_raw_bytes<T>(getElementType(), getRawBytes());
     }
-    template <typename X> auto value_end() const {
-      return std::next(value_begin<X>(), size());
+    template <typename T> auto value_end() const {
+      return std::next(value_begin<T>(), size());
+    }
+    template <typename T> iterator_range<T> getValues() const {
+      return {value_begin<T>(), value_end<T>()};
     }
   }];
   let assemblyFormat = "`<` $path ( `+` $offset^ )? `>`";

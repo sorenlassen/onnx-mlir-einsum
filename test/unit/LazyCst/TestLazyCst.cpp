@@ -121,14 +121,19 @@ public:
               << rawBytes[0] << "'\n";
 
     std::cout << "f0 values: ";
-    for (auto it = f0.value_begin<float>(); it != f0.value_end<float>(); ++it) {
-      std::cout << *it << " ";
+    auto values = f0.getValues<float>();
+    assert(values.begin() == f0.value_begin<float>());
+    assert(values.end() == f0.value_end<float>());
+    for (float f : values) {
+      std::cout << f << " ";
     }
     std::cout << "\n";
     ElementsAttr e0 = f0;
     std::cout << "ElementsAttr(f0) values: ";
-    for (auto it = e0.value_begin<float>(); it != e0.value_end<float>(); ++it) {
-      std::cout << *it << " ";
+    assert(e0.getValues<float>().begin() == e0.value_begin<float>());
+    assert(e0.getValues<float>().end() == e0.value_end<float>());
+    for (float f : e0.getValues<float>()) {
+      std::cout << f << " ";
     }
     std::cout << "\n";
 
