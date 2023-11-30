@@ -172,21 +172,50 @@ public:
   int test_lazy_elms() {
     llvm::outs() << "test_lazy_elms()\n";
 
-    constexpr char sym_name[] = "cstexpr0";
-    auto type = RankedTensorType::get({5}, F32);
-    auto lazyElms =
-        LazyElementsAttr::get(type, FlatSymbolRefAttr::get(ctx, sym_name));
-    auto cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
+    auto i32tensortype = RankedTensorType::get({5}, I32);
+    auto d = DenseElementsAttr::get<int32_t>(i32tensortype, 3);
 
-    auto uses = SymbolTable::getSymbolUses(cstOp);
+    auto m = ModuleOp::create(loc);
+    SymbolTable symbolTable(m);
+
+    b.setInsertionPointToStart(m.getBody());
+    constexpr char sym_name[] = "cstexpr0";
+    auto lazyElms = LazyElementsAttr::get(
+        i32tensortype, FlatSymbolRefAttr::get(ctx, sym_name));
+    FunctionType lazyFuncType =
+        b.getFunctionType({i32tensortype}, {i32tensortype});
+    ArrayAttr arg_constants = b.getArrayAttr({d});
+    ArrayAttr res_constants = b.getArrayAttr({lazyElms});
+    ArrayAttr arg_attrs = nullptr, res_attrs = nullptr;
+    auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, lazyFuncType,
+        arg_constants, res_constants, arg_attrs, res_attrs);
+    SymbolTable(m).insert(cstexpr0);
+    b.setInsertionPointToStart(cstexpr0.addEntryBlock());
+    auto returnOp =
+        b.create<LazyReturnOp>(loc, ValueRange{cstexpr0.getArgument(0)});
+    assert(succeeded(verify(returnOp)));
+    assert(succeeded(verify(cstexpr0)));
+
+    llvm::outs() << lazyElms << "\n";
+
+    b.setInsertionPointToEnd(m.getBody());
+    FunctionType useType = b.getFunctionType({}, {i32tensortype});
+    func::FuncOp u = func::FuncOp::create(loc, "use_cstexpr0", useType, {});
+    symbolTable.insert(u);
+    b.setInsertionPointToStart(u.addEntryBlock());
+    auto cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
+    b.create<func::ReturnOp>(loc, cstOp.getResult());
+
+    auto uses = SymbolTable::getSymbolUses(u);
     assert(uses.has_value());
     assert(std::distance(uses->begin(), uses->end()) == 1);
-    auto sym = uses->begin()->getSymbolRef();
+    auto use = uses->begin();
+    assert(use->getUser() == cstOp);
+    auto sym = use->getSymbolRef();
     assert(isa<FlatSymbolRefAttr>(sym));
     assert(cast<FlatSymbolRefAttr>(sym).getValue() == sym_name);
 
-    llvm::outs() << lazyElms << "\n";
-    llvm::outs() << cstOp << "\n\n";
+    llvm::outs() << m << "\n\n";
     return 0;
   }
 
@@ -230,16 +259,16 @@ public:
     assert(succeeded(verify(cstexpr0)));
 
     b.setInsertionPointToEnd(m.getBody());
-    func::FuncOp f2 = func::FuncOp::create(loc, "f2", ftype, {});
-    symbolTable.insert(f2);
-    b.setInsertionPointToStart(f2.addEntryBlock());
-    auto f2cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
-    b.create<func::ReturnOp>(loc, f2cstOp.getResult());
+    func::FuncOp u = func::FuncOp::create(loc, "use_cstexpr0", ftype, {});
+    symbolTable.insert(u);
+    b.setInsertionPointToStart(u.addEntryBlock());
+    auto uCstOp = b.create<arith::ConstantOp>(loc, lazyElms);
+    b.create<func::ReturnOp>(loc, uCstOp.getResult());
 
     auto uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
     assert(uses.has_value());
     assert(std::distance(uses->begin(), uses->end()) == 2);
-    std::vector<Operation *> expected{cstexpr0, f2cstOp};
+    std::vector<Operation *> expected{cstexpr0, uCstOp};
     for (const auto &use : *uses)
       assert(llvm::find(expected, use.getUser()) != expected.end());
 
