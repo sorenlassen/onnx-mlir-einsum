@@ -124,13 +124,20 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
     }
 
     // Implement ElementsAttrInterface by forwarding to getElementsAttr().
-    // Forward getValuesImpl(TypeId) to short-circuit ElementsAttr's default
-    // (Non)ContiguousIterableTypesT logic (we don't know the contiguous types)
-    // and then we can skip try_value_begin_impl<T>(OverloadToken<T>).
+    template <typename T> auto try_value_begin_impl(OverloadToken<T>) const {
+      return getElementsAttr().try_value_begin<T>();
+    }
+    template <typename T> auto value_end() const {
+      return getElementsAttr().value_end<T>();
+    }
+    // Forward getValuesImpl(TypeId) because the (Non)ContiguousIterableTypesT
+    // default logic is unworkable since we don't know the contiguous types.
     auto getValuesImpl(mlir::TypeID elementID) const {
       return getElementsAttr().getValuesImpl(elementID);
     }
-    // Forward isSplat(). The default implementation is not always accurate.
+    // Forward isSplat() because the "conservative" default implementation uses
+    // only the size and getElementsAttr() may differ e.g. if it's a
+    // DenseElementsAttr.
     bool isSplat() const { return getElementsAttr().isSplat(); }
   }];
   let assemblyFormat = "`<` $callee ( `,` struct($index)^ )? `>`";
