@@ -206,7 +206,14 @@ public:
     auto cstOp = b.create<arith::ConstantOp>(loc, lazyElms);
     b.create<func::ReturnOp>(loc, cstOp.getResult());
 
-    auto uses = SymbolTable::getSymbolUses(u);
+    auto uses = SymbolTable::getSymbolUses(cstexpr0, &m.getBodyRegion());
+    assert(uses.has_value());
+    assert(std::distance(uses->begin(), uses->end()) == 2);
+    std::vector<Operation *> expected{cstexpr0, cstOp};
+    for (const auto &use : *uses)
+      assert(llvm::count(expected, use.getUser()) == 1);
+
+    uses = SymbolTable::getSymbolUses(u);
     assert(uses.has_value());
     assert(std::distance(uses->begin(), uses->end()) == 1);
     auto use = uses->begin();
@@ -270,7 +277,7 @@ public:
     assert(std::distance(uses->begin(), uses->end()) == 2);
     std::vector<Operation *> expected{cstexpr0, uCstOp};
     for (const auto &use : *uses)
-      assert(llvm::find(expected, use.getUser()) != expected.end());
+      assert(llvm::count(expected, use.getUser()) == 1);
 
     llvm::outs() << m << "\n\n";
 
