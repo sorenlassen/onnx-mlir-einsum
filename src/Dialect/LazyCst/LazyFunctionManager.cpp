@@ -37,8 +37,7 @@ namespace {
 
 class CstExprConstantFolder : public ConstantFolder {
 public:
-  void fold(mlir::Operation *cstexprOp,
-      llvm::ArrayRef<mlir::Attribute> operands,
+  void fold(Operation *cstexprOp, ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
     LazyFuncOp cstexpr = cast<LazyFuncOp>(cstexprOp);
     // TODO: check that all lazy elms args constants are evaluated
@@ -69,8 +68,22 @@ public:
         cstexprEvaluator.addNode(op, operands, constantFolder);
       }
     }
+    assert(terminator->getNumOperands() >= 1);
     Operation *resultOp = terminator->getOperand(0).getDefiningOp();
-    assert(resultOp != nullptr);
+    if (resultOp == nullptr) {
+      // Allow cstexpr to return a non-empty list of args. Useful in tests.
+      auto resultArgs = terminator->getOperands();
+      results.clear();
+      ArrayAttr argConstants = cstexpr.getArgConstantsAttr();
+      for (Value v : resultArgs) {
+        // All terminator operands must be cstexpr args.
+        auto arg = cast<BlockArgument>(v);
+        assert(arg.getOwner()->getParentOp() == cstexpr);
+        results.push_back(argConstants[arg.getArgNumber()]);
+      }
+      return;
+    }
+    assert(operands.size() == 1);
     SmallVector<ArrayRef<Attribute>, 1> attrs;
     cstexprEvaluator.evaluate({resultOp}, attrs);
     ArrayRef<Attribute> resultAttrs = attrs.front();
