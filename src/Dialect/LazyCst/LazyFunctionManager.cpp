@@ -58,36 +58,42 @@ public:
             constantFolders.lookup(op->getName());
         SmallVector<GraphEvaluator::NodeOperand> operands;
         for (Value v : op->getOperands()) {
-          if (auto r = dyn_cast<OpResult>(v))
+          // Value is OpResult or BlockArgument
+          if (auto r = dyn_cast<OpResult>(v)) {
             operands.emplace_back(r.getOwner(), r.getResultNumber());
-          else if (auto a = dyn_cast<BlockArgument>(v))
+          } else {
+            auto a = cast<BlockArgument>(v);
+            assert(a.getOwner()->getParentOp() == cstexprOp);
             operands.emplace_back(cstexprOp, a.getArgNumber());
-          else
-            llvm_unreachable("Value is OpResult or BlockArgument");
+          }
         }
         cstexprEvaluator.addNode(op, operands, constantFolder);
       }
     }
-    assert(terminator->getNumOperands() >= 1);
-    Operation *resultOp = terminator->getOperand(0).getDefiningOp();
-    if (resultOp == nullptr) {
-      // Allow cstexpr to return a non-empty list of args. Useful in tests.
-      auto resultArgs = terminator->getOperands();
-      results.clear();
-      ArrayAttr argConstants = cstexpr.getArgConstantsAttr();
-      for (Value v : resultArgs) {
-        // All terminator operands must be cstexpr args.
-        auto arg = cast<BlockArgument>(v);
-        assert(arg.getOwner()->getParentOp() == cstexpr);
-        results.push_back(argConstants[arg.getArgNumber()]);
-      }
-      return;
+
+    // Typically terminator's operands are one result of one result op but,
+    // for completeness, support cstexpr args and multiple results and ops.
+    SmallVector<Operation *, 1> resultOps;
+    for (Value v : terminator->getOperands()) {
+      if (auto r = dyn_cast<OpResult>(v))
+        resultOps.push_back(r.getOwner());
     }
-    assert(operands.size() == 1);
     SmallVector<ArrayRef<Attribute>, 1> attrs;
-    cstexprEvaluator.evaluate({resultOp}, attrs);
-    ArrayRef<Attribute> resultAttrs = attrs.front();
-    results.assign(resultAttrs.begin(), resultAttrs.end());
+    cstexprEvaluator.evaluate(resultOps, attrs);
+    ArrayAttr argConstants = cstexpr.getArgConstantsAttr();
+    unsigned resultOpsIndex = 0;
+    for (Value v : terminator->getOperands()) {
+      Attribute result;
+      if (auto r = dyn_cast<OpResult>(v)) {
+        assert(r.getOwner() == resultOps[resultOpsIndex]);
+        result = attrs[resultOpsIndex++][r.getResultNumber()];
+      } else {
+        auto a = cast<BlockArgument>(v);
+        assert(a.getOwner()->getParentOp() == cstexprOp);
+        result = argConstants[a.getArgNumber()];
+      }
+      results.push_back(result);
+    }
   }
 };
 
