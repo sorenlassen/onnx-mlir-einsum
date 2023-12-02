@@ -104,7 +104,6 @@ public:
   int test_read_file_data() {
     llvm::outs() << "test_read_file_data():\n";
     auto type = RankedTensorType::get({7}, F32);
-    // TODO: pre-populate foo.data
     SmallVector<float> foo = {
         -INFINITY, -1.1e-11, -0.0, 0.0, 2.2e22, INFINITY, NAN};
     auto fooFile = makeTempFile("foo", ArrayRef(foo));
