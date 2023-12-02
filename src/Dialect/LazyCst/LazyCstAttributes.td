@@ -60,9 +60,10 @@ def FileDataElementsAttr : LazyCst_Attr<"FileDataElements", "file_data", [
   let builders = [
     AttrBuilderWithInferredContext<(ins
         "mlir::ShapedType":$type,
-        "mlir::StringAttr":$path,
+        "const llvm::Twine &":$path,
         CArg<"uint64_t", "0">:$offset), [{
-      return $_get(type.getContext(), type, path, offset);
+      mlir::MLIRContext *ctx = type.getContext();
+      return $_get(ctx, type, mlir::StringAttr::get(ctx, path), offset);
     }]>,
   ];
   let extraClassDeclaration = [{

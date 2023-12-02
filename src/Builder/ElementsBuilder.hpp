@@ -41,13 +41,7 @@ public:
   //       mlir::ShapedType type, APFloat/APInt/WideNum splatValue) = 0;
 
   virtual mlir::ElementsAttr fromFile(mlir::ShapedType type,
-      mlir::StringAttr path, uint64_t offset, uint64_t length) = 0;
-
-  mlir::ElementsAttr fromFile(mlir::ShapedType type, mlir::StringRef path,
-      uint64_t offset, uint64_t length) {
-    auto pathAttr = mlir::StringAttr::get(type.getContext(), path);
-    return fromFile(type, pathAttr, offset, length);
-  }
+      llvm::StringRef path, uint64_t offset, uint64_t length) = 0;
 };
 
 } // namespace onnx_mlir

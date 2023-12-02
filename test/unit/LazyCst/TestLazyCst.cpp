@@ -107,10 +107,8 @@ public:
     SmallVector<float> foo = {
         -INFINITY, -1.1e-11, -0.0, 0.0, 2.2e22, INFINITY, NAN};
     auto fooFile = makeTempFile("foo", ArrayRef(foo));
-    auto path0 = b.getStringAttr(fooFile.TmpName);
-    auto f0 = FileDataElementsAttr::get(type, path0);
-    auto path1 = b.getStringAttr("bar.data");
-    auto f1 = FileDataElementsAttr::get(type, path1, 1);
+    auto f0 = FileDataElementsAttr::get(type, fooFile.TmpName);
+    auto f1 = FileDataElementsAttr::get(type, "bar.data", 1);
     print_ea("f0", f0) << "\n";
     print_ea("f1", f1) << "\n";
 
@@ -155,7 +153,7 @@ public:
             f32s[i] = i * 1.1;
         });
     auto type = RankedTensorType::get({5}, F32);
-    auto f = FileDataElementsAttr::get(type, b.getStringAttr(filepath));
+    auto f = FileDataElementsAttr::get(type, filepath);
     print_ea("f", f) << "\n";
     std::cout << "f values: ";
     for (auto it = f.value_begin<float>(); it != f.value_end<float>(); ++it) {

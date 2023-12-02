@@ -34,7 +34,7 @@ public:
     llvm_unreachable("TODO: implement this");
   }
 
-  virtual ElementsAttr fromFile(ShapedType type, StringAttr path,
+  virtual ElementsAttr fromFile(ShapedType type, StringRef path,
       uint64_t offset, uint64_t length) override {
     llvm_unreachable("TODO: implement this");
   }
@@ -64,7 +64,7 @@ public:
       return DenseElementsAttr::getFromRawBuffer(type, values);
   }
 
-  ElementsAttr fromFile(ShapedType type, StringAttr path, uint64_t offset,
+  ElementsAttr fromFile(ShapedType type, StringRef path, uint64_t offset,
       uint64_t length) override {
     return lazycst::FileDataElementsAttr::get(type, path, offset);
   }
