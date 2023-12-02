@@ -79,8 +79,7 @@ public:
     llvm::outs() << "test_extern_elms()\n";
 
     auto type = RankedTensorType::get({5}, F32);
-    auto first = b.getStringAttr("first");
-    auto externElms = ExternalElementsAttr::get(type, first);
+    auto externElms = ExternalElementsAttr::get(type, "first");
 
     if (false) {
       // unreachable: invalid `T` for ElementsAttr::getValues

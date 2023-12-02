@@ -25,8 +25,9 @@ def ExternalElementsAttr : LazyCst_Attr<"ExternalElements", "extern_elms", [
   let builders = [
     AttrBuilderWithInferredContext<(ins
         "mlir::ShapedType":$type,
-        "mlir::StringAttr":$name), [{
-      return $_get(type.getContext(), type, name);
+        "const llvm::Twine &":$name), [{
+      mlir::MLIRContext *ctx = type.getContext();
+      return $_get(ctx, type, mlir::StringAttr::get(ctx, name));
     }]>,
   ];
   // NOTE: We don't override (Non)ContiguousIterableTypesT, so getValuesImpl()
