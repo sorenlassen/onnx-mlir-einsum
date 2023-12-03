@@ -29,7 +29,6 @@ namespace {
 template <typename T>
 llvm::sys::fs::TempFile makeTempFile(
     const std::string &prefix, ArrayRef<T> data) {
-  // auto ok = sys::fs::createUniqueFile()
   auto tmp = llvm::sys::fs::TempFile::create(prefix + "_%%%.data");
   if (auto err = tmp.takeError()) {
     llvm::errs() << toString(std::move(err)) << "\n";
@@ -45,7 +44,7 @@ class Test {
   MLIRContext *ctx [[maybe_unused]];
   Location loc;
   OpBuilder b;
-  Type F32, I32, UI32;
+  Type F32, I32;
   lazycst::LazyCstDialect *lazyDialect;
 
   Attribute zero(Type t) {
@@ -59,7 +58,6 @@ public:
   Test(MLIRContext *ctx) : ctx(ctx), loc(UnknownLoc::get(ctx)), b(ctx) {
     F32 = b.getF32Type();
     I32 = b.getI32Type();
-    UI32 = b.getIntegerType(32, /*isSigned=*/false);
     lazyDialect = ctx->getLoadedDialect<lazycst::LazyCstDialect>();
 
     lazycst::FileDataManager::Config config;
