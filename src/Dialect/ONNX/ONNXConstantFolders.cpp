@@ -189,6 +189,9 @@ public:
 
 // CONSTANT-FOLDABLE PROPAGATION PATTERNS
 
+// Rewrites onnx.Sub(lhs, rhs) to onnx.Add(lhs, onnx.Neg(rhs))
+// if rhs is constant foldable and lhs is not.
+// This enables associative-commutative onnx.Add constant-foldable propagation.
 struct SubConstToNegPattern : public OpRewritePattern<ONNXSubOp> {
   using Base = OpRewritePattern<ONNXSubOp>;
 

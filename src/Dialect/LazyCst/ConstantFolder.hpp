@@ -89,8 +89,13 @@ public:
   }
 };
 
+// Holds constant folders and constant-foldable propagation patterns.
+// Constant folders can be added with the insert methods.
+// Constant-foldable propagation patterns can be added with addPatternsGetter.
 class ConstantFolders {
 public:
+  // A PatternsGetter adds to the given pattern set additional constant-foldable
+  // propagation patterns, which can make use of the given analysis.
   using PatternsGetter = std::function<void(
       ConstantFoldableAnalysis &, mlir::RewritePatternSet &)>;
 
@@ -133,9 +138,15 @@ public:
     patternsGetters.emplace_back(std::move(getter));
   }
 
+  // Adds to results all constant-foldable propagation patterns. The patterns
+  // are those that follow from operations' constant foldable op interfaces,
+  // in particular ACConstantFoldableOpInterface, plus all patterns
+  // obtained from added PatternGetters as well as.
   void getPatterns(ConstantFoldableAnalysis &analysis,
       mlir::RewritePatternSet &results) const;
 
+  // Either constant folds op, using an inserted constant folder for op, or
+  // else returns failure.
   mlir::LogicalResult match(mlir::Operation *op) const {
     if (const ConstantFolder *constantFolder = lookup(op->getName()))
       return constantFolder->match(op);
