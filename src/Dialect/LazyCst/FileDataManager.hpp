@@ -16,6 +16,9 @@
 
 namespace lazycst {
 
+// Memory-maps files with MemoryBuffer. Tracks the memory mapping of every read
+// of written file in a map keyed by filepath and reuses the existing memory
+// mapping if a file is read after it was already read or written.
 class FileDataManager {
 public:
   struct Config {
@@ -30,8 +33,20 @@ public:
     this->config = config;
   };
 
+  // Returns the contents of the file at filepath as a StringRef,
+  // like llvm::MemoryBuffer::getBuffer(), where filepath can be a relative
+  // path which is searched in all configured readDirectoryPaths.
+  // Crashes with assertion failure if filepath is not found.
+  //
+  // TODO: consider returning ArrayRef<char> instead of StringRef.
   llvm::StringRef readFile(llvm::StringRef filepath);
 
+  // Writes a file in writeDirectoryPath/writePathPrefix{N}writePathSuffix
+  // where {N} is a non-negative number with `size` bytes produced by
+  // invoking `writer`.
+  // Returns the relative file path without writeDirectoryPath.
+  // The written file is memory-mapped and can be read with readFile()
+  // if writeDirectoryPath is in readDirectoryPaths.
   std::string writeFile(size_t size,
       const std::function<void(llvm::MutableArrayRef<char>)> writer);
 
