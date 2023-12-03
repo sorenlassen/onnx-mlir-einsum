@@ -113,10 +113,6 @@ void LazyCstExprManager::record(SymbolTable &symbolTable,
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
 }
 
-lazycst::ExprOp LazyCstExprManager::lookup(StringAttr symName) const {
-  return table.lookup(symName);
-}
-
 Attribute LazyCstExprManager::getResult(
     lazycst::ExprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
@@ -125,7 +121,7 @@ Attribute LazyCstExprManager::getResult(
 }
 
 Attribute LazyCstExprManager::getResult(StringAttr symName, unsigned index) {
-  return getResult(lookup(symName), index);
+  return getResult(table.lookup(symName), index);
 }
 
 void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,

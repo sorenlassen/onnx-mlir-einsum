@@ -34,12 +34,13 @@ public:
   void record(mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
       bool onlyLazyCstExprUsers);
 
-  lazycst::ExprOp lookup(mlir::StringAttr symName) const;
-
+  // Evaluate the index'th result of cstexpr.
   mlir::Attribute getResult(lazycst::ExprOp cstexpr, unsigned index);
 
+  // Evaluate the index'th result of the lazy cstexpr named symName.
   mlir::Attribute getResult(mlir::StringAttr symName, unsigned index);
 
+  // Evaluate all results of all cstexprs.
   void evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
 
