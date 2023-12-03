@@ -238,8 +238,8 @@ public:
     return 0;
   }
 
-  int test_lazy_func() {
-    llvm::outs() << "test_lazy_func()\n";
+  int test_lazy_cstepxr() {
+    llvm::outs() << "test_lazy_cstepxr()\n";
 
     auto f32tensortype = RankedTensorType::get({5}, F32);
     auto i32tensortype = RankedTensorType::get({5}, I32);
@@ -310,7 +310,7 @@ int main(int argc, char *argv[]) {
   failures += test.test_read_file_data();
   failures += test.test_write_file_data();
   failures += test.test_lazy_elms();
-  failures += test.test_lazy_func();
+  failures += test.test_lazy_cstepxr();
   if (failures != 0) {
     std::cerr << failures << " test failures\n";
     return 1;
