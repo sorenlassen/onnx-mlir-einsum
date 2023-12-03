@@ -34,10 +34,10 @@ ArrayRef<char> FileDataElementsAttr::getRawBytes() const {
 }
 
 ElementsAttr LazyElementsAttr::getElementsAttr() const {
-  auto &lazyFunctionManager =
-      llvm::cast<LazyCstDialect>(getDialect()).lazyFunctionManager;
+  auto &lazyCstExprManager =
+      llvm::cast<LazyCstDialect>(getDialect()).lazyCstExprManager;
   Attribute attr =
-      lazyFunctionManager.getResult(getCallee().getAttr(), getIndex());
+      lazyCstExprManager.getResult(getCallee().getAttr(), getIndex());
   return llvm::cast<ElementsAttr>(attr);
 }
 

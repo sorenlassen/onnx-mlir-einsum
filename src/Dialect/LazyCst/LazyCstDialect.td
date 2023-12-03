@@ -14,7 +14,7 @@ def LazyCst_Dialect : Dialect {
     void registerAttributes(); // Register the dialect attributes.
   public:
     FileDataManager fileDataManager;
-    LazyFunctionManager lazyFunctionManager;
+    LazyCstExprManager lazyCstExprManager;
     ConstantFolders constantFolders;
   }];
 }

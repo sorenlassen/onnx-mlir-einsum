@@ -13,7 +13,7 @@ add_onnx_mlir_library(OMLazyCst
   ConstantFolder.cpp
   GraphEvaluator.cpp
   FileDataManager.cpp
-  LazyFunctionManager.cpp
+  LazyCstExprManager.cpp
 
   DEPENDS
   OMACConstantFoldableOpInterfaceIncGen

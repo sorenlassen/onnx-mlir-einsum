@@ -21,18 +21,18 @@ namespace lazycst {
 
 class ExprOp;
 
-class LazyFunctionManager {
+class LazyCstExprManager {
 public:
-  LazyFunctionManager();
+  LazyCstExprManager();
 
-  ~LazyFunctionManager();
+  ~LazyCstExprManager();
 
   void initialize(mlir::MLIRContext *ctx);
 
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
   void record(mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
-      bool onlyLazyFunctionUsers);
+      bool onlyLazyCstExprUsers);
 
   lazycst::ExprOp lookup(mlir::StringAttr symName) const;
 

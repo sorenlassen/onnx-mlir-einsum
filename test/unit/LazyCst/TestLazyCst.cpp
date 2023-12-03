@@ -170,12 +170,12 @@ public:
 
     auto i32tensortype = RankedTensorType::get({5}, I32);
     auto d = DenseElementsAttr::get<int32_t>(i32tensortype, 3);
-    auto &lazyFunctionManager = lazyDialect->lazyFunctionManager;
+    auto &lazyCstExprManager = lazyDialect->lazyCstExprManager;
     auto m = ModuleOp::create(loc);
     SymbolTable symbolTable(m);
 
     b.setInsertionPointToStart(m.getBody());
-    auto cstexpr = lazyFunctionManager.create(symbolTable, loc);
+    auto cstexpr = lazyCstExprManager.create(symbolTable, loc);
     auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
     auto lazyElms = LazyElementsAttr::get(i32tensortype, lazyFunc);
     cstexpr.setFunctionType(
@@ -189,7 +189,7 @@ public:
     assert(succeeded(verify(returnOp)));
     assert(succeeded(verify(cstexpr)));
 
-    lazyFunctionManager.record(
+    lazyCstExprManager.record(
         symbolTable, cstexpr, /*onlyUsedWithinGraph=*/false);
 
     llvm::outs() << lazyElms << "\n";

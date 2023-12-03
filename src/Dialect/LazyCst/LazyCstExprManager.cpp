@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/LazyFunctionManager.hpp"
+#include "src/Dialect/LazyCst/LazyCstExprManager.hpp"
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
@@ -15,15 +15,15 @@ using namespace mlir;
 
 namespace lazycst {
 
-LazyFunctionManager::LazyFunctionManager() : counter(0) {}
+LazyCstExprManager::LazyCstExprManager() : counter(0) {}
 
-LazyFunctionManager::~LazyFunctionManager() = default;
+LazyCstExprManager::~LazyCstExprManager() = default;
 
-void LazyFunctionManager::initialize(mlir::MLIRContext *ctx) {
+void LazyCstExprManager::initialize(mlir::MLIRContext *ctx) {
   evaluator.initialize(ctx);
 }
 
-lazycst::ExprOp LazyFunctionManager::create(
+lazycst::ExprOp LazyCstExprManager::create(
     SymbolTable &symbolTable, Location loc) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
   OpBuilder b(module.getBodyRegion());
@@ -100,8 +100,8 @@ public:
 
 } // namespace
 
-void LazyFunctionManager::record(SymbolTable &symbolTable,
-    lazycst::ExprOp cstexpr, bool onlyLazyFunctionUsers) {
+void LazyCstExprManager::record(SymbolTable &symbolTable,
+    lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
   SmallVector<GraphEvaluator::NodeOperand> operands;
   for (Attribute cstAttr : cstexpr.getArgConstantsAttr()) {
@@ -110,32 +110,32 @@ void LazyFunctionManager::record(SymbolTable &symbolTable,
       operands.emplace_back(callee, lazyElms.getIndex());
     }
   }
-  evaluator.addNode(cstexpr, operands, &folder, onlyLazyFunctionUsers);
+  evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
 }
 
-lazycst::ExprOp LazyFunctionManager::lookup(StringAttr symName) const {
+lazycst::ExprOp LazyCstExprManager::lookup(StringAttr symName) const {
   return table.lookup(symName);
 }
 
-Attribute LazyFunctionManager::getResult(
+Attribute LazyCstExprManager::getResult(
     lazycst::ExprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
 }
 
-Attribute LazyFunctionManager::getResult(StringAttr symName, unsigned index) {
+Attribute LazyCstExprManager::getResult(StringAttr symName, unsigned index) {
   return getResult(lookup(symName), index);
 }
 
-void LazyFunctionManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
+void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
     llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results) {
   SmallVector<Operation *> ops(llvm::map_range(cstexprs,
       [](lazycst::ExprOp cstexpr) { return cstexpr.getOperation(); }));
   evaluator.evaluate(ops, results);
 }
 
-StringAttr LazyFunctionManager::nextName(SymbolTable &symbolTable) {
+StringAttr LazyCstExprManager::nextName(SymbolTable &symbolTable) {
   unsigned subscript = counter++;
   auto name = StringAttr::get(
       symbolTable.getOp()->getContext(), "lazycst." + Twine(subscript));

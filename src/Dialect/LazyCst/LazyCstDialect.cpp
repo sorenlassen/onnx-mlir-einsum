@@ -6,7 +6,7 @@
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
 void lazycst::LazyCstDialect::initialize() {
-  lazyFunctionManager.initialize(getContext());
+  lazyCstExprManager.initialize(getContext());
 
   // Attributes are added in this private method which is
   // implemented in LazyCstAttributes.cpp where it has

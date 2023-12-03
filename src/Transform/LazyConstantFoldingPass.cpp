@@ -81,7 +81,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root,
   return lazyConstantOps;
 }
 
-void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
+void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
     SymbolTable &symbolTable, lazycst::ConstantFoldableAnalysis &analysis,
     const std::vector<Operation *> &ops) {
   assert(!ops.empty());
@@ -89,7 +89,7 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
   bool onlyConstantFoldableUsers = llvm::all_of(resultOp->getUsers(),
       [&analysis](Operation *op) { return analysis.isConstantFoldableOp(op); });
   Location loc = resultOp->getLoc();
-  lazycst::ExprOp cstexpr = lazyFunctionManager.create(symbolTable, loc);
+  lazycst::ExprOp cstexpr = lazyCstExprManager.create(symbolTable, loc);
   auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
   auto lazyReturn = b.create<lazycst::YieldOp>(loc, ValueRange{});
   b.setInsertionPoint(lazyReturn);
@@ -167,7 +167,7 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
   LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
   assert(succeeded(verify(cstexpr)));
 
-  lazyFunctionManager.record(symbolTable, cstexpr, onlyConstantFoldableUsers);
+  lazyCstExprManager.record(symbolTable, cstexpr, onlyConstantFoldableUsers);
 
   for (Operation *op : ops) {
     assert(op->use_empty());
@@ -189,16 +189,16 @@ struct LazyConstantFoldingPass
   }
 
   void runOnOperation() final {
-    auto &lazyFunctionManager = getContext()
+    auto &lazyCstExprManager = getContext()
                                     .getLoadedDialect<lazycst::LazyCstDialect>()
-                                    ->lazyFunctionManager;
+                                    ->lazyCstExprManager;
     ModuleOp module = getOperation();
     SymbolTable symbolTable(module);
     lazycst::ConstantFoldableAnalysis analysis(module);
     std::vector<Operation *> constants;
     auto resultOps = lazyConstantResultOps(module, analysis, constants);
     for (const auto &ops : llvm::reverse(resultOps))
-      convertIntoLazyConstant(lazyFunctionManager, symbolTable, analysis, ops);
+      convertIntoLazyConstant(lazyCstExprManager, symbolTable, analysis, ops);
     for (auto cst : constants) {
       if (cst->use_empty())
         cst->erase();
