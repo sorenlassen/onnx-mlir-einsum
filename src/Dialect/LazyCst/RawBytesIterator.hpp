@@ -162,21 +162,31 @@ bool isValidElementType(mlir::Type elementType) {
 
 } // namespace detail
 
+// Tuple of types X that are used to represent numbers "raw" in contiguous
+// byte aligned (sizeof(X) bytes per number) memory.
 using RawBytesContiguousIterTypes = std::tuple<int8_t, uint8_t, int16_t,
     uint16_t, int32_t, uint32_t, int64_t, uint64_t, bool, double, float,
     onnx_mlir::float_16, onnx_mlir::bfloat_16, onnx_mlir::float_8e4m3fn,
     onnx_mlir::float_8e4m3fnuz, onnx_mlir::float_8e5m2,
     onnx_mlir::float_8e5m2fnuz>;
 
+// Tuple of types X that the underlying "raw" numbers can be mapped to for
+// generic access.
 using RawBytesNonContiguousIterTypes = std::tuple<mlir::Attribute,
     mlir::FloatAttr, mlir::IntegerAttr, llvm::APFloat, llvm::APInt>;
 
+// Iterator over numbers of type X which is either a raw pointer or a mapped
+// iterator, depending on whether X is the type of an underlying "raw" number
+// or an attribute or arbitrary precision type for generic access.
 template <typename X>
 using RawBytesIterator = std::conditional_t<
     detail::isOneOfTupleTypes<X, RawBytesContiguousIterTypes>, const X *,
     llvm::mapped_iterator<llvm::iota_range<size_t>::const_iterator,
         std::function<X(size_t)>>>;
 
+// Returns an iterator over numbers of type X if X matches elementType,
+// otherwise returns failure.
+// Assumes rawBytes contains contiguous byte aligned elementType numbers.
 template <typename X>
 inline auto try_value_begin_from_raw_bytes(mlir::Type elementType,
     llvm::ArrayRef<char> rawBytes) -> mlir::FailureOr<RawBytesIterator<X>> {
