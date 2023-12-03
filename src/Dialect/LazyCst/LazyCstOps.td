@@ -16,6 +16,22 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
   SingleBlockImplicitTerminator<"YieldOp">
 ]> {
   let summary = "Lazy constant expression";
+  let description = [{
+    A lazy constant expression represents a constant foldable operation graph.
+    It has arguments and results like a function op but it is never called.
+    $arg_constants and $res_constants record an ElementsAttr for each argument
+    and each result, where each result is a LazyElementsAttr.
+
+    Every lazy constant expression op must be constructed with
+    LazyCstExprManager::create() followed by populating its body and attributes
+    with addEntryBlock(), setFunctionType(), setArgConstantsAttr(), and
+    setResConstantsAttr().
+
+    After construction the lazy constant expression op can be recorded with
+    LazyCstExprManager::record(), then it can be evaluated later with
+    LazyCstExprManager::getResult() provided all its child ops have constant
+    folders in ConstantFolders.
+  }];
   let arguments = (ins SymbolNameAttr:$sym_name,
                        TypeAttrOf<FunctionType>:$function_type,
                        ElementsArrayAttr:$arg_constants,
