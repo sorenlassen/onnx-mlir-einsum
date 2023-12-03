@@ -11,9 +11,9 @@ class LazyCst_Op<string mnemonic, list<Trait> traits = []>
 
 def ElementsArrayAttr : TypedArrayAttrBase<ElementsAttr, "elements array attribute">;
 
-def LazyFuncOp : LazyCst_Op<"func", [
+def LazyCst_ExprOp : LazyCst_Op<"expr", [
   CallableOpInterface, FunctionOpInterface, IsolatedFromAbove,
-  SingleBlockImplicitTerminator<"LazyReturnOp">
+  SingleBlockImplicitTerminator<"YieldOp">
 ]> {
   let summary = "Lazy constant expression";
   let arguments = (ins SymbolNameAttr:$sym_name,
@@ -66,9 +66,9 @@ def LazyFuncOp : LazyCst_Op<"func", [
   let hasCustomAssemblyFormat = 1;
 }
 
-def LazyReturnOp : LazyCst_Op<"return",
-    [Pure, ReturnLike, Terminator, HasParent<"LazyFuncOp">]> {
-  let summary = "Lazy constant expression return operation";
+def LazyCst_YieldOp : LazyCst_Op<"yield",
+    [Pure, ReturnLike, Terminator, HasParent<"ExprOp">]> {
+  let summary = "Lazy constant expression yield operation";
   let arguments = (ins Variadic<AnyType>:$operands);
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";
   let hasVerifier = 1;

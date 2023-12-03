@@ -89,9 +89,9 @@ void convertIntoLazyConstant(lazycst::LazyFunctionManager &lazyFunctionManager,
   bool onlyConstantFoldableUsers = llvm::all_of(resultOp->getUsers(),
       [&analysis](Operation *op) { return analysis.isConstantFoldableOp(op); });
   Location loc = resultOp->getLoc();
-  lazycst::LazyFuncOp cstexpr = lazyFunctionManager.create(symbolTable, loc);
+  lazycst::ExprOp cstexpr = lazyFunctionManager.create(symbolTable, loc);
   auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
-  auto lazyReturn = b.create<lazycst::LazyReturnOp>(loc, ValueRange{});
+  auto lazyReturn = b.create<lazycst::YieldOp>(loc, ValueRange{});
   b.setInsertionPoint(lazyReturn);
 
   SmallPtrSet<Operation *, 1> opsSet(ops.begin(), ops.end());

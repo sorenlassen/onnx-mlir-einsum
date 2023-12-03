@@ -121,11 +121,11 @@ struct LazyConstPropRegion {
     assert(span.first < span.second);
     Operation *defop = v.getDefiningOp();
     assert(defop == opQueue[span.second - 1]);
-    lazycst::LazyFuncOp cstexpr = lazyCstDialect->lazyFunctionManager.create(
+    lazycst::ExprOp cstexpr = lazyCstDialect->lazyFunctionManager.create(
         symbolTable, defop->getLoc());
     auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
     auto lazyReturn =
-        b.create<lazycst::LazyReturnOp>(cstexpr->getLoc(), ValueRange{});
+        b.create<lazycst::YieldOp>(cstexpr->getLoc(), ValueRange{});
     b.setInsertionPoint(lazyReturn);
 
     const auto opIsOutside = [&](Operation *op) {

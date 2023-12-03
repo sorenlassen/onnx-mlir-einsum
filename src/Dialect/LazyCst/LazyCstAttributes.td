@@ -99,7 +99,7 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let description = [{
-    Parameter callee must refer to a LazyFuncOp. Parameter index specifies
+    Parameter callee must refer to a LazyCst_ExprOp. Parameter index specifies
     one of callee's results and defaults to 0, the first result.
   }];
   let parameters = (ins

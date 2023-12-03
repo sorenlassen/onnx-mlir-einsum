@@ -12,9 +12,7 @@
 
 using namespace mlir;
 
-namespace lazycst {
-
-void LazyFuncOp::build(
+void lazycst::ExprOp::build(
     OpBuilder &odsBuilder, OperationState &odsState, StringAttr sym_name) {
   auto noFuncType = odsBuilder.getFunctionType({}, {});
   auto noArray = odsBuilder.getArrayAttr({});
@@ -23,7 +21,8 @@ void LazyFuncOp::build(
 }
 
 // Implementation is copied from func::FuncOp.
-ParseResult LazyFuncOp::parse(OpAsmParser &parser, OperationState &result) {
+ParseResult lazycst::ExprOp::parse(
+    OpAsmParser &parser, OperationState &result) {
   auto buildFuncType =
       [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
           function_interface_impl::VariadicFlag,
@@ -36,14 +35,14 @@ ParseResult LazyFuncOp::parse(OpAsmParser &parser, OperationState &result) {
 }
 
 // Implementation is copied from func::FuncOp.
-void LazyFuncOp::print(OpAsmPrinter &p) {
+void lazycst::ExprOp::print(OpAsmPrinter &p) {
   function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false,
       getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName());
 }
 
 // Implementation is copied from func::ReturnOp.
-LogicalResult LazyReturnOp::verify() {
-  auto function = cast<LazyFuncOp>((*this)->getParentOp());
+LogicalResult lazycst::YieldOp::verify() {
+  auto function = cast<lazycst::ExprOp>((*this)->getParentOp());
 
   // The operand number and types must match the function signature.
   const auto &results = function.getFunctionType().getResults();
@@ -62,5 +61,3 @@ LogicalResult LazyReturnOp::verify() {
 
   return success();
 }
-
-} // namespace lazycst

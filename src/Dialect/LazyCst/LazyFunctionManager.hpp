@@ -19,7 +19,7 @@
 
 namespace lazycst {
 
-class LazyFuncOp;
+class ExprOp;
 
 class LazyFunctionManager {
 public:
@@ -29,25 +29,25 @@ public:
 
   void initialize(mlir::MLIRContext *ctx);
 
-  LazyFuncOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
+  lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
-  void record(mlir::SymbolTable &symbolTable, LazyFuncOp cstexpr,
+  void record(mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
       bool onlyLazyFunctionUsers);
 
-  LazyFuncOp lookup(mlir::StringAttr symName) const;
+  lazycst::ExprOp lookup(mlir::StringAttr symName) const;
 
-  mlir::Attribute getResult(LazyFuncOp cstexpr, unsigned index);
+  mlir::Attribute getResult(lazycst::ExprOp cstexpr, unsigned index);
 
   mlir::Attribute getResult(mlir::StringAttr symName, unsigned index);
 
-  void evaluate(llvm::ArrayRef<LazyFuncOp> cstexprs,
+  void evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
 
 private:
   mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
   std::atomic<unsigned> counter;
-  llvm::DenseMap<mlir::StringAttr, LazyFuncOp> table;
+  llvm::DenseMap<mlir::StringAttr, lazycst::ExprOp> table;
   GraphEvaluator evaluator;
 };
 

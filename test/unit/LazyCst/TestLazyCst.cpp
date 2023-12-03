@@ -185,7 +185,7 @@ public:
 
     b.setInsertionPointToStart(cstexpr.addEntryBlock());
     auto returnOp =
-        b.create<LazyReturnOp>(loc, ValueRange{cstexpr.getArgument(0)});
+        b.create<lazycst::YieldOp>(loc, ValueRange{cstexpr.getArgument(0)});
     assert(succeeded(verify(returnOp)));
     assert(succeeded(verify(cstexpr)));
 
@@ -267,13 +267,13 @@ public:
     auto res_constants = b.getArrayAttr({lazyElms});
     auto arg_attrs = nullptr;
     auto res_attrs = nullptr;
-    auto cstexpr0 = b.create<LazyFuncOp>(loc, sym_name, function_type,
+    auto cstexpr0 = b.create<lazycst::ExprOp>(loc, sym_name, function_type,
         arg_constants, res_constants, arg_attrs, res_attrs);
     SymbolTable(m).insert(cstexpr0);
     b.setInsertionPointToStart(cstexpr0.addEntryBlock());
     auto castOp =
         b.create<arith::FPToUIOp>(loc, i32tensortype, cstexpr0.getArgument(0));
-    auto returnOp = b.create<LazyReturnOp>(loc, ValueRange{castOp});
+    auto returnOp = b.create<lazycst::YieldOp>(loc, ValueRange{castOp});
     assert(succeeded(verify(returnOp)));
     assert(succeeded(verify(cstexpr0)));
 
