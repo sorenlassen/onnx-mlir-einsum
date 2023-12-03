@@ -38,6 +38,7 @@ class ConstantFolder {
 public:
   virtual ~ConstantFolder() = default;
 
+  // Override if match(op) can fail.
   virtual mlir::LogicalResult match(mlir::Operation *op) const {
     return mlir::success();
   }
@@ -55,6 +56,7 @@ public:
   }
 };
 
+// Similar to OpConversionPattern and Operation::fold().
 template <typename OP>
 class OpConstantFolder : public ConstantFolder {
 public:
@@ -63,14 +65,17 @@ public:
 
   virtual ~OpConstantFolder() = default;
 
+  // Override if match(op) can fail.
   virtual mlir::LogicalResult match(OP op) const { return mlir::success(); }
   mlir::LogicalResult match(mlir::Operation *op) const override final {
     return match(llvm::cast<OP>(op));
   }
 
+  // Override if op always has a single result.
   virtual mlir::Attribute fold(OP op, FoldAdaptor adaptor) const {
     llvm_unreachable("unimplemented");
   }
+  // Override if op can have zero or multiple results.
   virtual void fold(OP op, FoldAdaptor adaptor,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const {
     results.emplace_back(fold(op, adaptor));
@@ -141,7 +146,7 @@ private:
   // Keyed by operation name, i.e.
   // OP::getOperationName() or OperationName::getIdentifier().
   // TODO: consider using TypeID as key, i.e.
-  //       TypeID::get<OP>() or  OperationName::getTypeID()
+  //       TypeID::get<OP>() or OperationName::getTypeID()
   llvm::StringMap<std::unique_ptr<ConstantFolder>> map;
 
   std::vector<PatternsGetter> patternsGetters;
