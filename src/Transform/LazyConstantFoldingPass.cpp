@@ -91,8 +91,8 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   Location loc = resultOp->getLoc();
   lazycst::ExprOp cstexpr = lazyCstExprManager.create(symbolTable, loc);
   auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
-  auto lazyReturn = b.create<lazycst::YieldOp>(loc, ValueRange{});
-  b.setInsertionPoint(lazyReturn);
+  auto yield = b.create<lazycst::YieldOp>(loc, ValueRange{});
+  b.setInsertionPoint(yield);
 
   SmallPtrSet<Operation *, 1> opsSet(ops.begin(), ops.end());
   const auto inOps = [&](Operation *op) { return opsSet.contains(op); };
@@ -136,16 +136,16 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
 
   SmallVector<Attribute> resultsAttrs;
   {
-    auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
+    auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
     for (unsigned j = 0; j < resultOp->getNumResults(); ++j) {
       Value res = resultOp->getResult(j);
       if (res.use_empty())
         continue;
       auto type = cast<ShapedType>(res.getType());
       unsigned index = resultsAttrs.size();
-      auto lazyElms = lazycst::LazyElementsAttr::get(type, lazyFunc, index);
+      auto lazyElms = lazycst::LazyElementsAttr::get(type, symRef, index);
       resultsAttrs.push_back(lazyElms);
-      lazyReturn.getOperandsMutable().append({clone->getResult(j)});
+      yield.getOperandsMutable().append({clone->getResult(j)});
       b.setInsertionPointAfter(resultOp);
       Dialect *dialect = resultOp->getName().getDialect();
       Operation *cstOp =
@@ -175,7 +175,8 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   }
 }
 
-// ModuleOp pass: adds LazyFuncOps to the module region and symbol table.
+// ModuleOp pass: adds lazy constant expressions to the module region and
+// symbol table.
 struct LazyConstantFoldingPass
     : public PassWrapper<LazyConstantFoldingPass, OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(LazyConstantFoldingPass);
@@ -190,8 +191,8 @@ struct LazyConstantFoldingPass
 
   void runOnOperation() final {
     auto &lazyCstExprManager = getContext()
-                                    .getLoadedDialect<lazycst::LazyCstDialect>()
-                                    ->lazyCstExprManager;
+                                   .getLoadedDialect<lazycst::LazyCstDialect>()
+                                   ->lazyCstExprManager;
     ModuleOp module = getOperation();
     SymbolTable symbolTable(module);
     lazycst::ConstantFoldableAnalysis analysis(module);

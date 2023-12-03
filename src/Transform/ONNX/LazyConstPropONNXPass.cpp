@@ -121,8 +121,8 @@ struct LazyConstPropRegion {
     assert(span.first < span.second);
     Operation *defop = v.getDefiningOp();
     assert(defop == opQueue[span.second - 1]);
-    lazycst::ExprOp cstexpr = lazyCstDialect->lazyCstExprManager.create(
-        symbolTable, defop->getLoc());
+    lazycst::ExprOp cstexpr =
+        lazyCstDialect->lazyCstExprManager.create(symbolTable, defop->getLoc());
     auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
     auto lazyReturn =
         b.create<lazycst::YieldOp>(cstexpr->getLoc(), ValueRange{});
@@ -186,7 +186,7 @@ struct LazyConstPropRegion {
       }
 
       {
-        auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
+        auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
         OpBuilder::InsertionGuard guard(b);
         unsigned numResults = op->getNumResults();
         for (unsigned j = 0; j < numResults; ++j) {
@@ -194,8 +194,7 @@ struct LazyConstPropRegion {
           if (llvm::any_of(res.getUsers(), opIsOutside)) {
             auto type = cast<ShapedType>(res.getType());
             unsigned index = lazyResults.size();
-            auto lazyElms =
-                lazycst::LazyElementsAttr::get(type, lazyFunc, index);
+            auto lazyElms = lazycst::LazyElementsAttr::get(type, symRef, index);
             lazyResults.push_back(lazyElms);
             lazyReturn.getOperandsMutable().append({clone->getResult(j)});
             b.setInsertionPointAfter(defop);

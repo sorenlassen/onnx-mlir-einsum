@@ -174,8 +174,8 @@ public:
 
     b.setInsertionPointToStart(m.getBody());
     auto cstexpr = lazyCstExprManager.create(symbolTable, loc);
-    auto lazyFunc = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
-    auto lazyElms = LazyElementsAttr::get(i32tensortype, lazyFunc);
+    auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
+    auto lazyElms = LazyElementsAttr::get(i32tensortype, symRef);
     cstexpr.setFunctionType(
         b.getFunctionType({i32tensortype}, {i32tensortype}));
     cstexpr.setArgConstantsAttr(b.getArrayAttr({d}));
@@ -223,7 +223,7 @@ public:
     assert(std::distance(uses->begin(), uses->end()) == 2);
     std::vector<Operation *> expected{cstexpr, cstOp};
     for (const auto &use : *uses) {
-      assert(use.getSymbolRef() == lazyFunc);
+      assert(use.getSymbolRef() == symRef);
       assert(llvm::count(expected, use.getUser()) == 1);
     }
 
