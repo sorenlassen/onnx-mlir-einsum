@@ -8,19 +8,15 @@
 
 namespace lazycst {
 
-namespace {
-llvm::ThreadPool *threadPoolOf(mlir::MLIRContext *ctx) {
-  return ctx->isMultithreadingEnabled() ? &ctx->getThreadPool() : nullptr;
+GraphEvaluator::GraphEvaluator(mlir::MLIRContext *ctx) : threadPool(nullptr) {
+  if (ctx)
+    initialize(ctx);
 }
-} // namespace
-
-GraphEvaluator::GraphEvaluator(mlir::MLIRContext *ctx)
-    : threadPool(ctx ? threadPoolOf(ctx) : nullptr) {}
 
 GraphEvaluator::~GraphEvaluator() = default;
 
 void GraphEvaluator::initialize(mlir::MLIRContext *ctx) {
-  threadPool = threadPoolOf(ctx);
+  threadPool = ctx->isMultithreadingEnabled() ? &ctx->getThreadPool() : nullptr;
 }
 
 // All predecessors must have been added beforehand.
