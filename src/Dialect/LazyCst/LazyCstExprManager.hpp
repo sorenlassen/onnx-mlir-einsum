@@ -29,8 +29,16 @@ public:
 
   void initialize(mlir::MLIRContext *ctx);
 
+  // Create a new lazy constant expression with a unique name.
+  // The caller must afterwards populate the body and attributes with
+  // addEntryBlock(), setFunctionType(), setArgConstantsAttr(), and
+  // setResConstantsAttr().
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
+  // Record cstexpr for future evaluation with getResult() or evaluate().
+  // `symbolTable` should be the module symbol table and is used to look up
+  // any lazy_elms arguments (record could build this but it's cheaper for the
+  // caller to pass a built SymbolTable in case record is called repeatedly).
   void record(mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
       bool onlyLazyCstExprUsers);
 
