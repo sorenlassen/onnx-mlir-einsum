@@ -134,26 +134,34 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   }
   // clone is now the clone of resultOp which was the op in the last iteration.
 
-  SmallVector<Attribute> resultsAttrs;
-  {
-    auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
-    for (unsigned j = 0; j < resultOp->getNumResults(); ++j) {
-      Value res = resultOp->getResult(j);
-      if (res.use_empty())
-        continue;
-      auto type = cast<ShapedType>(res.getType());
-      unsigned index = resultsAttrs.size();
-      auto lazyElms = lazycst::LazyElementsAttr::get(type, symRef, index);
-      resultsAttrs.push_back(lazyElms);
-      yield.getOperandsMutable().append({clone->getResult(j)});
-      b.setInsertionPointAfter(resultOp);
-      Dialect *dialect = resultOp->getName().getDialect();
-      Operation *cstOp =
-          dialect->materializeConstant(b, lazyElms, type, res.getLoc());
-      res.replaceAllUsesWith(cstOp->getResult(0));
+  for (unsigned j = 0; j < resultOp->getNumResults(); ++j) {
+    auto res = resultOp->getResult(j);
+    if (!res.use_empty()) {
+      auto cloneRes = clone->getResult(j);
+      yield.getOperandsMutable().append({cloneRes});
     }
   }
-  assert(!resultsAttrs.empty());
+  assert(yield.getNumOperands() > 0);
+
+  auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
+  SmallVector<Attribute> resultsAttrs;
+  for (auto [index, cloneRes] : llvm::enumerate(yield.getOperands())) {
+    auto type = cast<ShapedType>(cloneRes.getType());
+    auto lazyElms = lazycst::LazyElementsAttr::get(type, symRef, index);
+    resultsAttrs.push_back(lazyElms);
+  }
+
+  for (auto [cloneRes, lazyElms] :
+      llvm::zip_equal(yield.getOperands(), resultsAttrs)) {
+    // set res to the result of resultOp corresponding to cloneRes:
+    unsigned j = cast<OpResult>(cloneRes).getResultNumber();
+    auto res = resultOp->getResult(j);
+    b.setInsertionPointAfter(resultOp);
+    Dialect *dialect = resultOp->getName().getDialect();
+    Operation *cstOp =
+        dialect->materializeConstant(b, lazyElms, res.getType(), res.getLoc());
+    res.replaceAllUsesWith(cstOp->getResult(0));
+  }
 
   const auto getAttrType = [](Attribute ta) {
     return cast<TypedAttr>(ta).getType();
