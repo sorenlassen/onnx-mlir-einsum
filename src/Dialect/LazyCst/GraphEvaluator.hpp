@@ -37,6 +37,9 @@ public:
 
   void initialize(mlir::MLIRContext *ctx);
 
+  // Returns true if addNode() or addEvaluatedNode() has been called with op.
+  bool hasNode(mlir::Operation *op) const;
+
   // All operand ops must have been added beforehand.
   void addNode(mlir::Operation *op, llvm::ArrayRef<NodeOperand> operands,
       const ConstantFolder *folder, bool onlyUsedWithinGraph = true);
@@ -86,6 +89,7 @@ private:
   llvm::ThreadPool *threadPool;
   std::mutex mux;
   std::condition_variable condition;
+  // TODO: make nodes insertion and lookup thread safe
   std::unordered_map<mlir::Operation *, OpRecord> nodes;
   int whoCounter = 0;
 };

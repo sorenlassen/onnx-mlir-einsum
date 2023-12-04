@@ -44,6 +44,8 @@ lazycst::ExprOp LazyCstExprManager::create(mlir::SymbolTable &symbolTable,
   }
   cstexpr.setOutputsAttr(b.getArrayAttr(outputs));
 
+  insert(name, entryBlock);
+
   return cstexpr;
 }
 
@@ -113,18 +115,25 @@ public:
 
 } // namespace
 
-void LazyCstExprManager::record(const SymbolTable &symbolTable,
+void LazyCstExprManager::record(
     lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
+  assert(table.contains(cstexpr.getSymNameAttr()));
   SmallVector<GraphEvaluator::NodeOperand> operands;
+  if (evaluator.hasNode(cstexpr))
+    return;
   for (Attribute cstAttr : cstexpr.getInputs()) {
     if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
-      Operation *callee = symbolTable.lookup(lazyElms.getCallee().getAttr());
+      lazycst::ExprOp callee = lookup(lazyElms.getCallee().getAttr());
+      record(callee);
       operands.emplace_back(callee, lazyElms.getIndex());
     }
   }
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
-  table.try_emplace(cstexpr.getSymNameAttr(), cstexpr);
+}
+
+void LazyCstExprManager::insert(StringAttr symName, mlir::Block *entryBlock) {
+  table[symName] = entryBlock;
 }
 
 Attribute LazyCstExprManager::evaluate(
@@ -135,13 +144,17 @@ Attribute LazyCstExprManager::evaluate(
 }
 
 Attribute LazyCstExprManager::evaluate(StringAttr symName, unsigned index) {
-  return evaluate(table.lookup(symName), index);
+  return evaluate(lookup(symName), index);
 }
 
 void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
     llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results) {
-  SmallVector<Operation *> ops(llvm::map_range(cstexprs,
-      [](lazycst::ExprOp cstexpr) { return cstexpr.getOperation(); }));
+  SmallVector<Operation *> ops;
+  ops.reserve(cstexprs.size());
+  for (lazycst::ExprOp ce : cstexprs) {
+    record(ce);
+    ops.push_back(ce);
+  }
   evaluator.evaluate(ops, results);
 }
 
@@ -152,6 +165,11 @@ StringAttr LazyCstExprManager::nextName(SymbolTable &symbolTable) {
   assert(!symbolTable.lookup(name) &&
          "next lazycst::ExprOp name was already taken");
   return name;
+}
+
+lazycst::ExprOp LazyCstExprManager::lookup(StringAttr symName) const {
+  Block *entryBlock = table.lookup(symName);
+  return cast<lazycst::ExprOp>(entryBlock->getParentOp());
 }
 
 } // namespace lazycst

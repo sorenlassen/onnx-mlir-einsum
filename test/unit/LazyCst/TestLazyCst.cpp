@@ -181,8 +181,7 @@ public:
     assert(succeeded(verify(cstexpr)));
     LazyElementsAttr lazyElms = cast<LazyElementsAttr>(cstexpr.getOutputs()[0]);
 
-    lazyCstExprManager.record(
-        symbolTable, cstexpr, /*onlyUsedWithinGraph=*/false);
+    lazyCstExprManager.record(cstexpr, /*onlyUsedWithinGraph=*/false);
 
     llvm::outs() << lazyElms << "\n";
     llvm::outs() << cstexpr << "\n";

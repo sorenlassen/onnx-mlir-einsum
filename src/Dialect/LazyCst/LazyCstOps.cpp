@@ -43,8 +43,9 @@ ParseResult lazycst::ExprOp::parse(
   ArrayAttr outputs;
   auto *body = result.addRegion();
 
-  OperationName exprOpName(
-      lazycst::ExprOp::getOperationName(), parser.getContext());
+  // OperationName exprOpName(
+  //     lazycst::ExprOp::getOperationName(), parser.getContext());
+  OperationName exprOpName = result.name;
   StringRef symNameAttrName = lazycst::ExprOp::getSymNameAttrName(exprOpName);
   StringRef inputsAttrName = lazycst::ExprOp::getInputsAttrName(exprOpName);
   StringRef outputsAttrName = lazycst::ExprOp::getOutputsAttrName(exprOpName);
@@ -61,7 +62,9 @@ ParseResult lazycst::ExprOp::parse(
       parser.parseRegion(*body, args))
     return failure();
 
-  // TODO: record in LazyCstExprManager
+  auto &lazyCstExprManager =
+      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).lazyCstExprManager;
+  lazyCstExprManager.insert(name, &body->front());
 
   return success();
 }

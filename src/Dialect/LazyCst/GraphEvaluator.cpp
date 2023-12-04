@@ -19,6 +19,10 @@ void GraphEvaluator::initialize(mlir::MLIRContext *ctx) {
   threadPool = ctx->isMultithreadingEnabled() ? &ctx->getThreadPool() : nullptr;
 }
 
+bool GraphEvaluator::hasNode(mlir::Operation *op) const {
+  return nodes.count(op) != 0;
+}
+
 // All predecessors must have been added beforehand.
 void GraphEvaluator::addNode(mlir::Operation *op,
     llvm::ArrayRef<NodeOperand> operands, const ConstantFolder *folder,

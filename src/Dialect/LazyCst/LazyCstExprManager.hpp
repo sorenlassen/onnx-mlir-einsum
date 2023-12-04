@@ -35,11 +35,12 @@ public:
       mlir::Block *entryBlock, llvm::ArrayRef<mlir::Attribute> inputs);
 
   // Record cstexpr for future evaluation with evaluate().
-  // `symbolTable` should be the module symbol table and is used to look up
-  // any lazy_elms arguments (record could build this but it's cheaper for the
-  // caller to pass a built SymbolTable in case record is called repeatedly).
-  void record(const mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
-      bool onlyLazyCstExprUsers);
+  // The cstexpr of all argument lazy_elms must have been recorded beforehand.
+  void record(lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers = false);
+
+  // Record cstexpr with the given name and entry block for future evaluation
+  // with evaluate().
+  void insert(mlir::StringAttr symName, mlir::Block *entryBlock);
 
   // Evaluate the index'th result of cstexpr.
   mlir::Attribute evaluate(lazycst::ExprOp cstexpr, unsigned index);
@@ -54,12 +55,16 @@ public:
 private:
   mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
+  lazycst::ExprOp lookup(mlir::StringAttr symName) const;
+
   std::atomic<unsigned> counter;
 
   // "Shadow" symbol table used to look up lazy constant expressions in
   // evaluate(symNam, index), called from LazyElementsAttr::getElementsAttr()
   // without access to the ModuleOp symbol table.
-  llvm::DenseMap<mlir::StringAttr, lazycst::ExprOp> table;
+  // Maps to the lazy constant expression's entry block because that is
+  // available during parsing.
+  llvm::DenseMap<mlir::StringAttr, mlir::Block *> table;
 
   GraphEvaluator evaluator;
 };

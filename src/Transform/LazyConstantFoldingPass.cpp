@@ -161,7 +161,7 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
   assert(succeeded(verify(cstexpr)));
 
-  lazyCstExprManager.record(symbolTable, cstexpr, onlyConstantFoldableUsers);
+  lazyCstExprManager.record(cstexpr, onlyConstantFoldableUsers);
 
   for (Operation *op : ops) {
     assert(op->use_empty());
