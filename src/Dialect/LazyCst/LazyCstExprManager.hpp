@@ -37,7 +37,7 @@ public:
   // `symbolTable` should be the module symbol table and is used to look up
   // any lazy_elms arguments (record could build this but it's cheaper for the
   // caller to pass a built SymbolTable in case record is called repeatedly).
-  void record(mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
+  void record(const mlir::SymbolTable &symbolTable, lazycst::ExprOp cstexpr,
       bool onlyLazyCstExprUsers);
 
   // Evaluate the index'th result of cstexpr.

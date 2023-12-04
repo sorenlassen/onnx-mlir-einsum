@@ -114,7 +114,7 @@ public:
 
 } // namespace
 
-void LazyCstExprManager::record(SymbolTable &symbolTable,
+void LazyCstExprManager::record(const SymbolTable &symbolTable,
     lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
   SmallVector<GraphEvaluator::NodeOperand> operands;
