@@ -30,13 +30,6 @@ namespace {
 using namespace mlir;
 using namespace onnx_mlir;
 
-// Populated by configureLazyConstPropONNXPass().
-struct LazyConstPropONNXPassConfiguration {
-  static int expansionBound;
-};
-
-int LazyConstPropONNXPassConfiguration::expansionBound = -1; // -1 == no bound
-
 bool isConstantFoldable(Operation *op) {
   return succeeded(op->getContext()
                        ->getLoadedDialect<lazycst::LazyCstDialect>()
@@ -666,10 +659,6 @@ struct LazyConstPropONNXPass
 };
 
 } // namespace
-
-void onnx_mlir::configureLazyConstPropONNXPass(int expansionBound) {
-  LazyConstPropONNXPassConfiguration::expansionBound = expansionBound;
-}
 
 std::unique_ptr<mlir::Pass> onnx_mlir::createLazyConstPropONNXPass() {
   return std::make_unique<LazyConstPropONNXPass>();

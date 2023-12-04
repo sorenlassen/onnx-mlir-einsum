@@ -60,9 +60,6 @@ std::unique_ptr<mlir::Pass> createConstantFoldingPass();
 
 std::unique_ptr<mlir::Pass> createLazyConstantFoldingPass();
 
-// To configure LazyConstPropONNXPass at program start.
-void configureLazyConstPropONNXPass(int expansionBound);
-
 std::unique_ptr<mlir::Pass> createLazyConstPropONNXPass();
 
 /// Pass for instrument the ops in specific stage.

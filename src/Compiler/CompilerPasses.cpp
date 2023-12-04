@@ -49,7 +49,6 @@ void configurePasses() {
   configureConstPropONNXToONNXPass(onnxConstPropRoundFPToInt,
       onnxConstPropExpansionBound, onnxConstPropDisablePatterns,
       disableConstantProp);
-  configureLazyConstPropONNXPass(onnxConstPropExpansionBound);
   configureOnnxToKrnlLoweringPass(optReport == OptReport::Parallel,
       enableParallel, optReport == OptReport::Simd, !disableSimdOption);
 }
