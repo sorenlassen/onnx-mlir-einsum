@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
-include "mlir/Interfaces/CallInterfaces.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
-include "mlir/Interfaces/FunctionInterfaces.td"
 include "mlir/Interfaces/SideEffectInterfaces.td"
 include "mlir/IR/OpBase.td"
+include "mlir/IR/SymbolInterfaces.td"
 
 class LazyCst_Op<string mnemonic, list<Trait> traits = []>
     : Op<LazyCst_Dialect, mnemonic, traits> {}
@@ -12,20 +11,17 @@ class LazyCst_Op<string mnemonic, list<Trait> traits = []>
 def ElementsArrayAttr : TypedArrayAttrBase<ElementsAttr, "elements array attribute">;
 
 def LazyCst_ExprOp : LazyCst_Op<"expr", [
-  CallableOpInterface, FunctionOpInterface, IsolatedFromAbove,
-  SingleBlockImplicitTerminator<"YieldOp">
+  Symbol, IsolatedFromAbove, SingleBlockImplicitTerminator<"YieldOp">
 ]> {
   let summary = "Lazy constant expression";
   let description = [{
     A lazy constant expression represents a constant foldable operation graph.
     It has arguments and results like a function op but it is never called.
-    $arg_constants and $res_constants record an ElementsAttr for each argument
-    and each result, where each result is a LazyElementsAttr.
+    $inputs and $outputs record an ElementsAttr for each argument
+    and a LazyElementsAttr for each result.
 
     Every lazy constant expression op must be constructed with
-    LazyCstExprManager::create() followed by populating its body and attributes
-    with addEntryBlock(), setFunctionType(), setArgConstantsAttr(), and
-    setResConstantsAttr().
+    LazyCstExprManager::create().
 
     After construction the lazy constant expression op can be recorded with
     LazyCstExprManager::record(), then it can be evaluated later with
@@ -33,53 +29,13 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
     folders in ConstantFolders.
   }];
   let arguments = (ins SymbolNameAttr:$sym_name,
-                       TypeAttrOf<FunctionType>:$function_type,
-                       ElementsArrayAttr:$arg_constants,
-                       ElementsArrayAttr:$res_constants,
-                       OptionalAttr<DictArrayAttr>:$arg_attrs,
-                       OptionalAttr<DictArrayAttr>:$res_attrs);
+                       ElementsArrayAttr:$inputs,
+                       ElementsArrayAttr:$outputs);
   let regions = (region SizedRegion<1>:$body);
   let builders = [
-    // Creates with empty function type, args, results, to be filled in later.
-    OpBuilder<(ins "mlir::StringAttr":$sym_name)>
+    // Creates with empty outputs, to be filled in later.
+    OpBuilder<(ins "mlir::StringAttr":$sym_name, "mlir::ArrayAttr":$inputs)>
   ];
-  let extraClassDeclaration = [{
-    //===------------------------------------------------------------------===//
-    // CallableOpInterface
-    //===------------------------------------------------------------------===//
-
-    /// Returns the region on the current operation that is callable. This may
-    /// return null in the case of an external callable object, e.g. an external
-    /// function.
-    mlir::Region *getCallableRegion() { return isExternal() ? nullptr : &getBody(); }
-
-    /// Returns the results types that the callable region produces when
-    /// executed.
-    llvm::ArrayRef<mlir::Type> getCallableResults() { return getFunctionType().getResults(); }
-
-    /// Returns the argument attributes for all callable region arguments or
-    /// null if there are none.
-    mlir::ArrayAttr getCallableArgAttrs() {
-      return getArgAttrs().value_or(nullptr);
-    }
-
-    /// Returns the result attributes for all callable region results or
-    /// null if there are none.
-    mlir::ArrayAttr getCallableResAttrs() {
-      return getResAttrs().value_or(nullptr);
-    }
-
-    //===------------------------------------------------------------------===//
-    // FunctionOpInterface Methods
-    //===------------------------------------------------------------------===//
-
-    /// Returns the argument types of this function.
-    llvm::ArrayRef<mlir::Type> getArgumentTypes() { return getFunctionType().getInputs(); }
-
-    /// Returns the result types of this function.
-    llvm::ArrayRef<mlir::Type> getResultTypes() { return getFunctionType().getResults(); }
-  }];
-  let hasCustomAssemblyFormat = 1;
 }
 
 def LazyCst_YieldOp : LazyCst_Op<"yield",

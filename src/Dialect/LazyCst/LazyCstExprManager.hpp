@@ -30,14 +30,8 @@ public:
   void initialize(mlir::MLIRContext *ctx);
 
   // Create a new lazy constant expression with a unique name.
-  // The caller must afterwards populate the body and attributes with
-  // addEntryBlock(), setFunctionType(), setArgConstantsAttr(), and
-  // setResConstantsAttr().
-  lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
-
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc,
-      mlir::Block *entryBlock,
-      llvm::ArrayRef<mlir::Attribute> argConstantAttrs);
+      mlir::Block *entryBlock, llvm::ArrayRef<mlir::Attribute> inputs);
 
   // Record cstexpr for future evaluation with getResult() or evaluate().
   // `symbolTable` should be the module symbol table and is used to look up

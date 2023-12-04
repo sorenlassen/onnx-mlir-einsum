@@ -23,43 +23,27 @@ void LazyCstExprManager::initialize(mlir::MLIRContext *ctx) {
   evaluator.initialize(ctx);
 }
 
-lazycst::ExprOp LazyCstExprManager::create(
-    SymbolTable &symbolTable, Location loc) {
-  auto module = cast<ModuleOp>(symbolTable.getOp());
-  OpBuilder b(module.getBodyRegion());
-  StringAttr name = nextName(symbolTable);
-  auto cstexpr = b.create<lazycst::ExprOp>(loc, name);
-  symbolTable.insert(cstexpr);
-  table.try_emplace(name, cstexpr);
-  return cstexpr;
-}
-
 lazycst::ExprOp LazyCstExprManager::create(mlir::SymbolTable &symbolTable,
     mlir::Location loc, mlir::Block *entryBlock,
-    llvm::ArrayRef<mlir::Attribute> argConstantAttrs) {
+    llvm::ArrayRef<mlir::Attribute> inputs) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
   OpBuilder b(module.getBodyRegion());
   StringAttr name = nextName(symbolTable);
-  auto cstexpr = b.create<lazycst::ExprOp>(loc, name);
+  auto cstexpr = b.create<lazycst::ExprOp>(loc, name, b.getArrayAttr(inputs));
   symbolTable.insert(cstexpr);
   table.try_emplace(name, cstexpr);
 
-  Operation *terminator = entryBlock->getTerminator();
-  auto resTypes = terminator->getOperandTypes();
-  cstexpr.setFunctionType(
-      b.getFunctionType(entryBlock->getArgumentTypes(), resTypes));
   cstexpr.getRegion().push_back(entryBlock);
 
-  cstexpr.setArgConstantsAttr(b.getArrayAttr(argConstantAttrs));
-
   auto symRef = FlatSymbolRefAttr::get(name);
-  SmallVector<Attribute> resConstantAttrs;
+  SmallVector<Attribute> outputs;
+  auto resTypes = entryBlock->getTerminator()->getOperandTypes();
   for (auto [index, type] : llvm::enumerate(resTypes)) {
     auto lazyElms =
         lazycst::LazyElementsAttr::get(cast<ShapedType>(type), symRef, index);
-    resConstantAttrs.push_back(lazyElms);
+    outputs.push_back(lazyElms);
   }
-  cstexpr.setResConstantsAttr(b.getArrayAttr(resConstantAttrs));
+  cstexpr.setOutputsAttr(b.getArrayAttr(outputs));
 
   return cstexpr;
 }
@@ -78,7 +62,7 @@ public:
     GraphEvaluator cstexprEvaluator(ctx);
     // cstexprOp is used as a pseudo-op that folds with the args as results.
     cstexprEvaluator.addEvaluatedNode(
-        cstexprOp, cstexpr.getArgConstantsAttr().getValue());
+        cstexprOp, cstexpr.getInputs().getValue());
     Operation *terminator = cstexpr.getBody().back().getTerminator();
     for (auto it = cstexpr.getBody().op_begin(); &*it != terminator; ++it) {
       Operation *op = &*it;
@@ -111,7 +95,7 @@ public:
     }
     SmallVector<ArrayRef<Attribute>, 1> attrs;
     cstexprEvaluator.evaluate(resultOps, attrs);
-    ArrayAttr argConstants = cstexpr.getArgConstantsAttr();
+    ArrayAttr argConstants = cstexpr.getInputs();
     unsigned resultOpsIndex = 0;
     for (Value v : terminator->getOperands()) {
       Attribute result;
@@ -134,7 +118,7 @@ void LazyCstExprManager::record(SymbolTable &symbolTable,
     lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
   SmallVector<GraphEvaluator::NodeOperand> operands;
-  for (Attribute cstAttr : cstexpr.getArgConstantsAttr()) {
+  for (Attribute cstAttr : cstexpr.getInputs()) {
     if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
       Operation *callee = symbolTable.lookup(lazyElms.getCallee().getAttr());
       operands.emplace_back(callee, lazyElms.getIndex());

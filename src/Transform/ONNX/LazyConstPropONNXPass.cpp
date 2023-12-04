@@ -121,6 +121,7 @@ struct LazyConstPropRegion {
     assert(span.first < span.second);
     Operation *defop = v.getDefiningOp();
     assert(defop == opQueue[span.second - 1]);
+#if 0
     lazycst::ExprOp cstexpr =
         lazyCstDialect->lazyCstExprManager.create(symbolTable, defop->getLoc());
     auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
@@ -238,6 +239,7 @@ struct LazyConstPropRegion {
       assert(op->use_empty());
       op->erase();
     }
+#endif
   }
 
   Region *region;

@@ -12,52 +12,32 @@
 
 using namespace mlir;
 
-void lazycst::ExprOp::build(
-    OpBuilder &odsBuilder, OperationState &odsState, StringAttr sym_name) {
-  auto noFuncType = odsBuilder.getFunctionType({}, {});
-  auto noArray = odsBuilder.getArrayAttr({});
-  build(odsBuilder, odsState, sym_name, noFuncType, noArray, noArray, nullptr,
-      nullptr);
+void lazycst::ExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
+    StringAttr sym_name, ArrayAttr inputs) {
+  auto emptyOutputs = odsBuilder.getArrayAttr({});
+  build(odsBuilder, odsState, sym_name, inputs, emptyOutputs);
 }
 
-// Implementation is copied from func::FuncOp.
-ParseResult lazycst::ExprOp::parse(
-    OpAsmParser &parser, OperationState &result) {
-  auto buildFuncType =
-      [](Builder &builder, ArrayRef<Type> argTypes, ArrayRef<Type> results,
-          function_interface_impl::VariadicFlag,
-          std::string &) { return builder.getFunctionType(argTypes, results); };
-
-  return function_interface_impl::parseFunctionOp(parser, result,
-      /*allowVariadic=*/false, getFunctionTypeAttrName(result.name),
-      buildFuncType, getArgAttrsAttrName(result.name),
-      getResAttrsAttrName(result.name));
-}
-
-// Implementation is copied from func::FuncOp.
-void lazycst::ExprOp::print(OpAsmPrinter &p) {
-  function_interface_impl::printFunctionOp(p, *this, /*isVariadic=*/false,
-      getFunctionTypeAttrName(), getArgAttrsAttrName(), getResAttrsAttrName());
-}
-
-// Implementation is copied from func::ReturnOp.
+// Implementation is adapted from func::ReturnOp.
 LogicalResult lazycst::YieldOp::verify() {
-  auto function = cast<lazycst::ExprOp>((*this)->getParentOp());
+  auto cstexpr = cast<lazycst::ExprOp>((*this)->getParentOp());
+  auto outputs = cstexpr.getOutputs();
 
-  // The operand number and types must match the function signature.
-  const auto &results = function.getFunctionType().getResults();
-  if (getNumOperands() != results.size())
+  // The operand number and types must match the outputs.
+  if (getNumOperands() != outputs.size())
     return emitOpError("has ")
            << getNumOperands() << " operands, but enclosing function (@"
-           << function.getName() << ") returns " << results.size();
+           << cstexpr.getName() << ") outputs " << outputs.size();
 
-  for (unsigned i = 0, e = results.size(); i != e; ++i)
-    if (getOperand(i).getType() != results[i])
-      return emitError() << "type of return operand " << i << " ("
+  for (unsigned i = 0, e = outputs.size(); i != e; ++i) {
+    auto elms = cast<ElementsAttr>(outputs[i]);
+    if (getOperand(i).getType() != elms.getType())
+      return emitError() << "type of yield operand " << i << " ("
                          << getOperand(i).getType()
-                         << ") doesn't match function result type ("
-                         << results[i] << ")"
-                         << " in function @" << function.getName();
+                         << ") doesn't match expr type (" << elms.getType()
+                         << ")"
+                         << " in expr @" << cstexpr.getName();
+  }
 
   return success();
 }

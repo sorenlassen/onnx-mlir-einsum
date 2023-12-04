@@ -145,7 +145,7 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
 
   lazycst::ExprOp cstexpr =
       lazyCstExprManager.create(symbolTable, loc, block, argsAttrs);
-  auto resultsAttrs = cstexpr.getResConstants().getValue();
+  auto resultsAttrs = cstexpr.getOutputsAttr().getValue();
   for (auto [cloneRes, lazyElms] :
       llvm::zip_equal(yield.getOperands(), resultsAttrs)) {
     // set res to the result of resultOp corresponding to cloneRes:
