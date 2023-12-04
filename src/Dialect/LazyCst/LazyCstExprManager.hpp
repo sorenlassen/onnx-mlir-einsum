@@ -17,6 +17,7 @@ namespace lazycst {
 
 class ExprOp;
 
+// TODO: rename to LazyCstExprEvaluator
 class LazyCstExprManager {
 public:
   LazyCstExprManager();
