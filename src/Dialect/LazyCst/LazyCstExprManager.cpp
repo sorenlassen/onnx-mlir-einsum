@@ -127,15 +127,15 @@ void LazyCstExprManager::record(const SymbolTable &symbolTable,
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
 }
 
-Attribute LazyCstExprManager::getResult(
+Attribute LazyCstExprManager::evaluate(
     lazycst::ExprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
 }
 
-Attribute LazyCstExprManager::getResult(StringAttr symName, unsigned index) {
-  return getResult(table.lookup(symName), index);
+Attribute LazyCstExprManager::evaluate(StringAttr symName, unsigned index) {
+  return evaluate(table.lookup(symName), index);
 }
 
 void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,

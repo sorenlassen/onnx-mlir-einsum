@@ -37,7 +37,7 @@ ElementsAttr LazyElementsAttr::getElementsAttr() const {
   auto &lazyCstExprManager =
       llvm::cast<LazyCstDialect>(getDialect()).lazyCstExprManager;
   Attribute attr =
-      lazyCstExprManager.getResult(getCallee().getAttr(), getIndex());
+      lazyCstExprManager.evaluate(getCallee().getAttr(), getIndex());
   return llvm::cast<ElementsAttr>(attr);
 }
 

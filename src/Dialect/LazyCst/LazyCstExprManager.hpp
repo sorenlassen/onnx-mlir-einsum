@@ -33,7 +33,7 @@ public:
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc,
       mlir::Block *entryBlock, llvm::ArrayRef<mlir::Attribute> inputs);
 
-  // Record cstexpr for future evaluation with getResult() or evaluate().
+  // Record cstexpr for future evaluation with evaluate().
   // `symbolTable` should be the module symbol table and is used to look up
   // any lazy_elms arguments (record could build this but it's cheaper for the
   // caller to pass a built SymbolTable in case record is called repeatedly).
@@ -41,10 +41,10 @@ public:
       bool onlyLazyCstExprUsers);
 
   // Evaluate the index'th result of cstexpr.
-  mlir::Attribute getResult(lazycst::ExprOp cstexpr, unsigned index);
+  mlir::Attribute evaluate(lazycst::ExprOp cstexpr, unsigned index);
 
   // Evaluate the index'th result of the lazy cstexpr named symName.
-  mlir::Attribute getResult(mlir::StringAttr symName, unsigned index);
+  mlir::Attribute evaluate(mlir::StringAttr symName, unsigned index);
 
   // Evaluate all results of all cstexprs.
   void evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
