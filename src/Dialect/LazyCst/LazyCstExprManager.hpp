@@ -35,6 +35,10 @@ public:
   // setResConstantsAttr().
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc);
 
+  lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc,
+      mlir::Block *entryBlock,
+      llvm::ArrayRef<mlir::Attribute> argConstantAttrs);
+
   // Record cstexpr for future evaluation with getResult() or evaluate().
   // `symbolTable` should be the module symbol table and is used to look up
   // any lazy_elms arguments (record could build this but it's cheaper for the

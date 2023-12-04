@@ -172,20 +172,15 @@ public:
     auto m = ModuleOp::create(loc);
     SymbolTable symbolTable(m);
 
-    b.setInsertionPointToStart(m.getBody());
-    auto cstexpr = lazyCstExprManager.create(symbolTable, loc);
-    auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
-    auto lazyElms = LazyElementsAttr::get(i32tensortype, symRef);
-    cstexpr.setFunctionType(
-        b.getFunctionType({i32tensortype}, {i32tensortype}));
-    cstexpr.setArgConstantsAttr(b.getArrayAttr({d}));
-    cstexpr.setResConstantsAttr(b.getArrayAttr({lazyElms}));
-
-    b.setInsertionPointToStart(cstexpr.addEntryBlock());
-    auto returnOp =
-        b.create<lazycst::YieldOp>(loc, ValueRange{cstexpr.getArgument(0)});
-    assert(succeeded(verify(returnOp)));
+    Block *block = new Block();
+    b.setInsertionPointToStart(block);
+    auto arg = block->addArgument(d.getType(), loc);
+    auto yieldOp = b.create<lazycst::YieldOp>(loc, ValueRange{arg});
+    auto cstexpr = lazyCstExprManager.create(symbolTable, loc, block, {d});
+    assert(succeeded(verify(yieldOp)));
     assert(succeeded(verify(cstexpr)));
+    LazyElementsAttr lazyElms =
+        cast<LazyElementsAttr>(cstexpr.getResConstantsAttr()[0]);
 
     lazyCstExprManager.record(
         symbolTable, cstexpr, /*onlyUsedWithinGraph=*/false);
@@ -223,7 +218,7 @@ public:
     assert(std::distance(uses->begin(), uses->end()) == 2);
     std::vector<Operation *> expected{cstexpr, cstOp};
     for (const auto &use : *uses) {
-      assert(use.getSymbolRef() == symRef);
+      assert(use.getSymbolRef() == lazyElms.getCallee());
       assert(llvm::count(expected, use.getUser()) == 1);
     }
 
@@ -271,8 +266,8 @@ public:
     b.setInsertionPointToStart(cstexpr0.addEntryBlock());
     auto castOp =
         b.create<arith::FPToUIOp>(loc, i32tensortype, cstexpr0.getArgument(0));
-    auto returnOp = b.create<lazycst::YieldOp>(loc, ValueRange{castOp});
-    assert(succeeded(verify(returnOp)));
+    auto yieldOp = b.create<lazycst::YieldOp>(loc, ValueRange{castOp});
+    assert(succeeded(verify(yieldOp)));
     assert(succeeded(verify(cstexpr0)));
 
     b.setInsertionPointToEnd(m.getBody());

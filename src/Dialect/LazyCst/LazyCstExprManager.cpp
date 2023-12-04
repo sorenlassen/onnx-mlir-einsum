@@ -34,6 +34,36 @@ lazycst::ExprOp LazyCstExprManager::create(
   return cstexpr;
 }
 
+lazycst::ExprOp LazyCstExprManager::create(mlir::SymbolTable &symbolTable,
+    mlir::Location loc, mlir::Block *entryBlock,
+    llvm::ArrayRef<mlir::Attribute> argConstantAttrs) {
+  auto module = cast<ModuleOp>(symbolTable.getOp());
+  OpBuilder b(module.getBodyRegion());
+  StringAttr name = nextName(symbolTable);
+  auto cstexpr = b.create<lazycst::ExprOp>(loc, name);
+  symbolTable.insert(cstexpr);
+  table.try_emplace(name, cstexpr);
+
+  Operation *terminator = entryBlock->getTerminator();
+  auto resTypes = terminator->getOperandTypes();
+  cstexpr.setFunctionType(
+      b.getFunctionType(entryBlock->getArgumentTypes(), resTypes));
+  cstexpr.getRegion().push_back(entryBlock);
+
+  cstexpr.setArgConstantsAttr(b.getArrayAttr(argConstantAttrs));
+
+  auto symRef = FlatSymbolRefAttr::get(name);
+  SmallVector<Attribute> resConstantAttrs;
+  for (auto [index, type] : llvm::enumerate(resTypes)) {
+    auto lazyElms =
+        lazycst::LazyElementsAttr::get(cast<ShapedType>(type), symRef, index);
+    resConstantAttrs.push_back(lazyElms);
+  }
+  cstexpr.setResConstantsAttr(b.getArrayAttr(resConstantAttrs));
+
+  return cstexpr;
+}
+
 namespace {
 
 class CstExprConstantFolder : public ConstantFolder {

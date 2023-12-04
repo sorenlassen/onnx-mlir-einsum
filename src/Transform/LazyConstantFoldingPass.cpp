@@ -89,8 +89,9 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   bool onlyConstantFoldableUsers = llvm::all_of(resultOp->getUsers(),
       [&analysis](Operation *op) { return analysis.isConstantFoldableOp(op); });
   Location loc = resultOp->getLoc();
-  lazycst::ExprOp cstexpr = lazyCstExprManager.create(symbolTable, loc);
-  auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
+  OpBuilder b(resultOp->getContext());
+  Block *block = new Block();
+  b.setInsertionPointToStart(block);
   auto yield = b.create<lazycst::YieldOp>(loc, ValueRange{});
   b.setInsertionPoint(yield);
 
@@ -114,9 +115,8 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
         if (inserted) {
           // TODO: consider including non-lazy cst attrs in args
           if (isa<lazycst::LazyElementsAttr>(attr)) {
-            Region &body = cstexpr.getBody();
-            assert(body.getNumArguments() == argsAttrs.size());
-            cst = body.addArgument(operand.getType(), operand.getLoc());
+            assert(block->getNumArguments() == argsAttrs.size());
+            cst = block->addArgument(operand.getType(), operand.getLoc());
             argsAttrs.push_back(attr);
           } else {
             cst = b.clone(*operandOp)->getResult(0);
@@ -143,14 +143,9 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   }
   assert(yield.getNumOperands() > 0);
 
-  auto symRef = FlatSymbolRefAttr::get(cstexpr.getSymNameAttr());
-  SmallVector<Attribute> resultsAttrs;
-  for (auto [index, cloneRes] : llvm::enumerate(yield.getOperands())) {
-    auto type = cast<ShapedType>(cloneRes.getType());
-    auto lazyElms = lazycst::LazyElementsAttr::get(type, symRef, index);
-    resultsAttrs.push_back(lazyElms);
-  }
-
+  lazycst::ExprOp cstexpr =
+      lazyCstExprManager.create(symbolTable, loc, block, argsAttrs);
+  auto resultsAttrs = cstexpr.getResConstants().getValue();
   for (auto [cloneRes, lazyElms] :
       llvm::zip_equal(yield.getOperands(), resultsAttrs)) {
     // set res to the result of resultOp corresponding to cloneRes:
@@ -162,15 +157,6 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
         dialect->materializeConstant(b, lazyElms, res.getType(), res.getLoc());
     res.replaceAllUsesWith(cstOp->getResult(0));
   }
-
-  const auto getAttrType = [](Attribute ta) {
-    return cast<TypedAttr>(ta).getType();
-  };
-  SmallVector<Type> argTypes(llvm::map_range(argsAttrs, getAttrType));
-  SmallVector<Type> resTypes(llvm::map_range(resultsAttrs, getAttrType));
-  cstexpr.setFunctionType(b.getFunctionType(argTypes, resTypes));
-  cstexpr.setArgConstantsAttr(b.getArrayAttr(ArrayRef(argsAttrs)));
-  cstexpr.setResConstantsAttr(b.getArrayAttr(ArrayRef(resultsAttrs)));
 
   LLVM_DEBUG(llvm::dbgs() << DEBUG_TYPE " cstexpr: " << cstexpr << "\n");
   assert(succeeded(verify(cstexpr)));
