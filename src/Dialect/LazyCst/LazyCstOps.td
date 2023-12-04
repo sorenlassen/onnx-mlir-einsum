@@ -36,6 +36,7 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
     // Creates with empty outputs, to be filled in later.
     OpBuilder<(ins "mlir::StringAttr":$sym_name, "mlir::ArrayAttr":$inputs)>
   ];
+  let hasCustomAssemblyFormat = 1;
 }
 
 def LazyCst_YieldOp : LazyCst_Op<"yield",

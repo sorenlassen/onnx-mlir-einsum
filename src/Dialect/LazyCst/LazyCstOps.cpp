@@ -18,6 +18,54 @@ void lazycst::ExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
   build(odsBuilder, odsState, sym_name, inputs, emptyOutputs);
 }
 
+// Implementation is adapted from function_interface_impl::printFunctionOp().
+void lazycst::ExprOp::print(OpAsmPrinter &p) {
+  p << ' ';
+  p.printSymbolName(getSymName());
+  p << '(';
+  llvm::interleaveComma(getBody().getArguments(), p,
+      [&](auto arg) { p.printRegionArgument(arg); });
+  p << ") " << getInputs() << " -> " << getOutputs();
+  p.printOptionalAttrDictWithKeyword(getOperation()->getAttrs(),
+      /*elidedAttrs=*/{
+          getSymNameAttrName(), getInputsAttrName(), getOutputsAttrName()});
+  p << ' ';
+  p.printRegion(getBody(), /*printEntryBlockArgs=*/false,
+      /*printBlockTerminators=*/true, /*printEmptyBlock=*/false);
+}
+
+// Implementation is adapted from function_interface_impl::parseFunctionOp().
+ParseResult lazycst::ExprOp::parse(
+    OpAsmParser &parser, OperationState &result) {
+  StringAttr name;
+  SmallVector<OpAsmParser::Argument> args;
+  ArrayAttr inputs;
+  ArrayAttr outputs;
+  auto *body = result.addRegion();
+
+  OperationName exprOpName(
+      lazycst::ExprOp::getOperationName(), parser.getContext());
+  StringRef symNameAttrName = lazycst::ExprOp::getSymNameAttrName(exprOpName);
+  StringRef inputsAttrName = lazycst::ExprOp::getInputsAttrName(exprOpName);
+  StringRef outputsAttrName = lazycst::ExprOp::getOutputsAttrName(exprOpName);
+
+  if (parser.parseSymbolName(name, symNameAttrName, result.attributes) ||
+      parser.parseArgumentList(
+          args, OpAsmParser::Delimiter::Paren, /*allowType=*/true) ||
+      parser.parseAttribute<ArrayAttr>(
+          inputs, inputsAttrName, result.attributes) ||
+      parser.parseArrow() ||
+      parser.parseAttribute<ArrayAttr>(
+          outputs, outputsAttrName, result.attributes) ||
+      parser.parseOptionalAttrDictWithKeyword(result.attributes) ||
+      parser.parseRegion(*body, args))
+    return failure();
+
+  // TODO: record in LazyCstExprManager
+
+  return success();
+}
+
 // Implementation is adapted from func::ReturnOp.
 LogicalResult lazycst::YieldOp::verify() {
   auto cstexpr = cast<lazycst::ExprOp>((*this)->getParentOp());
