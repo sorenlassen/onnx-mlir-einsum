@@ -29,7 +29,9 @@ public:
 
   void initialize(mlir::MLIRContext *ctx);
 
-  // Create a new lazy constant expression with a unique name.
+  // Create a new lazy constant expression with a unique name and
+  // records it in symbolTable, adds it to the symbolTable op region.
+  // Also records it in LazyCstExprManager's internal table.
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc,
       mlir::Block *entryBlock, llvm::ArrayRef<mlir::Attribute> inputs);
 
@@ -54,7 +56,12 @@ private:
   mlir::StringAttr nextName(mlir::SymbolTable &symbolTable);
 
   std::atomic<unsigned> counter;
+
+  // "Shadow" symbol table used to look up lazy constant expressions in
+  // evaluate(symNam, index), called from LazyElementsAttr::getElementsAttr()
+  // without access to the ModuleOp symbol table.
   llvm::DenseMap<mlir::StringAttr, lazycst::ExprOp> table;
+
   GraphEvaluator evaluator;
 };
 
