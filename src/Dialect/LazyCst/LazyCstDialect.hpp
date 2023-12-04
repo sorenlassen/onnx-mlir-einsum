@@ -8,4 +8,8 @@
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
 #include "src/Dialect/LazyCst/LazyCstExprManager.hpp"
 
+#include "mlir/IR/BuiltinAttributes.h"
+
+#include <atomic>
+
 #include "src/Dialect/LazyCst/LazyCstDialect.hpp.inc"

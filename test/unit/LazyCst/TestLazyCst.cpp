@@ -176,7 +176,7 @@ public:
     b.setInsertionPointToStart(block);
     auto arg = block->addArgument(d.getType(), loc);
     auto yieldOp = b.create<lazycst::YieldOp>(loc, ValueRange{arg});
-    auto cstexpr = lazyCstExprManager.create(symbolTable, loc, block, {d});
+    auto cstexpr = lazycst::ExprOp::create(symbolTable, loc, block, {d});
     assert(succeeded(verify(yieldOp)));
     assert(succeeded(verify(cstexpr)));
     LazyElementsAttr lazyElms = cast<LazyElementsAttr>(cstexpr.getOutputs()[0]);

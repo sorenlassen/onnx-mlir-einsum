@@ -3,6 +3,7 @@
  */
 
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
+#include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 
 #include "mlir/IR/Builders.h"
 #include "mlir/Interfaces/FunctionImplementation.h"
@@ -13,9 +14,43 @@
 using namespace mlir;
 
 void lazycst::ExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-    StringAttr sym_name, ArrayAttr inputs) {
-  auto emptyOutputs = odsBuilder.getArrayAttr({});
-  build(odsBuilder, odsState, sym_name, inputs, emptyOutputs);
+    Block *entry_block, ArrayAttr inputs) {
+  StringAttr symName =
+      llvm::cast<lazycst::LazyCstDialect>(odsState.name.getDialect())
+          ->nextExprName();
+
+  auto symRef = FlatSymbolRefAttr::get(symName);
+  SmallVector<Attribute> outputs;
+  auto resTypes = entry_block->getTerminator()->getOperandTypes();
+  for (auto [index, type] : llvm::enumerate(resTypes)) {
+    auto lazyElms =
+        lazycst::LazyElementsAttr::get(cast<ShapedType>(type), symRef, index);
+    outputs.push_back(lazyElms);
+  }
+
+  odsState.getOrAddProperties<Properties>().sym_name = symName;
+  odsState.getOrAddProperties<Properties>().inputs = inputs;
+  odsState.getOrAddProperties<Properties>().outputs =
+      odsBuilder.getArrayAttr(outputs);
+  Region *body = odsState.addRegion();
+  body->push_back(entry_block);
+
+  OperationName exprOpName = odsState.name;
+  auto &lazyCstExprManager =
+      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).lazyCstExprManager;
+  lazyCstExprManager.insert(symName, entry_block);
+}
+
+lazycst::ExprOp lazycst::ExprOp::create(SymbolTable &symbolTable, Location loc,
+    Block *entryBlock, ArrayRef<Attribute> inputs) {
+  auto module = cast<ModuleOp>(symbolTable.getOp());
+  OpBuilder b(module.getBodyRegion());
+  auto cstexpr =
+      b.create<lazycst::ExprOp>(loc, entryBlock, b.getArrayAttr(inputs));
+  assert(!symbolTable.lookup(cstexpr.getSymNameAttr()) &&
+         "next lazycst::ExprOp name was already taken");
+  symbolTable.insert(cstexpr);
+  return cstexpr;
 }
 
 // Implementation is adapted from function_interface_impl::printFunctionOp().
@@ -43,8 +78,6 @@ ParseResult lazycst::ExprOp::parse(
   ArrayAttr outputs;
   auto *body = result.addRegion();
 
-  // OperationName exprOpName(
-  //     lazycst::ExprOp::getOperationName(), parser.getContext());
   OperationName exprOpName = result.name;
   StringRef symNameAttrName = lazycst::ExprOp::getSymNameAttrName(exprOpName);
   StringRef inputsAttrName = lazycst::ExprOp::getInputsAttrName(exprOpName);

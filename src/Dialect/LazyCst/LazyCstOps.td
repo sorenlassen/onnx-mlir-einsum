@@ -20,11 +20,11 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
     $inputs and $outputs record an ElementsAttr for each argument
     and a LazyElementsAttr for each result.
 
-    Every lazy constant expression op must be constructed with
-    LazyCstExprManager::create().
+    Every lazy constant expression op must be constructed with create() or
+    parse().
 
     After construction the lazy constant expression op can be recorded with
-    LazyCstExprManager::record(), then it can be evaluated later with
+    LazyCstExprManager::record(). It can be evaluated later with
     LazyCstExprManager::evaluate() provided all its child ops have constant
     folders in ConstantFolders.
   }];
@@ -32,10 +32,18 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
                        ElementsArrayAttr:$inputs,
                        ElementsArrayAttr:$outputs);
   let regions = (region SizedRegion<1>:$body);
+  let skipDefaultBuilders = 1;
   let builders = [
-    // Creates with empty outputs, to be filled in later.
-    OpBuilder<(ins "mlir::StringAttr":$sym_name, "mlir::ArrayAttr":$inputs)>
+    // Generates a unique name and deduces lazy_elms outputs.
+    OpBuilder<(ins "mlir::Block *":$entry_block, "mlir::ArrayAttr":$inputs)>
   ];
+  let extraClassDeclaration = [{
+    // Create a new lazy constant expression with a unique name and
+    // records it in symbolTable, adds it to the symbolTable op region.
+    static lazycst::ExprOp create(
+        mlir::SymbolTable &symbol_table, mlir::Location loc,
+        mlir::Block *entry_block, llvm::ArrayRef<mlir::Attribute> inputs);
+  }];
   let hasCustomAssemblyFormat = 1;
 }
 

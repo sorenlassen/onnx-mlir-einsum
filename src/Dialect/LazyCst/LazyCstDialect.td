@@ -12,9 +12,11 @@ def LazyCst_Dialect : Dialect {
   let extraClassDeclaration = [{
   private:
     void registerAttributes(); // Register the dialect attributes.
+    std::atomic<unsigned> counter;
   public:
     FileDataManager fileDataManager;
     LazyCstExprManager lazyCstExprManager;
     ConstantFolders constantFolders;
+    mlir::StringAttr nextExprName();
   }];
 }

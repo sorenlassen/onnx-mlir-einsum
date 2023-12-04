@@ -8,45 +8,16 @@
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 #include "src/Dialect/LazyCst/LazyCstOps.hpp"
 
-#include <algorithm>
-#include <iterator>
-
 using namespace mlir;
 
 namespace lazycst {
 
-LazyCstExprManager::LazyCstExprManager() : counter(0) {}
+LazyCstExprManager::LazyCstExprManager() {}
 
 LazyCstExprManager::~LazyCstExprManager() = default;
 
 void LazyCstExprManager::initialize(mlir::MLIRContext *ctx) {
   evaluator.initialize(ctx);
-}
-
-lazycst::ExprOp LazyCstExprManager::create(mlir::SymbolTable &symbolTable,
-    mlir::Location loc, mlir::Block *entryBlock,
-    llvm::ArrayRef<mlir::Attribute> inputs) {
-  auto module = cast<ModuleOp>(symbolTable.getOp());
-  OpBuilder b(module.getBodyRegion());
-  StringAttr name = nextName(symbolTable);
-  auto cstexpr = b.create<lazycst::ExprOp>(loc, name, b.getArrayAttr(inputs));
-  symbolTable.insert(cstexpr);
-
-  cstexpr.getRegion().push_back(entryBlock);
-
-  auto symRef = FlatSymbolRefAttr::get(name);
-  SmallVector<Attribute> outputs;
-  auto resTypes = entryBlock->getTerminator()->getOperandTypes();
-  for (auto [index, type] : llvm::enumerate(resTypes)) {
-    auto lazyElms =
-        lazycst::LazyElementsAttr::get(cast<ShapedType>(type), symRef, index);
-    outputs.push_back(lazyElms);
-  }
-  cstexpr.setOutputsAttr(b.getArrayAttr(outputs));
-
-  insert(name, entryBlock);
-
-  return cstexpr;
 }
 
 namespace {
@@ -156,15 +127,6 @@ void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
     ops.push_back(ce);
   }
   evaluator.evaluate(ops, results);
-}
-
-StringAttr LazyCstExprManager::nextName(SymbolTable &symbolTable) {
-  unsigned subscript = counter++;
-  auto name = StringAttr::get(
-      symbolTable.getOp()->getContext(), "lazycst." + Twine(subscript));
-  assert(!symbolTable.lookup(name) &&
-         "next lazycst::ExprOp name was already taken");
-  return name;
 }
 
 lazycst::ExprOp LazyCstExprManager::lookup(StringAttr symName) const {

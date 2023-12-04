@@ -21,4 +21,11 @@ void lazycst::LazyCstDialect::initialize() {
       >();
 }
 
+mlir::StringAttr lazycst::LazyCstDialect::nextExprName() {
+  unsigned subscript = counter++;
+  auto name =
+      mlir::StringAttr::get(getContext(), "lazycst." + llvm::Twine(subscript));
+  return name;
+}
+
 #include "src/Dialect/LazyCst/LazyCstDialect.cpp.inc"
