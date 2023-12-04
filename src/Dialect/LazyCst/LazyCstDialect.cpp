@@ -21,10 +21,14 @@ void lazycst::LazyCstDialect::initialize() {
       >();
 }
 
-mlir::StringAttr lazycst::LazyCstDialect::nextExprName() {
-  unsigned subscript = counter++;
-  auto name =
-      mlir::StringAttr::get(getContext(), "lazycst." + llvm::Twine(subscript));
+mlir::StringAttr lazycst::LazyCstDialect::nextExprName(
+    const mlir::SymbolTable &symbolTable) {
+  mlir::StringAttr name;
+  do {
+    unsigned subscript = counter++;
+    name = mlir::StringAttr::get(
+        getContext(), "lazycst." + llvm::Twine(subscript));
+  } while (symbolTable.lookup(name) != nullptr);
   return name;
 }
 

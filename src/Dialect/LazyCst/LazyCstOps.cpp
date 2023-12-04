@@ -14,10 +14,10 @@
 using namespace mlir;
 
 void lazycst::ExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
-    Block *entry_block, ArrayAttr inputs) {
+    const SymbolTable &symbol_table, Block *entry_block, ArrayAttr inputs) {
   StringAttr symName =
       llvm::cast<lazycst::LazyCstDialect>(odsState.name.getDialect())
-          ->nextExprName();
+          ->nextExprName(symbol_table);
 
   auto symRef = FlatSymbolRefAttr::get(symName);
   SmallVector<Attribute> outputs;
@@ -45,10 +45,8 @@ lazycst::ExprOp lazycst::ExprOp::create(SymbolTable &symbolTable, Location loc,
     Block *entryBlock, ArrayRef<Attribute> inputs) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
   OpBuilder b(module.getBodyRegion());
-  auto cstexpr =
-      b.create<lazycst::ExprOp>(loc, entryBlock, b.getArrayAttr(inputs));
-  assert(!symbolTable.lookup(cstexpr.getSymNameAttr()) &&
-         "next lazycst::ExprOp name was already taken");
+  auto cstexpr = b.create<lazycst::ExprOp>(
+      loc, symbolTable, entryBlock, b.getArrayAttr(inputs));
   symbolTable.insert(cstexpr);
   return cstexpr;
 }

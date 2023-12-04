@@ -35,7 +35,8 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
   let skipDefaultBuilders = 1;
   let builders = [
     // Generates a unique name and deduces lazy_elms outputs.
-    OpBuilder<(ins "mlir::Block *":$entry_block, "mlir::ArrayAttr":$inputs)>
+    OpBuilder<(ins "const mlir::SymbolTable &":$symbol_table,
+                   "mlir::Block *":$entry_block, "mlir::ArrayAttr":$inputs)>
   ];
   let extraClassDeclaration = [{
     // Create a new lazy constant expression with a unique name and

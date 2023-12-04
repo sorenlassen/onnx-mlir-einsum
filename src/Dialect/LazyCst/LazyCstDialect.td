@@ -17,6 +17,7 @@ def LazyCst_Dialect : Dialect {
     FileDataManager fileDataManager;
     LazyCstExprManager lazyCstExprManager;
     ConstantFolders constantFolders;
-    mlir::StringAttr nextExprName();
+    // Generate a new lazycst.expr name that is unused in symbolTable.
+    mlir::StringAttr nextExprName(const mlir::SymbolTable &symbolTable);
   }];
 }
