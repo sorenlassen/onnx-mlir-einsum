@@ -31,7 +31,6 @@ public:
 
   // Create a new lazy constant expression with a unique name and
   // records it in symbolTable, adds it to the symbolTable op region.
-  // Also records it in LazyCstExprManager's internal table.
   lazycst::ExprOp create(mlir::SymbolTable &symbolTable, mlir::Location loc,
       mlir::Block *entryBlock, llvm::ArrayRef<mlir::Attribute> inputs);
 

@@ -31,7 +31,6 @@ lazycst::ExprOp LazyCstExprManager::create(mlir::SymbolTable &symbolTable,
   StringAttr name = nextName(symbolTable);
   auto cstexpr = b.create<lazycst::ExprOp>(loc, name, b.getArrayAttr(inputs));
   symbolTable.insert(cstexpr);
-  table.try_emplace(name, cstexpr);
 
   cstexpr.getRegion().push_back(entryBlock);
 
@@ -125,6 +124,7 @@ void LazyCstExprManager::record(const SymbolTable &symbolTable,
     }
   }
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
+  table.try_emplace(cstexpr.getSymNameAttr(), cstexpr);
 }
 
 Attribute LazyCstExprManager::evaluate(
