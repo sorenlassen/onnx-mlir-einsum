@@ -27,11 +27,10 @@ public:
   void initialize(mlir::MLIRContext *ctx);
 
   // Record cstexpr for future evaluation with evaluate().
-  // The cstexpr of all argument lazy_elms must have been recorded beforehand.
   void record(lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers = false);
 
-  // Record cstexpr with the given name and entry block for future evaluation
-  // with evaluate().
+  // Record the lazy constant expression with the given name and entry block
+  // for future evaluation with evaluate().
   void insert(mlir::StringAttr symName, mlir::Block *entryBlock);
 
   // Evaluate the index'th result of cstexpr.

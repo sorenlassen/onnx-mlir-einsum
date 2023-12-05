@@ -17,6 +17,7 @@ def LazyCst_Dialect : Dialect {
     void registerAttributes();
 
     std::atomic<unsigned> counter;
+
   public:
     FileDataManager fileDataManager;
     LazyCstExprManager lazyCstExprManager;
