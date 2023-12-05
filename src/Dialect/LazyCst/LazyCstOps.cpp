@@ -35,9 +35,9 @@ void lazycst::CstexprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
   Region *body = odsState.addRegion();
   body->push_back(entry_block);
 
-  OperationName exprOpName = odsState.name;
+  OperationName opName = odsState.name;
   auto &cstexprEvaluator =
-      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).cstexprEvaluator;
+      llvm::cast<LazyCstDialect>(*opName.getDialect()).cstexprEvaluator;
   cstexprEvaluator.insert(symName, entry_block);
 }
 
@@ -86,12 +86,10 @@ ParseResult lazycst::CstexprOp::parse(
   ArrayAttr outputs;
   auto *body = result.addRegion();
 
-  OperationName exprOpName = result.name;
-  StringRef symNameAttrName =
-      lazycst::CstexprOp::getSymNameAttrName(exprOpName);
-  StringRef inputsAttrName = lazycst::CstexprOp::getInputsAttrName(exprOpName);
-  StringRef outputsAttrName =
-      lazycst::CstexprOp::getOutputsAttrName(exprOpName);
+  OperationName opName = result.name;
+  StringRef symNameAttrName = lazycst::CstexprOp::getSymNameAttrName(opName);
+  StringRef inputsAttrName = lazycst::CstexprOp::getInputsAttrName(opName);
+  StringRef outputsAttrName = lazycst::CstexprOp::getOutputsAttrName(opName);
 
   if (parser.parseSymbolName(name, symNameAttrName, result.attributes) ||
       parser.parseArgumentList(
@@ -106,7 +104,7 @@ ParseResult lazycst::CstexprOp::parse(
     return failure();
 
   auto &cstexprEvaluator =
-      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).cstexprEvaluator;
+      llvm::cast<LazyCstDialect>(*opName.getDialect()).cstexprEvaluator;
   cstexprEvaluator.insert(name, &body->front());
 
   return success();
