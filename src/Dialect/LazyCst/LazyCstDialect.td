@@ -20,7 +20,7 @@ def LazyCst_Dialect : Dialect {
 
   public:
     FileDataManager fileDataManager;
-    LazyCstExprManager lazyCstExprManager;
+    CstExprEvaluator cstexprEvaluator;
     ConstantFolders constantFolders;
 
     // Generate a new lazycst.cstexpr name that is unused in symbolTable.

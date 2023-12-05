@@ -17,12 +17,11 @@ namespace lazycst {
 
 class CstExprOp;
 
-// TODO: rename to LazyCstExprEvaluator
-class LazyCstExprManager {
+class CstExprEvaluator {
 public:
-  LazyCstExprManager();
+  CstExprEvaluator();
 
-  ~LazyCstExprManager();
+  ~CstExprEvaluator();
 
   void initialize(mlir::MLIRContext *ctx);
 

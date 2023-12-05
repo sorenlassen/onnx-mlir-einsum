@@ -24,8 +24,8 @@ def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
     parse().
 
     After construction the lazy constant expression op can be recorded with
-    LazyCstExprManager::record(). It can be evaluated later with
-    LazyCstExprManager::evaluate() provided all its child ops have constant
+    CstExprEvaluator::record(). It can be evaluated later with
+    CstExprEvaluator::evaluate() provided all its child ops have constant
     folders in ConstantFolders.
   }];
   let arguments = (ins SymbolNameAttr:$sym_name,

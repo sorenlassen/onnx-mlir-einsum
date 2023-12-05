@@ -116,7 +116,7 @@ struct LazyConstPropRegion {
     assert(defop == opQueue[span.second - 1]);
 #if 0
     lazycst::CstExprOp cstexpr =
-        lazyCstDialect->lazyCstExprManager.create(symbolTable, defop->getLoc());
+        lazyCstDialect->cstexprEvaluator.create(symbolTable, defop->getLoc());
     auto b = OpBuilder::atBlockBegin(cstexpr.addEntryBlock());
     auto lazyReturn =
         b.create<lazycst::YieldOp>(cstexpr->getLoc(), ValueRange{});
@@ -218,7 +218,7 @@ struct LazyConstPropRegion {
 
     // TODO: calculate onlyConstantFoldableUsers properly
     bool onlyConstantFoldableUsers = false;
-    lazyCstDialect->lazyCstExprManager.record(
+    lazyCstDialect->cstexprEvaluator.record(
         symbolTable, cstexpr, onlyConstantFoldableUsers);
 
     for (auto [begin, pos] = span; pos > begin; --pos) {

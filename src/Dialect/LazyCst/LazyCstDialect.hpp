@@ -5,8 +5,8 @@
 #pragma once
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
+#include "src/Dialect/LazyCst/CstExprEvaluator.hpp"
 #include "src/Dialect/LazyCst/FileDataManager.hpp"
-#include "src/Dialect/LazyCst/LazyCstExprManager.hpp"
 
 #include "mlir/IR/BuiltinAttributes.h"
 

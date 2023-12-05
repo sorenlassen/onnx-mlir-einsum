@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/LazyCstExprManager.hpp"
+#include "src/Dialect/LazyCst/CstExprEvaluator.hpp"
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
@@ -12,11 +12,11 @@ using namespace mlir;
 
 namespace lazycst {
 
-LazyCstExprManager::LazyCstExprManager() {}
+CstExprEvaluator::CstExprEvaluator() {}
 
-LazyCstExprManager::~LazyCstExprManager() = default;
+CstExprEvaluator::~CstExprEvaluator() = default;
 
-void LazyCstExprManager::initialize(mlir::MLIRContext *ctx) {
+void CstExprEvaluator::initialize(mlir::MLIRContext *ctx) {
   evaluator.initialize(ctx);
 }
 
@@ -86,7 +86,7 @@ public:
 
 } // namespace
 
-void LazyCstExprManager::record(
+void CstExprEvaluator::record(
     lazycst::CstExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
   assert(table.contains(cstexpr.getSymNameAttr()));
@@ -103,22 +103,22 @@ void LazyCstExprManager::record(
   evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
 }
 
-void LazyCstExprManager::insert(StringAttr symName, mlir::Block *entryBlock) {
+void CstExprEvaluator::insert(StringAttr symName, mlir::Block *entryBlock) {
   table[symName] = entryBlock;
 }
 
-Attribute LazyCstExprManager::evaluate(
+Attribute CstExprEvaluator::evaluate(
     lazycst::CstExprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
 }
 
-Attribute LazyCstExprManager::evaluate(StringAttr symName, unsigned index) {
+Attribute CstExprEvaluator::evaluate(StringAttr symName, unsigned index) {
   return evaluate(lookup(symName), index);
 }
 
-void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
+void CstExprEvaluator::evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
     llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results) {
   SmallVector<Operation *> ops;
   ops.reserve(cstexprs.size());
@@ -129,7 +129,7 @@ void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
   evaluator.evaluate(ops, results);
 }
 
-lazycst::CstExprOp LazyCstExprManager::lookup(StringAttr symName) const {
+lazycst::CstExprOp CstExprEvaluator::lookup(StringAttr symName) const {
   Block *entryBlock = table.lookup(symName);
   return cast<lazycst::CstExprOp>(entryBlock->getParentOp());
 }

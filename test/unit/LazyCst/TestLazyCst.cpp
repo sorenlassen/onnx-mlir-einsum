@@ -168,7 +168,7 @@ public:
 
     auto i32tensortype = RankedTensorType::get({5}, I32);
     auto d = DenseElementsAttr::get<int32_t>(i32tensortype, 3);
-    auto &lazyCstExprManager = lazyDialect->lazyCstExprManager;
+    auto &cstexprEvaluator = lazyDialect->cstexprEvaluator;
     auto m = ModuleOp::create(loc);
     SymbolTable symbolTable(m);
 
@@ -181,7 +181,7 @@ public:
     assert(succeeded(verify(cstexpr)));
     LazyElementsAttr lazyElms = cast<LazyElementsAttr>(cstexpr.getOutputs()[0]);
 
-    lazyCstExprManager.record(cstexpr, /*onlyUsedWithinGraph=*/false);
+    cstexprEvaluator.record(cstexpr, /*onlyUsedWithinGraph=*/false);
 
     llvm::outs() << lazyElms << "\n";
     llvm::outs() << cstexpr << "\n";

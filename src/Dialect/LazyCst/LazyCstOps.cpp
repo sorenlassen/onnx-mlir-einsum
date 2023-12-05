@@ -36,9 +36,9 @@ void lazycst::CstExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
   body->push_back(entry_block);
 
   OperationName exprOpName = odsState.name;
-  auto &lazyCstExprManager =
-      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).lazyCstExprManager;
-  lazyCstExprManager.insert(symName, entry_block);
+  auto &cstexprEvaluator =
+      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).cstexprEvaluator;
+  cstexprEvaluator.insert(symName, entry_block);
 }
 
 lazycst::CstExprOp lazycst::CstExprOp::create(SymbolTable &symbolTable,
@@ -95,9 +95,9 @@ ParseResult lazycst::CstExprOp::parse(
       parser.parseRegion(*body, args))
     return failure();
 
-  auto &lazyCstExprManager =
-      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).lazyCstExprManager;
-  lazyCstExprManager.insert(name, &body->front());
+  auto &cstexprEvaluator =
+      llvm::cast<LazyCstDialect>(*exprOpName.getDialect()).cstexprEvaluator;
+  cstexprEvaluator.insert(name, &body->front());
 
   return success();
 }
