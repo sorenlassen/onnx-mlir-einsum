@@ -13,7 +13,7 @@
 
 using namespace mlir;
 
-void lazycst::CstExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
+void lazycst::CstexprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
     const SymbolTable &symbol_table, Block *entry_block, ArrayAttr inputs) {
   StringAttr symName =
       llvm::cast<lazycst::LazyCstDialect>(odsState.name.getDialect())
@@ -41,18 +41,18 @@ void lazycst::CstExprOp::build(OpBuilder &odsBuilder, OperationState &odsState,
   cstexprEvaluator.insert(symName, entry_block);
 }
 
-lazycst::CstExprOp lazycst::CstExprOp::create(SymbolTable &symbolTable,
+lazycst::CstexprOp lazycst::CstexprOp::create(SymbolTable &symbolTable,
     Location loc, Block *entryBlock, ArrayRef<Attribute> inputs) {
   auto module = cast<ModuleOp>(symbolTable.getOp());
   OpBuilder b(module.getBodyRegion());
-  auto cstexpr = b.create<lazycst::CstExprOp>(
+  auto cstexpr = b.create<lazycst::CstexprOp>(
       loc, symbolTable, entryBlock, b.getArrayAttr(inputs));
   symbolTable.insert(cstexpr);
   return cstexpr;
 }
 
 // Implementation is adapted from function_interface_impl::printFunctionOp().
-void lazycst::CstExprOp::print(OpAsmPrinter &p) {
+void lazycst::CstexprOp::print(OpAsmPrinter &p) {
   p << ' ';
   p.printSymbolName(getSymName());
   p << '(';
@@ -68,7 +68,7 @@ void lazycst::CstExprOp::print(OpAsmPrinter &p) {
 }
 
 // Implementation is adapted from function_interface_impl::parseFunctionOp().
-ParseResult lazycst::CstExprOp::parse(
+ParseResult lazycst::CstexprOp::parse(
     OpAsmParser &parser, OperationState &result) {
   StringAttr name;
   SmallVector<OpAsmParser::Argument> args;
@@ -78,10 +78,10 @@ ParseResult lazycst::CstExprOp::parse(
 
   OperationName exprOpName = result.name;
   StringRef symNameAttrName =
-      lazycst::CstExprOp::getSymNameAttrName(exprOpName);
-  StringRef inputsAttrName = lazycst::CstExprOp::getInputsAttrName(exprOpName);
+      lazycst::CstexprOp::getSymNameAttrName(exprOpName);
+  StringRef inputsAttrName = lazycst::CstexprOp::getInputsAttrName(exprOpName);
   StringRef outputsAttrName =
-      lazycst::CstExprOp::getOutputsAttrName(exprOpName);
+      lazycst::CstexprOp::getOutputsAttrName(exprOpName);
 
   if (parser.parseSymbolName(name, symNameAttrName, result.attributes) ||
       parser.parseArgumentList(
@@ -104,7 +104,7 @@ ParseResult lazycst::CstExprOp::parse(
 
 // Implementation is adapted from func::ReturnOp.
 LogicalResult lazycst::YieldOp::verify() {
-  auto cstexpr = cast<lazycst::CstExprOp>((*this)->getParentOp());
+  auto cstexpr = cast<lazycst::CstexprOp>((*this)->getParentOp());
   auto outputs = cstexpr.getOutputs();
 
   // The operand number and types must match the outputs.

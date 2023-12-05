@@ -176,7 +176,7 @@ public:
     b.setInsertionPointToStart(block);
     auto arg = block->addArgument(d.getType(), loc);
     auto yieldOp = b.create<lazycst::YieldOp>(loc, ValueRange{arg});
-    auto cstexpr = lazycst::CstExprOp::create(symbolTable, loc, block, {d});
+    auto cstexpr = lazycst::CstexprOp::create(symbolTable, loc, block, {d});
     assert(succeeded(verify(yieldOp)));
     assert(succeeded(verify(cstexpr)));
     LazyElementsAttr lazyElms = cast<LazyElementsAttr>(cstexpr.getOutputs()[0]);
@@ -259,7 +259,7 @@ public:
     auto res_constants = b.getArrayAttr({lazyElms});
     auto arg_attrs = nullptr;
     auto res_attrs = nullptr;
-    auto cstexpr0 = b.create<lazycst::CstExprOp>(loc, sym_name, function_type,
+    auto cstexpr0 = b.create<lazycst::CstexprOp>(loc, sym_name, function_type,
         arg_constants, res_constants, arg_attrs, res_attrs);
     SymbolTable(m).insert(cstexpr0);
     b.setInsertionPointToStart(cstexpr0.addEntryBlock());

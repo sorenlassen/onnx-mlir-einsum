@@ -10,7 +10,7 @@ class LazyCst_Op<string mnemonic, list<Trait> traits = []>
 
 def ElementsArrayAttr : TypedArrayAttrBase<ElementsAttr, "elements array attribute">;
 
-def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
+def LazyCst_CstexprOp : LazyCst_Op<"cstexpr", [
   Symbol, IsolatedFromAbove, SingleBlockImplicitTerminator<"YieldOp">
 ]> {
   let summary = "Lazy constant expression";
@@ -24,8 +24,8 @@ def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
     parse().
 
     After construction the lazy constant expression op can be recorded with
-    CstExprEvaluator::record(). It can be evaluated later with
-    CstExprEvaluator::evaluate() provided all its child ops have constant
+    CstexprEvaluator::record(). It can be evaluated later with
+    CstexprEvaluator::evaluate() provided all its child ops have constant
     folders in ConstantFolders.
   }];
   let arguments = (ins SymbolNameAttr:$sym_name,
@@ -41,7 +41,7 @@ def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
   let extraClassDeclaration = [{
     // Create a new lazy constant expression with a unique name and
     // records it in symbolTable, adds it to the symbolTable op region.
-    static lazycst::CstExprOp create(
+    static lazycst::CstexprOp create(
         mlir::SymbolTable &symbol_table, mlir::Location loc,
         mlir::Block *entry_block, llvm::ArrayRef<mlir::Attribute> inputs);
   }];
@@ -49,7 +49,7 @@ def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
 }
 
 def LazyCst_YieldOp : LazyCst_Op<"yield",
-    [Pure, ReturnLike, Terminator, HasParent<"CstExprOp">]> {
+    [Pure, ReturnLike, Terminator, HasParent<"CstexprOp">]> {
   let summary = "Lazy constant expression yield operation";
   let arguments = (ins Variadic<AnyType>:$operands);
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

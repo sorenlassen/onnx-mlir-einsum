@@ -81,7 +81,7 @@ std::vector<std::vector<Operation *>> lazyConstantResultOps(Operation *root,
   return lazyConstantOps;
 }
 
-void convertIntoLazyConstant(lazycst::CstExprEvaluator &cstexprEvaluator,
+void convertIntoLazyConstant(lazycst::CstexprEvaluator &cstexprEvaluator,
     SymbolTable &symbolTable, lazycst::ConstantFoldableAnalysis &analysis,
     const std::vector<Operation *> &ops) {
   assert(!ops.empty());
@@ -143,8 +143,8 @@ void convertIntoLazyConstant(lazycst::CstExprEvaluator &cstexprEvaluator,
   }
   assert(yield.getNumOperands() > 0);
 
-  lazycst::CstExprOp cstexpr =
-      lazycst::CstExprOp::create(symbolTable, loc, block, argsAttrs);
+  lazycst::CstexprOp cstexpr =
+      lazycst::CstexprOp::create(symbolTable, loc, block, argsAttrs);
   auto resultsAttrs = cstexpr.getOutputsAttr().getValue();
   for (auto [cloneRes, lazyElms] :
       llvm::zip_equal(yield.getOperands(), resultsAttrs)) {

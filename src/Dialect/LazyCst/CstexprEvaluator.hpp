@@ -15,35 +15,35 @@
 
 namespace lazycst {
 
-class CstExprOp;
+class CstexprOp;
 
-class CstExprEvaluator {
+class CstexprEvaluator {
 public:
-  CstExprEvaluator();
+  CstexprEvaluator();
 
-  ~CstExprEvaluator();
+  ~CstexprEvaluator();
 
   void initialize(mlir::MLIRContext *ctx);
 
   // Record cstexpr for future evaluation with evaluate().
-  void record(lazycst::CstExprOp cstexpr, bool onlyLazyCstExprUsers = false);
+  void record(lazycst::CstexprOp cstexpr, bool onlyLazyCstexprUsers = false);
 
   // Record the lazy constant expression with the given name and entry block
   // for future evaluation with evaluate().
   void insert(mlir::StringAttr symName, mlir::Block *entryBlock);
 
   // Evaluate the index'th result of cstexpr.
-  mlir::Attribute evaluate(lazycst::CstExprOp cstexpr, unsigned index);
+  mlir::Attribute evaluate(lazycst::CstexprOp cstexpr, unsigned index);
 
   // Evaluate the index'th result of the lazy cstexpr named symName.
   mlir::Attribute evaluate(mlir::StringAttr symName, unsigned index);
 
   // Evaluate all results of all cstexprs.
-  void evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
+  void evaluate(llvm::ArrayRef<lazycst::CstexprOp> cstexprs,
       llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results);
 
 private:
-  lazycst::CstExprOp lookup(mlir::StringAttr symName) const;
+  lazycst::CstexprOp lookup(mlir::StringAttr symName) const;
 
   // "Shadow" symbol table used to look up lazy constant expressions in
   // evaluate(symNam, index), called from LazyElementsAttr::getElementsAttr()

@@ -99,8 +99,8 @@ def LazyElementsAttr : LazyCst_Attr<"LazyElements", "lazy_elms", [
   ]> {
   let summary = "Lazily evaluated elements attribute.";
   let description = [{
-    Parameter callee must refer to a LazyCst_ExprOp. Parameter index specifies
-    one of callee's results and defaults to 0, the first result.
+    Parameter callee must refer to a lazy constant expression op. Parameter
+    index specifies one of callee's results and defaults to 0, the first result.
   }];
   let parameters = (ins
     AttributeSelfTypeParameter<"", "mlir::ShapedType">:$type,

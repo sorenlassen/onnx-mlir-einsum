@@ -2,7 +2,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-#include "src/Dialect/LazyCst/CstExprEvaluator.hpp"
+#include "src/Dialect/LazyCst/CstexprEvaluator.hpp"
 
 #include "src/Dialect/LazyCst/ConstantFolder.hpp"
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
@@ -12,21 +12,21 @@ using namespace mlir;
 
 namespace lazycst {
 
-CstExprEvaluator::CstExprEvaluator() {}
+CstexprEvaluator::CstexprEvaluator() {}
 
-CstExprEvaluator::~CstExprEvaluator() = default;
+CstexprEvaluator::~CstexprEvaluator() = default;
 
-void CstExprEvaluator::initialize(mlir::MLIRContext *ctx) {
+void CstexprEvaluator::initialize(mlir::MLIRContext *ctx) {
   evaluator.initialize(ctx);
 }
 
 namespace {
 
-class CstExprConstantFolder : public ConstantFolder {
+class CstexprConstantFolder : public ConstantFolder {
 public:
   void fold(Operation *cstexprOp, ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
-    lazycst::CstExprOp cstexpr = cast<lazycst::CstExprOp>(cstexprOp);
+    lazycst::CstexprOp cstexpr = cast<lazycst::CstexprOp>(cstexprOp);
     // TODO: check that all lazy elms args constants are evaluated
     MLIRContext *ctx = cstexpr.getContext();
     const ConstantFolders &constantFolders =
@@ -86,52 +86,52 @@ public:
 
 } // namespace
 
-void CstExprEvaluator::record(
-    lazycst::CstExprOp cstexpr, bool onlyLazyCstExprUsers) {
-  static CstExprConstantFolder folder;
+void CstexprEvaluator::record(
+    lazycst::CstexprOp cstexpr, bool onlyLazyCstexprUsers) {
+  static CstexprConstantFolder folder;
   assert(table.contains(cstexpr.getSymNameAttr()));
   SmallVector<GraphEvaluator::NodeOperand> operands;
   if (evaluator.hasNode(cstexpr))
     return;
   for (Attribute cstAttr : cstexpr.getInputs()) {
     if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
-      lazycst::CstExprOp callee = lookup(lazyElms.getCallee().getAttr());
+      lazycst::CstexprOp callee = lookup(lazyElms.getCallee().getAttr());
       record(callee);
       operands.emplace_back(callee, lazyElms.getIndex());
     }
   }
-  evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstExprUsers);
+  evaluator.addNode(cstexpr, operands, &folder, onlyLazyCstexprUsers);
 }
 
-void CstExprEvaluator::insert(StringAttr symName, mlir::Block *entryBlock) {
+void CstexprEvaluator::insert(StringAttr symName, mlir::Block *entryBlock) {
   table[symName] = entryBlock;
 }
 
-Attribute CstExprEvaluator::evaluate(
-    lazycst::CstExprOp cstexpr, unsigned index) {
+Attribute CstexprEvaluator::evaluate(
+    lazycst::CstexprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
 }
 
-Attribute CstExprEvaluator::evaluate(StringAttr symName, unsigned index) {
+Attribute CstexprEvaluator::evaluate(StringAttr symName, unsigned index) {
   return evaluate(lookup(symName), index);
 }
 
-void CstExprEvaluator::evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
+void CstexprEvaluator::evaluate(llvm::ArrayRef<lazycst::CstexprOp> cstexprs,
     llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results) {
   SmallVector<Operation *> ops;
   ops.reserve(cstexprs.size());
-  for (lazycst::CstExprOp ce : cstexprs) {
+  for (lazycst::CstexprOp ce : cstexprs) {
     record(ce);
     ops.push_back(ce);
   }
   evaluator.evaluate(ops, results);
 }
 
-lazycst::CstExprOp CstExprEvaluator::lookup(StringAttr symName) const {
+lazycst::CstexprOp CstexprEvaluator::lookup(StringAttr symName) const {
   Block *entryBlock = table.lookup(symName);
-  return cast<lazycst::CstExprOp>(entryBlock->getParentOp());
+  return cast<lazycst::CstexprOp>(entryBlock->getParentOp());
 }
 
 } // namespace lazycst
