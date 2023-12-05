@@ -6,7 +6,6 @@
 #include "src/Dialect/LazyCst/LazyCstAttributes.hpp"
 
 #include "mlir/IR/Builders.h"
-#include "mlir/Interfaces/FunctionImplementation.h"
 
 #define GET_OP_CLASSES
 #include "src/Dialect/LazyCst/LazyCstOps.cpp.inc"
