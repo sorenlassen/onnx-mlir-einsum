@@ -51,6 +51,16 @@ lazycst::CstexprOp lazycst::CstexprOp::create(SymbolTable &symbolTable,
   return cstexpr;
 }
 
+// Example:
+// clang-format off
+/*
+lazycst.cstexpr @lazycst.1(%arg0: tensor<f32>) [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] -> [#lazycst.lazy_elms<@lazycst.1> : tensor<f32>] {
+  %0 = "onnx.Neg"(%arg0) : (tensor<f32>) -> tensor<f32>
+  lazycst.yield %0 : tensor<f32>
+}
+*/
+// clang-format on
+//
 // Implementation is adapted from function_interface_impl::printFunctionOp().
 void lazycst::CstexprOp::print(OpAsmPrinter &p) {
   p << ' ';
