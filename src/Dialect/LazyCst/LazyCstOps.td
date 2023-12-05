@@ -10,7 +10,7 @@ class LazyCst_Op<string mnemonic, list<Trait> traits = []>
 
 def ElementsArrayAttr : TypedArrayAttrBase<ElementsAttr, "elements array attribute">;
 
-def LazyCst_ExprOp : LazyCst_Op<"expr", [
+def LazyCst_CstExprOp : LazyCst_Op<"cstexpr", [
   Symbol, IsolatedFromAbove, SingleBlockImplicitTerminator<"YieldOp">
 ]> {
   let summary = "Lazy constant expression";
@@ -41,7 +41,7 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
   let extraClassDeclaration = [{
     // Create a new lazy constant expression with a unique name and
     // records it in symbolTable, adds it to the symbolTable op region.
-    static lazycst::ExprOp create(
+    static lazycst::CstExprOp create(
         mlir::SymbolTable &symbol_table, mlir::Location loc,
         mlir::Block *entry_block, llvm::ArrayRef<mlir::Attribute> inputs);
   }];
@@ -49,7 +49,7 @@ def LazyCst_ExprOp : LazyCst_Op<"expr", [
 }
 
 def LazyCst_YieldOp : LazyCst_Op<"yield",
-    [Pure, ReturnLike, Terminator, HasParent<"ExprOp">]> {
+    [Pure, ReturnLike, Terminator, HasParent<"CstExprOp">]> {
   let summary = "Lazy constant expression yield operation";
   let arguments = (ins Variadic<AnyType>:$operands);
   let assemblyFormat = "attr-dict ($operands^ `:` type($operands))?";

@@ -26,7 +26,7 @@ class CstExprConstantFolder : public ConstantFolder {
 public:
   void fold(Operation *cstexprOp, ArrayRef<mlir::Attribute> operands,
       llvm::SmallVectorImpl<mlir::Attribute> &results) const override final {
-    lazycst::ExprOp cstexpr = cast<lazycst::ExprOp>(cstexprOp);
+    lazycst::CstExprOp cstexpr = cast<lazycst::CstExprOp>(cstexprOp);
     // TODO: check that all lazy elms args constants are evaluated
     MLIRContext *ctx = cstexpr.getContext();
     const ConstantFolders &constantFolders =
@@ -87,7 +87,7 @@ public:
 } // namespace
 
 void LazyCstExprManager::record(
-    lazycst::ExprOp cstexpr, bool onlyLazyCstExprUsers) {
+    lazycst::CstExprOp cstexpr, bool onlyLazyCstExprUsers) {
   static CstExprConstantFolder folder;
   assert(table.contains(cstexpr.getSymNameAttr()));
   SmallVector<GraphEvaluator::NodeOperand> operands;
@@ -95,7 +95,7 @@ void LazyCstExprManager::record(
     return;
   for (Attribute cstAttr : cstexpr.getInputs()) {
     if (auto lazyElms = dyn_cast<lazycst::LazyElementsAttr>(cstAttr)) {
-      lazycst::ExprOp callee = lookup(lazyElms.getCallee().getAttr());
+      lazycst::CstExprOp callee = lookup(lazyElms.getCallee().getAttr());
       record(callee);
       operands.emplace_back(callee, lazyElms.getIndex());
     }
@@ -108,7 +108,7 @@ void LazyCstExprManager::insert(StringAttr symName, mlir::Block *entryBlock) {
 }
 
 Attribute LazyCstExprManager::evaluate(
-    lazycst::ExprOp cstexpr, unsigned index) {
+    lazycst::CstExprOp cstexpr, unsigned index) {
   SmallVector<ArrayRef<Attribute>, 1> attrs;
   evaluate({cstexpr}, attrs);
   return attrs.front()[index];
@@ -118,20 +118,20 @@ Attribute LazyCstExprManager::evaluate(StringAttr symName, unsigned index) {
   return evaluate(lookup(symName), index);
 }
 
-void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::ExprOp> cstexprs,
+void LazyCstExprManager::evaluate(llvm::ArrayRef<lazycst::CstExprOp> cstexprs,
     llvm::SmallVectorImpl<llvm::ArrayRef<mlir::Attribute>> &results) {
   SmallVector<Operation *> ops;
   ops.reserve(cstexprs.size());
-  for (lazycst::ExprOp ce : cstexprs) {
+  for (lazycst::CstExprOp ce : cstexprs) {
     record(ce);
     ops.push_back(ce);
   }
   evaluator.evaluate(ops, results);
 }
 
-lazycst::ExprOp LazyCstExprManager::lookup(StringAttr symName) const {
+lazycst::CstExprOp LazyCstExprManager::lookup(StringAttr symName) const {
   Block *entryBlock = table.lookup(symName);
-  return cast<lazycst::ExprOp>(entryBlock->getParentOp());
+  return cast<lazycst::CstExprOp>(entryBlock->getParentOp());
 }
 
 } // namespace lazycst

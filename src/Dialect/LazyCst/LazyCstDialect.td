@@ -23,7 +23,7 @@ def LazyCst_Dialect : Dialect {
     LazyCstExprManager lazyCstExprManager;
     ConstantFolders constantFolders;
 
-    // Generate a new lazycst.expr name that is unused in symbolTable.
+    // Generate a new lazycst.cstexpr name that is unused in symbolTable.
     mlir::StringAttr nextExprName(const mlir::SymbolTable &symbolTable);
   }];
 }

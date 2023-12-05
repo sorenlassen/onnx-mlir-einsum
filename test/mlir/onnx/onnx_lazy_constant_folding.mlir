@@ -10,7 +10,7 @@ func.func @test_add_scalars() -> tensor<f32> {
   %2 = "onnx.Add"(%0, %1) : (tensor<f32>, tensor<f32>) -> tensor<f32>
   onnx.Return %2 : tensor<f32>
 }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
 // CHECK-DAG:       [[VAR_0_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<2.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[VAR_0_]], [[VAR_1_]]) : (tensor<f32>, tensor<f32>) -> tensor<f32>
@@ -30,7 +30,7 @@ func.func @test_add_file() -> tensor<5xf32> {
   %2 = "onnx.Add"(%0, %1) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
   onnx.Return %2 : tensor<5xf32>
 }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
 // CHECK-DAG:       [[VAR_0_1_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<2.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[VAR_0_1_]], [[VAR_1_]]) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -52,7 +52,7 @@ func.func @test_add_add() -> tensor<5xf32> {
   %4 = "onnx.Add"(%3, %2) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
   onnx.Return %4 : tensor<5xf32>
 }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
 // CHECK-DAG:       [[VAR_0_1_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK-NOT: separator of consecutive DAGs
@@ -78,7 +78,7 @@ func.func @test_add_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
   %5 = "onnx.Add"(%4, %arg0) : (tensor<5xf32>, tensor<5xf32>) -> tensor<5xf32>
   onnx.Return %5 : tensor<5xf32>
 }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
 // CHECK-DAG:       [[VAR_0_1_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK-NOT: separator of consecutive DAGs
@@ -106,13 +106,13 @@ func.func @test_add_sum_arg(%arg0: tensor<5xf32>) -> tensor<5xf32> {
   %6 = "onnx.Sum"(%4, %5, %arg0) : (tensor<5xf32>, tensor<f32>, tensor<5xf32>) -> tensor<5xf32>
   onnx.Return %6 : tensor<5xf32>
 }
-// CHECK:         lazycst.expr @lazycst.1() [] -> [#lazycst.lazy_elms<@lazycst.1> : tensor<f32>] {
+// CHECK:         lazycst.cstexpr @lazycst.1() [] -> [#lazycst.lazy_elms<@lazycst.1> : tensor<f32>] {
 // CHECK-DAG:       [[VAR_0_1_:%.+]] = onnx.Constant dense<2.000000e+00> : tensor<f32>
 // CHECK-DAG:       [[VAR_1_1_:%.+]] = onnx.Constant dense<3.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_2_:%.+]] = "onnx.Add"([[VAR_0_1_]], [[VAR_1_1_]]) : (tensor<f32>, tensor<f32>) -> tensor<f32>
 // CHECK:           lazycst.yield [[VAR_2_]] : tensor<f32>
 // CHECK:         }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<5xf32>] {
 // CHECK-DAG:       [[VAR_0_2_:%.+]] = onnx.Constant #lazycst.file_data<"arange5xf32.npy" + 128> : tensor<5xf32>
 // CHECK-DAG:       [[VAR_1_2_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_2_1_:%.+]] = "onnx.Add"([[VAR_0_2_]], [[VAR_1_2_]]) : (tensor<5xf32>, tensor<f32>) -> tensor<5xf32>
@@ -140,7 +140,7 @@ func.func @test_if(%arg0: tensor<i1>, %arg1: tensor<f32>) -> (tensor<f32>) {
   }) : (tensor<i1>) -> (tensor<f32>)
   onnx.Return %2 : tensor<f32>
 }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
 // CHECK:           [[VAR_0_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_1_1_:%.+]] = "onnx.Neg"([[VAR_0_1_]]) : (tensor<f32>) -> tensor<f32>
 // CHECK:           [[VAR_2_1_:%.+]] = "onnx.Neg"([[VAR_1_1_]]) : (tensor<f32>) -> tensor<f32>
@@ -173,11 +173,11 @@ func.func @test_if_2(%arg0: tensor<i1>, %arg1: tensor<f32>) -> (tensor<f32>, ten
   }) : (tensor<i1>) -> (tensor<f32>)
   onnx.Return %1, %2 : tensor<f32>, tensor<f32>
 }
-// CHECK:         lazycst.expr @lazycst.1([[ARG_0_:%.+]]: tensor<f32>) [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] -> [#lazycst.lazy_elms<@lazycst.1> : tensor<f32>] {
+// CHECK:         lazycst.cstexpr @lazycst.1([[ARG_0_:%.+]]: tensor<f32>) [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] -> [#lazycst.lazy_elms<@lazycst.1> : tensor<f32>] {
 // CHECK:           [[VAR_0_:%.+]] = "onnx.Neg"([[ARG_0_]]) : (tensor<f32>) -> tensor<f32>
 // CHECK:           lazycst.yield [[VAR_0_]] : tensor<f32>
 // CHECK:         }
-// CHECK:         lazycst.expr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
+// CHECK:         lazycst.cstexpr @lazycst.0() [] -> [#lazycst.lazy_elms<@lazycst.0> : tensor<f32>] {
 // CHECK:           [[VAR_0_1_:%.+]] = onnx.Constant dense<1.000000e+00> : tensor<f32>
 // CHECK:           [[VAR_1_:%.+]] = "onnx.Neg"([[VAR_0_1_]]) : (tensor<f32>) -> tensor<f32>
 // CHECK:           lazycst.yield [[VAR_1_]] : tensor<f32>

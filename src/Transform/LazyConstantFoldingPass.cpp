@@ -143,8 +143,8 @@ void convertIntoLazyConstant(lazycst::LazyCstExprManager &lazyCstExprManager,
   }
   assert(yield.getNumOperands() > 0);
 
-  lazycst::ExprOp cstexpr =
-      lazycst::ExprOp::create(symbolTable, loc, block, argsAttrs);
+  lazycst::CstExprOp cstexpr =
+      lazycst::CstExprOp::create(symbolTable, loc, block, argsAttrs);
   auto resultsAttrs = cstexpr.getOutputsAttr().getValue();
   for (auto [cloneRes, lazyElms] :
       llvm::zip_equal(yield.getOperands(), resultsAttrs)) {
